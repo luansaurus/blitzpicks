@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Header from '../../components/layout/header';
 import GameCard from '../../components/scoreboard/GameCard';
 import { createClient } from '../../utils/supabase/client';
+import { getThemeColor } from '../../utils/theme';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 
 const TBD_TEAM = { 
@@ -24,7 +25,15 @@ export default function SchedulePage() {
   const [isSavingPicks, setIsSavingPicks] = useState(false);
   const [expandedWeek, setExpandedWeek] = useState<string | null>(null);
   const [seasonMode, setSeasonMode] = useState<'regular' | 'playoffs'>('regular');
-  const [userColor, setUserColor] = useState('#E31837');
+  
+  // Inicialização inteligente da cor usando o cache do navegador
+  const [userColor, setUserColor] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem('blitz_accent') || '#E31837';
+    }
+    return '#E31837';
+  });
+  
   const [loading, setLoading] = useState(true);
 
   const router = useRouter();
@@ -50,10 +59,13 @@ export default function SchedulePage() {
       const { data: profile } = await supabase.from('profiles').select('favorite_team_id').eq('id', session.user.id).single();
       if (profile?.favorite_team_id) {
         const { data: teamInfo } = await supabase.from('teams').select('primary_color').eq('id', profile.favorite_team_id).single();
-        if (teamInfo?.primary_color) setUserColor(teamInfo.primary_color);
-      } else if (typeof window !== "undefined") {
-         const savedAccent = localStorage.getItem('blitz_accent');
-         if (savedAccent) setUserColor(savedAccent);
+        if (teamInfo?.primary_color) {
+          // Aplicação do filtro neon universal
+          const neonColor = getThemeColor(teamInfo.primary_color);
+          setUserColor(neonColor);
+          localStorage.setItem('blitz_accent', neonColor);
+          document.documentElement.style.setProperty('--team-accent', neonColor);
+        }
       }
 
       const { data: teams } = await supabase.from('teams').select('*');

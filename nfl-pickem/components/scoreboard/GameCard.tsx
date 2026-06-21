@@ -50,7 +50,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
     return () => clearInterval(interval);
   }, [gameDate]);
 
-  // Lógica de Acertos e Pontos
+  // Lógica de Acertos e Pontos (CORRIGIDA: Usando fundo sólido escuro para bloquear o gradiente)
   let pointsEarned = 0;
   let resultColorClass = '';
   
@@ -62,18 +62,18 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
 
     if (game.home_score === existingPick.home_guess && game.away_score === existingPick.away_guess) {
       pointsEarned = 7;
-      resultColorClass = 'border-green-500 bg-green-500/10 shadow-[0_0_15px_rgba(34,197,94,0.15)]';
+      resultColorClass = 'border-green-500 bg-[#0A1A0F] shadow-[0_0_15px_rgba(34,197,94,0.15)]';
     } else if (realWinner === predWinner && realWinner !== 'tie') {
       if (realDiff === predDiff) {
         pointsEarned = 5;
-        resultColorClass = 'border-blue-500 bg-blue-500/10 shadow-[0_0_15px_rgba(59,130,246,0.15)]';
+        resultColorClass = 'border-blue-500 bg-[#0A1220] shadow-[0_0_15px_rgba(59,130,246,0.15)]';
       } else {
         pointsEarned = 3;
-        resultColorClass = 'border-amber-500 bg-amber-500/10 shadow-[0_0_15px_rgba(245,158,11,0.15)]';
+        resultColorClass = 'border-amber-500 bg-[#1A1205] shadow-[0_0_15px_rgba(245,158,11,0.15)]';
       }
     } else {
       pointsEarned = 0;
-      resultColorClass = 'border-red-500 bg-red-500/10 shadow-[0_0_15px_rgba(239,68,68,0.1)]';
+      resultColorClass = 'border-red-500 bg-[#1A0505] shadow-[0_0_15px_rgba(239,68,68,0.1)]';
     }
   }
 
@@ -88,13 +88,10 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
   let innerCardClass = "rounded-[12px] p-3 sm:p-4 flex flex-col gap-2 relative h-full ";
   let hasGradient = false;
 
-  // 1. Super Bowl (Prioridade Máxima)
   if (game.week === 'SB') {
     wrapperClass += "p-[2px] bg-gradient-to-br from-purple-600 via-pink-500 to-amber-500 shadow-[0_0_15px_rgba(168,85,247,0.3)]";
     hasGradient = true;
-  } 
-  // 2. Playoffs (AFC / NFC)
-  else if (isPlayoff) {
+  } else if (isPlayoff) {
     if (game.week === 'AFCC' || conf === 'AFC') {
       wrapperClass += "p-[1.5px] bg-gradient-to-br from-[#E31837] to-white shadow-[0_0_15px_rgba(227,24,55,0.15)]";
       hasGradient = true;
@@ -102,33 +99,28 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
       wrapperClass += "p-[1.5px] bg-gradient-to-br from-[#013369] to-white shadow-[0_0_15px_rgba(1,51,105,0.15)]";
       hasGradient = true;
     }
-  } 
-  // 3. Jogos Especiais (Temporada Regular)
-  else if (game.broadcast_tag) {
+  } else if (game.broadcast_tag) {
     hasGradient = true;
     switch(game.broadcast_tag) {
-      case 'TNF': // Prime Video (Azul Ciano)
+      case 'TNF': 
         wrapperClass += "p-[1.5px] bg-gradient-to-br from-[#00A8E1] to-white shadow-[0_0_15px_rgba(0,168,225,0.15)]";
         break;
-      case 'SNF': // NBC (Dourado)
+      case 'SNF': 
         wrapperClass += "p-[1.5px] bg-gradient-to-br from-[#E2D82C] to-white shadow-[0_0_15px_rgba(226,216,44,0.15)]";
         break;
-      case 'MNF': // ESPN (Vermelho)
+      case 'MNF': 
         wrapperClass += "p-[1.5px] bg-gradient-to-br from-[#CC0000] to-white shadow-[0_0_15px_rgba(204,0,0,0.15)]";
         break;
-      case 'INT': // International (Índigo/Roxo)
+      case 'INT': 
         wrapperClass += "p-[1.5px] bg-gradient-to-br from-indigo-600 to-cyan-400 shadow-[0_0_15px_rgba(79,70,229,0.15)]";
         break;
       default:
         wrapperClass += "p-[1.5px] bg-gradient-to-br from-gray-500 to-white shadow-[0_0_15px_rgba(255,255,255,0.1)]";
     }
-  } 
-  // 4. Jogos Comuns (Sem gradiente)
-  else {
+  } else {
     wrapperClass += "p-0";
   }
 
-  // Preenchimento interno do card baseado no estado
   if (hasGradient) {
     innerCardClass += isFinished && existingPick ? resultColorClass : "bg-neutral-950";
   } else {
@@ -152,10 +144,8 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
     <div className={wrapperClass}>
       <div 
         className={innerCardClass}
-        // Aplica a cor do usuário apenas se não tiver salvo e for um jogo comum (para não conflitar com os gradientes)
         style={isUnsaved && !hasGradient ? { borderColor: userTeamColor, boxShadow: `0 0 15px ${userTeamColor}30` } : {}}
       >
-        {/* 1. HEADER DO CARD */}
         <div className="flex justify-between items-center pb-2 border-b border-white/5 mb-1">
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="text-[9px] text-gray-500 font-bold uppercase truncate leading-none">
@@ -181,10 +171,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
           </div>
         </div>
 
-        {/* 2. CORPO DO CARD */}
         <div className="flex flex-col gap-2">
-          
-          {/* CABEÇALHO DAS COLUNAS */}
           <div className="flex justify-end">
             <div className="flex items-center gap-2">
               {isFinished && (
@@ -194,7 +181,6 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
             </div>
           </div>
           
-          {/* AWAY TEAM */}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 min-w-0">
               {awayTeam?.logo && <img src={awayTeam.logo} className="w-5 h-5 object-contain shrink-0" alt="" />}
@@ -222,7 +208,6 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
             </div>
           </div>
 
-          {/* HOME TEAM */}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 min-w-0">
               {homeTeam?.logo && <img src={homeTeam.logo} className="w-5 h-5 object-contain shrink-0" alt="" />}
@@ -249,10 +234,8 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
               />
             </div>
           </div>
-
         </div>
 
-        {/* 3. RODAPÉ DE PONTOS */}
         {isFinished && existingPick && (
           <div className="mt-1 pt-2 border-t border-white/5 flex justify-between items-center">
             <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">Pick Result</span>

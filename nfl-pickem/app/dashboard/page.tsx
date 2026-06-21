@@ -27,9 +27,12 @@ export default function Dashboard() {
   const [nextGame, setNextGame] = useState<any>(null);
   
   const router = useRouter();
-  const supabase = createClient();
 
   useEffect(() => {
+    // A instância do Supabase deve ser criada DENTRO do useEffect ou fora das dependências
+    // para não acionar um loop infinito de re-renderizações.
+    const supabase = createClient();
+
     async function loadDashboardData() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push('/login'); return; }
@@ -83,7 +86,7 @@ export default function Dashboard() {
       setLoading(false);
     }
     loadDashboardData();
-  }, [router, supabase]);
+  }, [router]); // <-- ARRAY DE DEPENDÊNCIAS LIMPO (Loop Infinito removido)
 
   const handlePickChange = (gameId: string | number, homeStr: string, awayStr: string) => {
     const gId = gameId.toString();
@@ -103,6 +106,7 @@ export default function Dashboard() {
 
   const handleSaveAll = async () => {
     setIsSavingPicks(true);
+    const supabase = createClient();
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
     

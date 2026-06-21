@@ -20,7 +20,6 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
       if (!teamId) return;
       const supabase = createClient();
       
-      // Busca informações do time (Logo, Cores, Nome)
       const { data: teamData } = await supabase
         .from('teams')
         .select('*')
@@ -29,7 +28,6 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
         
       if (teamData) setTeamInfo(teamData);
 
-      // Busca o W-L-T direto da tabela de standings
       const { data: stdData } = await supabase
         .from('standings')
         .select('wins, losses, ties')
@@ -53,10 +51,8 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
     );
   }
 
-  // Verifica se o time é o genérico "NFL"
   const isGenericNFL = teamInfo.abbreviation === 'NFL';
 
-  // Lógica para o Último Jogo
   let wonLast = false;
   let lastOppAbbr = "OPP";
   let lastScoreDisplay = "";
@@ -70,7 +66,6 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
     lastScoreDisplay = `${myScore} - ${oppScore}`;
   }
 
-  // Lógica para o Próximo Jogo
   let nextOppAbbr = "OPP";
   let nextDateStr = "";
   let isNextHome = false;
@@ -82,20 +77,30 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
   }
 
   return (
-    <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl group flex flex-col">
-      {/* Background dinâmico baseado na cor do time */}
+    <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl group flex flex-col bg-neutral-950">
+      
+      {/* 1. Background dinâmico em Gradiente */}
       <div 
-        className="absolute inset-0 opacity-20 transition-all duration-700 group-hover:opacity-30 group-hover:scale-105"
+        className="absolute inset-0 opacity-20 transition-all duration-700 group-hover:opacity-30 group-hover:scale-105 z-0"
         style={{ 
           background: `linear-gradient(135deg, ${teamInfo.primary_color} 0%, transparent 100%)`,
         }}
       />
+
+      {/* 2. Escudo Gigante Opaco no Fundo (Canto Superior Direito) */}
+      {teamInfo.logo_url && (
+        <img 
+          src={teamInfo.logo_url} 
+          alt="" 
+          className="absolute -top-10 -right-6 w-48 h-48 sm:w-64 sm:h-64 object-contain opacity-[0.06] sm:opacity-[0.08] rotate-12 pointer-events-none z-0 mix-blend-screen" 
+        />
+      )}
       
       {/* Conteúdo Principal do Hero */}
       <div className="relative z-10 flex items-center justify-between p-6 sm:p-10">
         <div className="flex items-center gap-4 sm:gap-6">
           {teamInfo.logo_url ? (
-            <div className="w-20 h-20 sm:w-28 sm:h-28 bg-black/30 p-3 sm:p-4 rounded-full border border-white/10 shadow-[0_0_30px_rgba(0,0,0,0.5)] backdrop-blur-sm">
+            <div className="w-20 h-20 sm:w-28 sm:h-28 bg-black/40 p-3 sm:p-4 rounded-full border border-white/10 shadow-[0_0_30px_rgba(0,0,0,0.5)] backdrop-blur-md">
               <img src={teamInfo.logo_url} alt={teamInfo.name} className="w-full h-full object-contain drop-shadow-xl" />
             </div>
           ) : (
@@ -107,7 +112,6 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
               {teamInfo.name}
             </h1>
             
-            {/* O Record W-L-T entra aqui, mas desaparece se for a equipe genérica 'NFL' */}
             {!isGenericNFL ? (
               <p className="text-xs sm:text-sm font-bold text-gray-400 uppercase tracking-widest mt-1">
                 {teamRecord} • Locker Room
@@ -123,16 +127,20 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
         <div className="text-right">
           <div className="flex flex-col items-end">
             <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-500">Total Points</span>
-            <span className="text-4xl sm:text-6xl font-black italic tracking-tighter" style={{ color: teamInfo.primary_color, textShadow: `0 0 20px ${teamInfo.primary_color}50` }}>
+            {/* CORREÇÃO AQUI: Texto sempre branco, brilho da cor do time */}
+            <span 
+              className="text-4xl sm:text-6xl font-black italic tracking-tighter text-white" 
+              style={{ textShadow: `0 0 25px ${teamInfo.primary_color}` }}
+            >
               {score}
             </span>
           </div>
         </div>
       </div>
 
-      {/* Sub-painel com Último e Próximo Jogo. Fica oculto se for 'NFL' ou não tiver jogos */}
+      {/* Sub-painel com Último e Próximo Jogo */}
       {(!isGenericNFL && (lastGame || nextGame)) && (
-        <div className="relative z-10 bg-black/40 border-t border-white/10 backdrop-blur-md grid grid-cols-2 divide-x divide-white/10">
+        <div className="relative z-10 bg-black/50 border-t border-white/10 backdrop-blur-xl grid grid-cols-2 divide-x divide-white/10">
           
           {/* Last Match */}
           <div className="p-3 sm:p-4 flex flex-col justify-center items-center text-center">
