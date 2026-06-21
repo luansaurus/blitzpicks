@@ -165,6 +165,7 @@ export default function SetupPage() {
     );
   }
 
+  
   const selectedTeamData = teams.find(t => t.id === selectedTeamId);
   // Aplica a função getSafeColor na cor selecionada para renderizar na tela
   const rawColor = selectedTeamData?.primary_color || '#E31837';
