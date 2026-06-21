@@ -1,194 +1,181 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Header from '../../components/layout/header';
-import UserTeamHero from '../../components/dashboard/UserTeamHero';
-import GameCard from '../../components/scoreboard/GameCard';
 import { createClient } from '../../utils/supabase/client';
-import LoadingScreen from '@/components/ui/LoadingScreen';
 
-export default function Dashboard() {
-  const [games, setGames] = useState<any[]>([]);
-  const [teamsDataMap, setTeamsDataMap] = useState<Record<string, any>>({});
-  const [myGuesses, setMyGuesses] = useState<any[]>([]);
-  
-  // NOVOS ESTADOS: Gerenciador de Rascunhos e Barra de Salvar
-  const [draftPicks, setDraftPicks] = useState<Record<string, { home: number, away: number }>>({});
-  const [isSavingPicks, setIsSavingPicks] = useState(false);
-
-  const [userScore, setUserScore] = useState(0);
-  const [favoriteTeamId, setFavoriteTeamId] = useState<number | string>('');
-  const [userColor, setUserColor] = useState('#f59e0b'); // Default inicial, ajustado pela var CSS dps
-  
-  const [currentWeek, setCurrentWeek] = useState<string>('1');
+export default function LoginPage() {
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(true);
-  
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
+  const [userColor, setUserColor] = useState('#E31837');
+
   const router = useRouter();
   const supabase = createClient();
 
   useEffect(() => {
-    async function loadDashboardData() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { router.push('/login'); return; }
+    async function checkSession() {
+      try {
+        if (typeof window !== "undefined") {
+          const savedAccent = localStorage.getItem('blitz_accent');
+          if (savedAccent) setUserColor(savedAccent);
+        }
 
-      const { data: profile } = await supabase.from('profiles').select('nickname, score, favorite_team_id').eq('id', session.user.id).single();
-      if (!profile?.nickname) { router.push('/setup'); return; }
-
-      setUserScore(profile.score || 0);
-      if (profile.favorite_team_id) setFavoriteTeamId(profile.favorite_team_id);
-
-      const { data: teams } = await supabase.from('teams').select('*');
-      const tMap: Record<string, any> = {};
-      teams?.forEach(t => { tMap[t.id.toString()] = { name: t.name, abbr: t.abbreviation, color: t.primary_color, logo: t.logo_url }; });
-      setTeamsDataMap(tMap);
-
-      // Usar a cor garantida pelo nosso filtro global salvo no LocalStorage
-      if (typeof window !== "undefined") {
-         const savedAccent = localStorage.getItem('blitz_accent');
-         if (savedAccent) setUserColor(savedAccent);
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          router.push('/dashboard');
+        } else {
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error("Erro ao verificar sessão:", err);
+        setLoading(false);
       }
-
-      const { data: gamesData } = await supabase.from('games').select('*, stadium(name, city)').order('game_time', { ascending: true });
-      if (gamesData && gamesData.length > 0) {
-        setGames(gamesData);
-        const grouped = gamesData.reduce((acc, g) => {
-          const w = g.week || '1';
-          if (!acc[w]) acc[w] = [];
-          acc[w].push(g);
-          return acc;
-        }, {} as Record<string, any[]>);
-
-        const sortedWeeks = Object.keys(grouped).sort((a, b) => Number(a) - Number(b));
-        const activeWeek = sortedWeeks.find(w => !grouped[w].every((game: any) => game.status === 'finished')) || sortedWeeks[sortedWeeks.length - 1];
-        setCurrentWeek(activeWeek);
-      }
-
-      const { data: guessesData } = await supabase.from('guesses').select('*').eq('user_id', session.user.id);
-      if (guessesData) setMyGuesses(guessesData);
-      setLoading(false);
     }
-    loadDashboardData();
+    checkSession();
   }, [router, supabase]);
 
-  // LÓGICA DE DRAFT PREDITIVO
-  const handlePickChange = (gameId: string | number, homeStr: string, awayStr: string) => {
-    const gId = gameId.toString();
-    
-    // Se o usuário limpar a caixinha, removemos do draft (não dá pra salvar vazio)
-    if (homeStr === "" || awayStr === "") {
-      setDraftPicks(prev => { const next = { ...prev }; delete next[gId]; return next; });
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      setMessage({ type: 'error', text: "Please fill in all fields." });
       return;
     }
 
-    const home = parseInt(homeStr);
-    const away = parseInt(awayStr);
-    
-    // Verifica se é exatamente igual ao que já tá no banco
-    const existing = myGuesses.find(g => g.game_id.toString() === gId);
-    if (existing && existing.home_guess === home && existing.away_guess === away) {
-      setDraftPicks(prev => { const next = { ...prev }; delete next[gId]; return next; });
-      return;
-    }
+    setSubmitting(true);
+    setMessage(null);
 
-    setDraftPicks(prev => ({ ...prev, [gId]: { home, away } }));
+    try {
+      if (isSignUp) {
+        // Fluxo de Cadastro (Sign Up)
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+          },
+        });
+
+        if (error) throw error;
+
+        if (data?.user && data?.session === null) {
+          setMessage({ type: 'success', text: "Registration successful! Please check your email for confirmation." });
+          setSubmitting(false);
+        } else if (data?.session) {
+          router.refresh();
+          router.push('/dashboard');
+        }
+      } else {
+        // Fluxo de Login (Sign In)
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (error) throw error;
+
+        if (data?.session) {
+          router.refresh();
+          // Pequena pausa para garantir a gravação dos cookies no navegador antes de mudar de rota
+          setTimeout(() => {
+            router.push('/dashboard');
+          }, 100);
+        }
+      }
+    } catch (err: any) {
+      console.error("Erro na autenticação:", err);
+      setMessage({ type: 'error', text: err.message || "An unexpected error occurred." });
+      setSubmitting(false);
+    }
   };
 
-  // SALVA TUDO DE UMA VEZ
-  const handleSaveAll = async () => {
-    setIsSavingPicks(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
-
-    const payload = Object.entries(draftPicks).map(([gameId, scores]) => ({
-      user_id: session.user.id,
-      game_id: parseInt(gameId),
-      home_guess: scores.home,
-      away_guess: scores.away
-    }));
-
-    const { error } = await supabase.from('guesses').upsert(payload);
-    
-    if (!error) {
-      // Atualiza o estado real e limpa os rascunhos para a barra flutuante sumir
-      const { data: newGuesses } = await supabase.from('guesses').select('*').eq('user_id', session.user.id);
-      if (newGuesses) setMyGuesses(newGuesses);
-      setDraftPicks({});
-    } else {
-      alert("Erro ao salvar palpites. Tente novamente.");
-    }
-    setIsSavingPicks(false);
-  };
-
-  if (loading) return <LoadingScreen />;
-
-  const currentWeekGames = games.filter(game => game.week?.toString() === currentWeek.toString());
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center">
+        <div className="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: `${userColor} var(--tw-border-opacity)` }}></div>
+        <span className="text-xs font-black uppercase tracking-widest text-gray-500 mt-4 animate-pulse">
+          Verifying Session...
+        </span>
+      </div>
+    );
+  }
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-white font-sans pb-32 relative">
-      <Header />
-      
-      <div className="max-w-5xl mx-auto p-4 sm:p-6 space-y-8 mt-4">
-        <UserTeamHero teamId={favoriteTeamId} score={userScore} />
+    <main className="min-h-screen bg-neutral-950 text-white font-sans flex items-center justify-center p-4 relative overflow-hidden">
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-red-600/5 blur-[150px] pointer-events-none z-0"></div>
 
-        <div className="space-y-4">
-          <div className="flex items-center gap-4 justify-between border-b border-white/5 pb-3">
-            <div>
-              <h2 className="text-xl sm:text-2xl font-black italic uppercase tracking-wider">Week {currentWeek} Matchups</h2>
-              <p className="text-gray-500 text-xs font-medium mt-0.5">Current active week board inside your locker room.</p>
-            </div>
+      <div className="w-full max-w-md bg-neutral-900/80 border border-white/5 rounded-2xl p-6 sm:p-8 shadow-2xl backdrop-blur-md z-10 animate-fadeIn">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-black italic uppercase tracking-tighter text-white">
+            Blitz<span style={{ color: userColor }}>Picks</span>
+          </h1>
+          <p className="text-gray-400 text-xs font-black uppercase tracking-widest mt-1">
+            {isSignUp ? 'Create your new account' : 'Sign in to manage your predictions'}
+          </p>
+        </div>
+
+        {message && (
+          <div className={`mb-6 p-3 border rounded-xl text-xs font-bold text-center uppercase tracking-wider animate-fadeIn ${
+            message.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-green-500/10 border-green-500/20 text-green-400'
+          }`}>
+            {message.type === 'error' ? '⚠️' : '✓'} {message.text}
+          </div>
+        )}
+
+        <form onSubmit={handleAuth} className="space-y-5">
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">
+              Email Address
+            </label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@example.com"
+              className="w-full h-11 bg-black border border-white/10 rounded-xl px-4 text-sm font-medium text-white placeholder-gray-600 focus:outline-none focus:border-white transition animate-slideUp"
+              disabled={submitting}
+            />
           </div>
 
-          {currentWeekGames.length === 0 ? (
-            <div className="bg-neutral-900 border border-white/5 rounded-xl p-8 text-center text-gray-500 font-bold uppercase tracking-widest text-xs">
-              No matchups scheduled for this week.
-            </div>
-          ) : (
-            <div className="grid gap-3 sm:gap-4">
-              {currentWeekGames.map((game) => {
-                const existingPick = myGuesses.find(g => g.game_id?.toString() === game.id?.toString());
-                const isUnsaved = !!draftPicks[game.id.toString()];
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">
+              Password
+            </label>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full h-11 bg-black border border-white/10 rounded-xl px-4 text-sm font-medium text-white placeholder-gray-600 focus:outline-none focus:border-white transition animate-slideUp"
+              disabled={submitting}
+            />
+          </div>
 
-                return (
-                  <GameCard 
-                    key={game.id} 
-                    game={game} 
-                    userTeamColor={userColor} 
-                    homeTeam={teamsDataMap[game.home_team_id?.toString()] || { name: 'Home', abbr: 'HOME', color: '#171717' }}
-                    awayTeam={teamsDataMap[game.away_team_id?.toString()] || { name: 'Away', abbr: 'AWAY', color: '#171717' }}
-                    existingPick={existingPick}
-                    onPickChange={handlePickChange}
-                    isUnsaved={isUnsaved}
-                  />
-                );
-              })}
-            </div>
-          )}
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full h-12 rounded-xl font-black uppercase tracking-widest text-sm transition-all shadow-lg hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+            style={{ backgroundColor: userColor, color: '#000' }}
+          >
+            {submitting ? 'Authenticating...' : isSignUp ? 'Create Account 🏈' : 'Sign In 🏈'}
+          </button>
+        </form>
+
+        <div className="mt-6 text-center border-t border-white/5 pt-4">
+          <button
+            type="button"
+            onClick={() => { setIsSignUp(!isSignUp); setMessage(null); }}
+            className="text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors"
+          >
+            {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
+          </button>
         </div>
       </div>
-
-      {/* BARRA FLUTUANTE DE SALVAMENTO */}
-      {Object.keys(draftPicks).length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-md animate-slideUp">
-          <div 
-            className="bg-neutral-900 border-2 rounded-2xl p-4 flex items-center justify-between gap-4"
-            style={{ borderColor: userColor, boxShadow: `0 10px 40px ${userColor}50` }}
-          >
-            <div className="flex flex-col">
-              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: userColor }}>Unsaved Changes</span>
-              <span className="text-sm font-bold text-white">{Object.keys(draftPicks).length} Pick(s) pending</span>
-            </div>
-            <button
-              onClick={handleSaveAll}
-              disabled={isSavingPicks}
-              className="px-6 py-3 rounded-xl font-black uppercase tracking-widest transition-all shadow-md disabled:opacity-50 text-xs sm:text-sm hover:scale-105"
-              style={{ backgroundColor: userColor, color: '#000' }}
-            >
-              {isSavingPicks ? 'Locking...' : 'Lock All'}
-            </button>
-          </div>
-        </div>
-      )}
     </main>
   );
 }

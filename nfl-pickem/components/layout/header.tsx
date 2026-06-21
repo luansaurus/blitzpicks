@@ -48,6 +48,7 @@ export default function Header() {
   
   const [logoUrl, setLogoUrl] = useState<string>('https://upload.wikimedia.org/wikipedia/en/a/a2/National_Football_League_logo.svg');
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [loadingLogout, setLoadingLogout] = useState(false); // Estado de controle de logout
   const supabase = createClient();
 
   useEffect(() => {
@@ -76,9 +77,20 @@ export default function Header() {
     fetchUserData();
   }, [supabase]);
 
+  // Função de Logout Atualizada
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push('/login');
+    if (loadingLogout) return;
+    setLoadingLogout(true);
+    
+    try {
+      await supabase.auth.signOut();
+      router.refresh(); // Crucial para limpar o cache do Next.js
+      router.push('/login');
+    } catch (error) {
+      console.error("Erro ao efetuar logout:", error);
+    } finally {
+      setLoadingLogout(false);
+    }
   };
 
   const navLinks = [
@@ -118,9 +130,16 @@ export default function Header() {
                 <img src={logoUrl} alt="User Logo" className="w-full h-full object-contain" />
               </div>
             </Link>
-            <button onClick={handleLogout} className="text-[10px] font-bold text-gray-500 hover:text-red-400 uppercase tracking-widest transition-colors">
-              Sign Out
+            
+            {/* Botão com a nova função e estado desabilitado */}
+            <button 
+              onClick={handleLogout} 
+              disabled={loadingLogout}
+              className="text-[10px] font-bold text-gray-500 hover:text-red-400 uppercase tracking-widest transition-colors disabled:opacity-50"
+            >
+              {loadingLogout ? 'Signing Out...' : 'Sign Out'}
             </button>
+            
           </div>
         </div>
       </header>
