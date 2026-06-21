@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '../../utils/supabase/client';
+import { getThemeColor } from '@/utils/theme';
 
 // O mesmo Motor HSL do Header para garantir contraste e vivacidade
 const getSafeColor = (hex: string) => {
@@ -87,7 +88,16 @@ export default function SetupPage() {
       } else if (teamsData) {
         setTeams(teamsData);
       }
+const teamsList = teamsData || [];
 
+// Identifica o time TBD/Free Agent e coloca no topo
+const freeAgent = teamsList.find(t => t.abbreviation === 'TBD');
+const others = teamsList.filter(t => t.abbreviation !== 'TBD');
+const finalList = freeAgent 
+  ? [{ ...freeAgent, name: 'Free Agent' }, ...others] 
+  : others;
+
+setTeams(finalList);
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('nickname, favorite_team_id')
@@ -179,7 +189,6 @@ export default function SetupPage() {
     logo_url: 'https://upload.wikimedia.org/wikipedia/en/a/a2/National_Football_League_logo.svg'
   };
 
-  const displayOptions = [nflDefaultOption, ...teams];
 
   return (
     <main className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center py-12 px-4 sm:px-6">
@@ -194,7 +203,7 @@ export default function SetupPage() {
             Sign <span className="transition-colors duration-500" style={{ color: themeColor }}>Contract</span>
           </h1>
           <p className="text-gray-400 mt-2 font-medium text-sm sm:text-base">
-            Customize o seu perfil de jogador antes de entrar no campo.
+            Customize your profile before entering the field.
           </p>
         </div>
 
@@ -223,33 +232,36 @@ export default function SetupPage() {
             </label>
             
             <div className="-m-3 p-3 grid grid-cols-2 sm:grid-cols-4 gap-3 max-h-[300px] overflow-y-auto custom-scrollbar">
-              {displayOptions.map((team) => {
-                const isSelected = selectedTeamId === team.id;
-                // Deixa a borda do card do time selecionado vibrante também
-                const cardBorderColor = isSelected ? getSafeColor(team.primary_color || '#E31837') : '';
+{teams.map((team) => {
+  const isSelected = selectedTeamId === team.id;
+  const displayName = team.abbreviation === 'TBD' ? 'Free Agent' : team.abbreviation;
+  
+  // Usamos a função getThemeColor (que você já tem no seu utils) 
+  // para garantir a borda Neon apenas no selecionado
+  const cardBorderColor = isSelected ? getThemeColor(team.primary_color || '#E31837') : 'transparent';
 
-                return (
-                  <div
-                    key={team.id || 'nfl-default'}
-                    onClick={() => setSelectedTeamId(team.id)} 
-                    className={`cursor-pointer border rounded-xl p-3 flex flex-col items-center justify-center gap-2 transition-all duration-300 ${
-                      isSelected 
-                        ? 'bg-white/10 shadow-lg scale-105 z-10' 
-                        : 'bg-black/50 border-white/5 hover:border-white/20 opacity-70 hover:opacity-100 z-0'
-                    }`}
-                    style={{ borderColor: cardBorderColor }}
-                  >
-                    {team.logo_url ? (
-                      <img src={team.logo_url} alt={team.abbreviation} className="w-10 h-10 object-contain" />
-                    ) : (
-                      <div className="w-10 h-10 bg-white/5 rounded-full" />
-                    )}
-                    <span className="text-[10px] font-black uppercase tracking-widest text-center text-white">
-                      {team.abbreviation || team.name}
-                    </span>
-                  </div>
-                );
-              })}
+  return (
+    <div
+      key={team.id}
+      onClick={() => setSelectedTeamId(team.id)} 
+      className={`cursor-pointer border rounded-lg p-2 flex flex-col items-center justify-center gap-1 transition-all duration-300 ${
+        isSelected 
+          ? 'bg-white/10 shadow-lg scale-105 z-10' 
+          : 'bg-black/40 border-white/5 hover:border-white/10 opacity-80 hover:opacity-100 z-0'
+      }`}
+      style={{ borderColor: cardBorderColor }}
+    >
+      {team.logo_url ? (
+        <img src={team.logo_url} alt={team.name} className="w-8 h-8 object-contain" />
+      ) : (
+        <div className="w-8 h-8 bg-white/5 rounded-full" />
+      )}
+      <span className="text-[9px] font-black uppercase tracking-widest text-center text-white truncate w-full">
+        {displayName}
+      </span>
+    </div>
+  );
+})}
             </div>
           </div>
 
