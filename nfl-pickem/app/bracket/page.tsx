@@ -5,7 +5,7 @@ import Header from '../../components/layout/header';
 import { createClient } from '../../utils/supabase/client';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 
-// Objeto de fallback com o SVG oficial da NFL enviado por você
+// Objeto de fallback com o SVG oficial da NFL
 const TBD_TEAM = { 
   name: 'To Be Determined', 
   abbr: 'TBD', 
@@ -218,8 +218,6 @@ export default function BracketPage() {
     return taken;
   };
 
-  // --- UI COMPONENTS TEMATIZADOS ---
-
   const TeamRow = ({ team, nextSlotId, isBaseSeed, conf, isTopRow }: any) => {
     const isSelected = picks[nextSlotId]?.id === team?.id && team?.id;
     const teamSigla = team?.abbreviation || team?.abbr || team?.name || 'TBD';
@@ -365,7 +363,8 @@ export default function BracketPage() {
         </div>
 
         <div className="w-full overflow-x-auto pb-8 scrollbar-hide" >
-          <div ref={bracketRef} className="min-w-[1300px] h-[680px] flex items-stretch justify-between relative bg-gradient-to-br from-[#0a0a0a] via-[#111111] to-[#0a0a0a] rounded-2xl border border-white/10 p-6 sm:p-8 shadow-2xl overflow-hidden">
+          {/* CORREÇÃO: min-w expandido para 1600px para garantir respiro real da NFC */}
+          <div ref={bracketRef} className="min-w-[1600px] h-[680px] flex items-stretch justify-between relative bg-gradient-to-br from-[#0a0a0a] via-[#111111] to-[#0a0a0a] rounded-2xl border border-white/10 p-6 sm:p-8 shadow-2xl overflow-hidden">
             
             {!isCapturing && (
               <>
@@ -374,7 +373,8 @@ export default function BracketPage() {
               </>
             )}
 
-            <div className="flex flex-col justify-between z-10 py-4">
+            {/* AFC - COLUNA 1 - SHRINK-0 adicionado */}
+            <div className="flex flex-col justify-between z-10 py-4 shrink-0">
               <Seed1Box conf="AFC" />
               <div className="space-y-4">
                 <MatchupBox label="AFC Wild Card" teamA={seeds.AFC[2] || {seedNum:2}} teamB={seeds.AFC[7] || {seedNum:7}} nextSlotId="afc_wc_1" isBaseSeed conf="AFC" />
@@ -383,16 +383,19 @@ export default function BracketPage() {
               </div>
             </div>
 
-            <div className="flex flex-col justify-around z-10 pl-6 border-l border-dashed border-white/10">
+            {/* AFC - COLUNA 2 - SHRINK-0 adicionado */}
+            <div className="flex flex-col justify-around z-10 pl-6 border-l border-dashed border-white/10 shrink-0">
               <MatchupBox label="AFC Divisional" teamA={afcDiv.m1.teamA} teamB={afcDiv.m1.teamB} nextSlotId="afc_div_1" conf="AFC" />
               <MatchupBox label="AFC Divisional" teamA={afcDiv.m2.teamA} teamB={afcDiv.m2.teamB} nextSlotId="afc_div_2" conf="AFC" />
             </div>
 
-            <div className="flex flex-col justify-center z-10 pl-6 border-l border-dashed border-white/10">
+            {/* AFC - COLUNA 3 - SHRINK-0 adicionado */}
+            <div className="flex flex-col justify-center z-10 pl-6 border-l border-dashed border-white/10 shrink-0">
               <MatchupBox label="AFC Championship" teamA={picks.afc_div_1} teamB={picks.afc_div_2} nextSlotId="sb_teamA" conf="AFC" />
             </div>
 
-            <div className="flex flex-col justify-center items-center z-10 px-8 mx-4 pb-8">
+            {/* CENTRO: SUPER BOWL LXI - SHRINK-0 adicionado */}
+            <div className="flex flex-col justify-center items-center z-10 px-8 mx-4 pb-8 shrink-0 min-w-[260px]">
               <div className="text-center mb-6 relative w-full flex flex-col items-center">
                 <img 
                   src="https://upload.wikimedia.org/wikipedia/fr/7/74/Super_Bowl_LXI_Logo.png" 
@@ -408,25 +411,28 @@ export default function BracketPage() {
                     <div className="bg-black rounded-[14px] px-8 py-4 flex flex-col items-center">
                       <span className="text-[10px] font-black uppercase text-amber-500 tracking-widest mb-1">Super Bowl Champion</span>
                       <div className="flex items-center gap-3 mt-1">
-                         {picks.sb_winner.logo_url && <img src={picks.sb_winner.logo_url} className="w-10 h-10 object-contain drop-shadow-md" alt="" />}
-                         <span className="font-black text-2xl text-white drop-shadow-md">{picks.sb_winner.abbreviation || picks.sb_winner.abbr}</span>
-                       </div>
+                          {picks.sb_winner.logo_url && <img src={picks.sb_winner.logo_url} className="w-10 h-10 object-contain drop-shadow-md" alt="" />}
+                          <span className="font-black text-2xl text-white drop-shadow-md">{picks.sb_winner.abbreviation || picks.sb_winner.abbr}</span>
+                        </div>
                     </div>
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="flex flex-col justify-center z-10 pr-6 border-r border-dashed border-white/10">
+            {/* NFC - COLUNA 3 - SHRINK-0 adicionado */}
+            <div className="flex flex-col justify-center z-10 pr-6 border-r border-dashed border-white/10 shrink-0">
               <MatchupBox label="NFC Championship" teamA={picks.nfc_div_1} teamB={picks.nfc_div_2} nextSlotId="sb_teamB" conf="NFC" />
             </div>
 
-            <div className="flex flex-col justify-around z-10 pr-6 border-r border-dashed border-white/10">
+            {/* NFC - COLUNA 2 - SHRINK-0 adicionado */}
+            <div className="flex flex-col justify-around z-10 pr-6 border-r border-dashed border-white/10 shrink-0">
               <MatchupBox label="NFC Divisional" teamA={nfcDiv.m1.teamA} teamB={nfcDiv.m1.teamB} nextSlotId="nfc_div_1" conf="NFC" />
               <MatchupBox label="NFC Divisional" teamA={nfcDiv.m2.teamA} teamB={nfcDiv.m2.teamB} nextSlotId="nfc_div_2" conf="NFC" />
             </div>
 
-            <div className="flex flex-col justify-between z-10 py-4">
+            {/* NFC - COLUNA 1 - SHRINK-0 adicionado */}
+            <div className="flex flex-col justify-between z-10 py-4 shrink-0">
               <Seed1Box conf="NFC" />
               <div className="space-y-4">
                 <MatchupBox label="NFC Wild Card" teamA={seeds.NFC[2] || {seedNum:2}} teamB={seeds.NFC[7] || {seedNum:7}} nextSlotId="nfc_wc_1" isBaseSeed conf="NFC" />

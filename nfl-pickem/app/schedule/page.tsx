@@ -25,6 +25,7 @@ export default function SchedulePage() {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'error'>('idle');
   const [expandedWeek, setExpandedWeek] = useState<string | null>(null);
   const [seasonMode, setSeasonMode] = useState<'regular' | 'playoffs'>('regular');
+  const [isWeek18Finished, setIsWeek18Finished] = useState(false);
   
   const [userColor, setUserColor] = useState(() => {
     if (typeof window !== "undefined") {
@@ -66,21 +67,26 @@ export default function SchedulePage() {
         }
       }
 
-      const { data: teams } = await supabase.from('teams').select('*');
-      const tMap: Record<string, any> = {};
-      teams?.forEach(t => { 
-        tMap[t.id.toString()] = { 
-          name: t.name, 
-          abbr: t.abbreviation, 
-          color: t.primary_color, 
-          logo: t.logo_url,
-          conference: t.conference 
-        }; 
-      });
-      setTeamsDataMap(tMap);
+          const { data: teams } = await supabase.from('teams').select('*');
+          const tMap: Record<string, any> = {};
+          teams?.forEach(t => { 
+            tMap[t.id.toString()] = { 
+              name: t.name, 
+              abbr: t.abbreviation, 
+              color: t.primary_color, 
+              logo: t.logo_url,
+              conference: t.conference 
+            }; 
+          });
+          setTeamsDataMap(tMap);
 
       const { data: gamesData } = await supabase.from('games').select('*, stadium(name, city)').order('game_time', { ascending: true });
       if (gamesData && gamesData.length > 0) {
+        // Mapeia se a semana 18 terminou inteiramente antes de liberar palpites oficiais de playoffs
+        const w18Games = gamesData.filter(g => g.week === '18');
+        const w18Done = w18Games.length > 0 && w18Games.every(g => g.status === 'finished');
+        setIsWeek18Finished(w18Done);
+
         const grouped = gamesData.reduce((acc, g) => {
           let w = g.week || '1';
           if (w === 'AFCC' || w === 'NFCC') w = 'CC';
@@ -197,6 +203,16 @@ export default function SchedulePage() {
         </div>
 
         <div className="space-y-4">
+          
+          {/* BANNER DE AVISO DE PLAYOFFS BLOQUEADOS */}
+          {seasonMode === 'playoffs' && !isWeek18Finished && (
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex items-center justify-center text-center animate-fadeIn">
+              <span className="text-amber-500 font-bold text-xs uppercase tracking-widest">
+                ⚠️ Playoff predictions will unlock after Week 18 is officially concluded.
+              </span>
+            </div>
+          )}
+
           {filteredWeeks.length === 0 ? (
             <div className="bg-neutral-900 border border-white/5 rounded-xl p-8 text-center text-gray-500 font-bold uppercase tracking-widest text-xs">
               No games scheduled for this phase yet.
@@ -206,6 +222,10 @@ export default function SchedulePage() {
               const isWeekOpen = expandedWeek === week;
               const weekGames = gamesByWeek[week];
               const isSuperBowlWeek = week === 'SB';
+
+              // Verifica se a semana em renderização é playoff para aplicar a trava caso a regular não acabou
+              const isPlayoffWeek = playoffOrder.includes(week);
+              const lockThisCard = isPlayoffWeek && !isWeek18Finished;
 
               return (
                 <div key={week} className={`rounded-xl border overflow-hidden transition-all ${isSuperBowlWeek && isWeekOpen ? 'border-purple-500/50 shadow-[0_0_30px_rgba(168,85,247,0.15)]' : 'border-white/5 shadow-sm bg-neutral-900/30'}`}>
@@ -257,6 +277,7 @@ export default function SchedulePage() {
                               existingPick={existingPick}
                               onPickChange={handlePickChange}
                               isUnsaved={isUnsaved}
+                              isPlayoffLocked={lockThisCard}
                             />
                           );
                         })}

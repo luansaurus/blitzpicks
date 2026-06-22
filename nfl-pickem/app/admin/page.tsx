@@ -15,7 +15,6 @@ export default function AdminPage() {
   const [expandedWeek, setExpandedWeek] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   
-  // CORREÇÃO: Cor dinâmica para o Admin
   const [userColor, setUserColor] = useState('#f59e0b');
   
   const router = useRouter();
@@ -103,6 +102,10 @@ export default function AdminPage() {
     }
   };
 
+  const blockNegativeKeys = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === '-' || e.key === 'e' || e.key === '+' || e.key === ',' || e.key === '.') e.preventDefault();
+  };
+
   if (loading) return <LoadingScreen />;
 
   const weeks = Object.keys(gamesByWeek).sort((a, b) => Number(a) - Number(b));
@@ -110,7 +113,8 @@ export default function AdminPage() {
   return (
     <main className="min-h-screen bg-neutral-950 text-white font-sans pb-32">
       <Header />
-      <div className="max-w-5xl mx-auto p-4 sm:p-6 space-y-6 mt-4">
+      {/* Expandido para max-w-7xl para acomodar 5 colunas */}
+      <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6 mt-4">
         <div>
           <h1 className="text-3xl sm:text-4xl font-black italic uppercase tracking-wider" style={{ color: userColor }}>Control Room</h1>
           <p className="text-gray-400 mt-1 font-medium text-xs sm:text-sm">Atualize os resultados oficiais. Os pontos serão distribuídos automaticamente.</p>
@@ -127,36 +131,94 @@ export default function AdminPage() {
                 </button>
 
                 {isOpen && (
-                  <div className="p-4 bg-black/20 border-t border-white/5 grid gap-3 animate-fadeIn">
-                    {gamesByWeek[week].map((game) => {
-                      const isUnsaved = !!draftScores[game.id.toString()];
-                      const displayAway = draftScores[game.id.toString()]?.away !== undefined ? draftScores[game.id.toString()].away : game.away_score;
-                      const displayHome = draftScores[game.id.toString()]?.home !== undefined ? draftScores[game.id.toString()].home : game.home_score;
-                      const isFinished = game.status === 'finished';
+                  <div className="p-4 bg-black/20 border-t border-white/5 animate-fadeIn">
+                    {/* Grid com 5 colunas em telas xl */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                      {gamesByWeek[week].map((game) => {
+                        const isUnsaved = !!draftScores[game.id.toString()];
+                        const displayAway = draftScores[game.id.toString()]?.away !== undefined ? draftScores[game.id.toString()].away : game.away_score;
+                        const displayHome = draftScores[game.id.toString()]?.home !== undefined ? draftScores[game.id.toString()].home : game.home_score;
+                        const isFinished = game.status === 'finished';
 
-                      return (
-                        <div key={game.id} className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${isUnsaved ? 'bg-white/5' : 'border-white/5 bg-black/40'}`} style={isUnsaved ? { borderColor: userColor } : {}}>
-                          <div className="flex flex-col w-32 shrink-0">
-                            <span className="text-[10px] font-bold text-gray-400">{new Date(game.game_time).toLocaleDateString("en-US", { weekday: "short", hour: "2-digit", minute: "2-digit" })}</span>
-                            {game.broadcast_tag && <div className="mt-1"><BroadcastBadge tag={game.broadcast_tag} /></div>}
-                          </div>
+                        const awayTeam = teamsDataMap[game.away_team_id];
+                        const homeTeam = teamsDataMap[game.home_team_id];
 
-                          <div className="flex-1 flex items-center justify-center gap-4">
-                            <span className="text-sm font-black uppercase text-gray-300 w-12 text-right">{teamsDataMap[game.away_team_id]?.abbr}</span>
-                            <input type="number" min="0" placeholder="-" value={displayAway === null ? "" : displayAway} onChange={(e) => handleScoreChange(game.id, displayHome?.toString() || "", e.target.value, game.home_score, game.away_score)} className="w-12 h-12 bg-neutral-900 border border-white/10 rounded-md text-center text-xl font-black text-white focus:outline-none transition-colors" style={{ outlineColor: userColor }} />
-                            <span className="text-gray-600 font-bold text-xs">@</span>
-                            <input type="number" min="0" placeholder="-" value={displayHome === null ? "" : displayHome} onChange={(e) => handleScoreChange(game.id, e.target.value, displayAway?.toString() || "", game.home_score, game.away_score)} className="w-12 h-12 bg-neutral-900 border border-white/10 rounded-md text-center text-xl font-black text-white focus:outline-none transition-colors" style={{ outlineColor: userColor }} />
-                            <span className="text-sm font-black uppercase text-gray-300 w-12 text-left">{teamsDataMap[game.home_team_id]?.abbr}</span>
-                          </div>
+                        return (
+                          <div 
+                            key={game.id} 
+                            className={`flex flex-col p-3 rounded-xl border transition-colors shadow-sm ${isUnsaved ? 'bg-white/5' : 'border-white/5 bg-black/40'}`} 
+                            style={isUnsaved ? { borderColor: userColor, boxShadow: `0 0 15px ${userColor}20` } : {}}
+                          >
+                            {/* Header do Card (Data, Hora e Status) */}
+                            <div className="flex justify-between items-start mb-3 pb-2 border-b border-white/5">
+                              <div className="flex flex-col">
+                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-tight">
+                                  {new Date(game.game_time).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                                </span>
+                                <span className="text-[10px] font-bold text-gray-600">
+                                  {new Date(game.game_time).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
+                                </span>
+                              </div>
+                              <div className="text-right shrink-0">
+                                {isUnsaved ? (
+                                  <span className="text-[9px] font-black uppercase tracking-widest animate-pulse" style={{ color: userColor }}>Unsaved</span> 
+                                ) : isFinished ? (
+                                  <span className="text-[9px] font-black uppercase tracking-widest text-green-500">Official</span> 
+                                ) : (
+                                  <span className="text-[9px] font-black uppercase tracking-widest text-gray-600">Pending</span>
+                                )}
+                              </div>
+                            </div>
 
-                          <div className="w-20 text-right shrink-0">
-                            {isUnsaved ? <span className="text-[10px] font-black uppercase tracking-widest animate-pulse" style={{ color: userColor }}>Unsaved</span> 
-                             : isFinished ? <span className="text-[10px] font-black uppercase tracking-widest text-green-500">Official</span> 
-                             : <span className="text-[10px] font-black uppercase tracking-widest text-gray-600">Pending</span>}
+                            {/* Corpo do Card (Inputs) */}
+                            <div className="flex flex-col gap-2 grow justify-center">
+                              {/* Away Team Input */}
+                              <div className="flex items-center justify-between bg-black/60 p-2 rounded-lg border border-white/5 hover:border-white/10 transition-colors">
+                                <div className="flex items-center gap-2 min-w-0 pr-2">
+                                  {awayTeam?.logo ? <img src={awayTeam.logo} alt="" className="w-5 h-5 object-contain shrink-0" /> : <div className="w-5 h-5 bg-white/5 rounded-full shrink-0" />}
+                                  <span className="text-xs font-black uppercase text-gray-300 truncate">{awayTeam?.abbr || 'AWAY'}</span>
+                                </div>
+                                <input 
+                                  type="number" 
+                                  min="0" 
+                                  onKeyDown={blockNegativeKeys}
+                                  placeholder="-" 
+                                  value={displayAway === null ? "" : displayAway} 
+                                  onChange={(e) => handleScoreChange(game.id, displayHome?.toString() || "", e.target.value, game.home_score, game.away_score)} 
+                                  className="w-12 h-9 bg-neutral-900 border border-white/10 rounded-md text-center text-sm font-black text-white focus:outline-none focus:border-transparent focus:ring-1 transition-all shrink-0" 
+                                  style={{ '--tw-ring-color': userColor } as React.CSSProperties} 
+                                />
+                              </div>
+
+                              {/* Home Team Input */}
+                              <div className="flex items-center justify-between bg-black/60 p-2 rounded-lg border border-white/5 hover:border-white/10 transition-colors">
+                                <div className="flex items-center gap-2 min-w-0 pr-2">
+                                  {homeTeam?.logo ? <img src={homeTeam.logo} alt="" className="w-5 h-5 object-contain shrink-0" /> : <div className="w-5 h-5 bg-white/5 rounded-full shrink-0" />}
+                                  <span className="text-xs font-black uppercase text-gray-300 truncate">{homeTeam?.abbr || 'HOME'}</span>
+                                </div>
+                                <input 
+                                  type="number" 
+                                  min="0" 
+                                  onKeyDown={blockNegativeKeys}
+                                  placeholder="-" 
+                                  value={displayHome === null ? "" : displayHome} 
+                                  onChange={(e) => handleScoreChange(game.id, e.target.value, displayAway?.toString() || "", game.home_score, game.away_score)} 
+                                  className="w-12 h-9 bg-neutral-900 border border-white/10 rounded-md text-center text-sm font-black text-white focus:outline-none focus:border-transparent focus:ring-1 transition-all shrink-0" 
+                                  style={{ '--tw-ring-color': userColor } as React.CSSProperties} 
+                                />
+                              </div>
+                            </div>
+
+                            {/* Footer do Card (Broadcast) */}
+                            {game.broadcast_tag && (
+                              <div className="mt-3 flex justify-center scale-90 origin-bottom">
+                                <BroadcastBadge tag={game.broadcast_tag} />
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>

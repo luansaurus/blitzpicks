@@ -9,6 +9,40 @@ import { getThemeColor } from '../../utils/theme';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import BroadcastBadge from '@/components/ui/BroadcastBadge';
 
+// Helper de Estilo (Mesmo motor do GameCard)
+const getGameCardStyles = (game: any, conf: string | undefined | null) => {
+  let wrapperClass = "transition-all duration-300 rounded-[14px] h-full w-full ";
+  let hasGradient = false;
+
+  const isPlayoff = ['WC', 'DR', 'AFCC', 'NFCC', 'CC', 'SB'].includes(game.week);
+
+  if (game.week === 'SB') {
+    wrapperClass += "p-[2px] bg-gradient-to-br from-purple-600 via-pink-500 to-amber-500 shadow-[0_0_15px_rgba(168,85,247,0.3)]";
+    hasGradient = true;
+  } else if (isPlayoff) {
+    if (game.week === 'AFCC' || conf === 'AFC') {
+      wrapperClass += "p-[1.5px] bg-gradient-to-br from-[#E31837] to-white shadow-[0_0_15px_rgba(227,24,55,0.15)]";
+      hasGradient = true;
+    } else if (game.week === 'NFCC' || conf === 'NFC') {
+      wrapperClass += "p-[1.5px] bg-gradient-to-br from-[#013369] to-white shadow-[0_0_15px_rgba(1,51,105,0.15)]";
+      hasGradient = true;
+    }
+  } else if (game.broadcast_tag) {
+    hasGradient = true;
+    switch(game.broadcast_tag) {
+      case 'TNF': wrapperClass += "p-[1.5px] bg-gradient-to-br from-[#00A8E1] to-white shadow-[0_0_15px_rgba(0,168,225,0.15)]"; break;
+      case 'SNF': wrapperClass += "p-[1.5px] bg-gradient-to-br from-[#E2D82C] to-white shadow-[0_0_15px_rgba(226,216,44,0.15)]"; break;
+      case 'MNF': wrapperClass += "p-[1.5px] bg-gradient-to-br from-[#CC0000] to-white shadow-[0_0_15px_rgba(204,0,0,0.15)]"; break;
+      case 'INT': wrapperClass += "p-[1.5px] bg-gradient-to-br from-indigo-600 to-cyan-400 shadow-[0_0_15px_rgba(79,70,229,0.15)]"; break;
+      default: wrapperClass += "p-[1.5px] bg-gradient-to-br from-gray-500 to-white shadow-[0_0_15px_rgba(255,255,255,0.1)]";
+    }
+  } else {
+    wrapperClass += "p-0";
+  }
+
+  return { wrapperClass, hasGradient };
+};
+
 export default function Results() {
   const [gamesByWeek, setGamesByWeek] = useState<Record<string, any[]>>({});
   const [teamsMap, setTeamsMap] = useState<Record<string, any>>({});
@@ -26,7 +60,6 @@ export default function Results() {
   const router = useRouter();
   const supabase = createClient();
 
-  // COR TRATADA PARA TEXTOS
   const displayColor = getThemeColor(userColor);
 
   useEffect(() => {
@@ -64,7 +97,7 @@ export default function Results() {
         const totalGames = record.wins + record.losses + record.ties;
         const pct = totalGames === 0 ? 0 : (record.wins + (record.ties * 0.5)) / totalGames;
 
-        const teamData = { ...t, ...record, pct };
+        const teamData = { ...t, ...record, pct, conference: t.conference };
         tMap[t.id.toString()] = teamData;
 
         if (t.conference && t.division) {
@@ -89,7 +122,6 @@ export default function Results() {
       if (games) {
         const grouped = games.reduce((acc, g) => {
           let w = g.week || '1';
-          // ALTERAÇÃO: Agrupa AFCC e NFCC sob a mesma chave 'CC'
           if (w === 'AFCC' || w === 'NFCC') w = 'CC';
           
           if (!acc[w]) acc[w] = [];
@@ -126,7 +158,6 @@ export default function Results() {
   
   const displayWeeks = seasonPhase === 'regular' ? regularWeeks : playoffWeeks;
 
-  // ALTERAÇÃO: Dicionário de Nomes Completos para os Playoffs
   const playoffNames: Record<string, string> = {
     'WC': 'Wild Card Weekend',
     'DR': 'Divisional Round',
@@ -141,7 +172,6 @@ export default function Results() {
       <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6 mt-4">
         <div>
           <h1 className="text-3xl sm:text-4xl font-black italic uppercase tracking-wider">
-            {/* CORRIGIDO: Usando displayColor */}
             League<span style={{ color: displayColor, textShadow: `0 0 15px ${displayColor}80, 0 1px 2px rgba(255,255,255,0.2)` }}>Hub</span>
           </h1>
           <p className="text-gray-400 mt-1 font-medium text-xs sm:text-sm">NFL Standings, tiebreakers, and complete season schedule.</p>
@@ -268,18 +298,13 @@ export default function Results() {
             </div>
           )}
           
-          {/* Renderização do Bracket Injetado */}
           {seasonPhase === 'playoffs' && playoffView === 'bracket' ? (
-            
             <PlayoffLiveView 
               userAccentColor={userColor} 
-              userInitialSeeds={{ AFC: {}, NFC: {} }} // Passe os dados do seu banco quando necessário
-              realResults={{}} // Passe os resultados reais salvos no banco quando necessário
+              userInitialSeeds={{ AFC: {}, NFC: {} }} 
+              realResults={{}} 
             />
-
           ) : (
-
-            // LISTA EM FORMATO CARD DE ACORDO COM A ABA
             displayWeeks.length === 0 ? (
               <div className="bg-neutral-900 border border-white/5 rounded-xl p-8 text-center text-gray-500 font-bold uppercase tracking-widest text-xs">
                 No matchups scheduled for {seasonPhase === 'regular' ? 'the regular season' : 'the playoffs'} yet.
@@ -288,19 +313,31 @@ export default function Results() {
               displayWeeks.map(week => {
                 const isWeekOpen = expandedWeek === week;
                 const weekGames = gamesByWeek[week];
+                const isSuperBowlWeek = week === 'SB';
 
                 return (
-                  <div key={week} className="bg-neutral-900/40 rounded-xl border border-white/5 overflow-hidden shadow-sm transition-all animate-fadeIn">
+                  <div key={week} className={`rounded-xl border overflow-hidden transition-all animate-fadeIn ${isSuperBowlWeek && isWeekOpen ? 'border-purple-500/50 shadow-[0_0_30px_rgba(168,85,247,0.15)]' : 'bg-neutral-900/40 border-white/5 shadow-sm'}`}>
                     <button
                       onClick={() => setExpandedWeek(isWeekOpen ? null : week)}
-                      className="w-full flex justify-between items-center p-4 sm:p-5 bg-neutral-900/90 hover:bg-neutral-800 transition text-left border-b border-white/5"
+                      className={`w-full flex justify-between items-center p-4 sm:p-5 transition text-left border-b border-white/5 ${isSuperBowlWeek ? 'bg-gradient-to-r from-purple-900/40 via-black to-amber-900/40 hover:from-purple-900/60' : 'bg-neutral-900/90 hover:bg-neutral-800'}`}
                     >
                       <div className="flex items-center gap-3">
-                        {/* ALTERAÇÃO: Printando o nome completo do playoff mapeado */}
-                        <span className="font-black text-base uppercase tracking-widest" style={{ color: isWeekOpen ? displayColor : '#ffffff', textShadow: isWeekOpen ? `0 0 15px ${displayColor}80` : 'none' }}>
+                        {isWeekOpen && !isSuperBowlWeek && (
+                          <div className="w-1.5 h-6 rounded-full shadow-lg" style={{ backgroundColor: displayColor, boxShadow: `0 0 10px ${displayColor}80` }}></div>
+                        )}
+                        {isWeekOpen && isSuperBowlWeek && (
+                          <div className="text-xl animate-pulse">🏆</div>
+                        )}
+                        
+                        <span className="font-black text-base uppercase tracking-widest" style={{ color: isWeekOpen && !isSuperBowlWeek ? displayColor : '#ffffff', textShadow: isWeekOpen && !isSuperBowlWeek ? `0 0 15px ${displayColor}80` : 'none' }}>
                           {seasonPhase === 'playoffs' ? (playoffNames[week] || week) : `Week ${week}`}
                         </span>
-                        {isWeekOpen && <span className="text-[9px] uppercase font-black px-1.5 py-0.5 bg-white/10 rounded text-white tracking-widest hidden sm:inline-block">Active View</span>}
+                        
+                        {isWeekOpen && !isSuperBowlWeek && (
+                          <span className="text-[9px] uppercase font-black px-1.5 py-0.5 bg-white/10 rounded text-white tracking-widest hidden sm:inline-block">
+                            Active View
+                          </span>
+                        )}
                       </div>
                       <span className="text-gray-500 text-xs font-bold shrink-0">
                         {isWeekOpen ? '▲ Collapse' : '▼ Expand'}
@@ -308,7 +345,7 @@ export default function Results() {
                     </button>
 
                     {isWeekOpen && (
-                      <div className="p-3 sm:p-4 bg-black/30">
+                      <div className={`p-3 sm:p-4 ${isSuperBowlWeek ? 'bg-black/40' : 'bg-black/30'}`}>
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
                           {weekGames.map(game => {
                             const awayTeam = teamsMap[game.away_team_id?.toString()];
@@ -322,45 +359,52 @@ export default function Results() {
                             const awayWon = isFinished && game.away_score > game.home_score;
                             const homeWon = isFinished && game.home_score > game.away_score;
 
+                            // EXTRAINDO A COR E O GRADIENTE:
+                            const { wrapperClass, hasGradient } = getGameCardStyles(game, homeTeam?.conference || awayTeam?.conference);
+
                             return (
-                              <div key={game.id} className="bg-neutral-950 border border-white/10 rounded-xl p-3 sm:p-4 flex flex-col gap-3 hover:border-white/20 transition-colors shadow-sm">
-                                
-                                <div className="flex justify-between items-center pb-2 border-b border-white/5">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-none">
-                                      {formattedDate}
+                              <div key={game.id} className={wrapperClass}>
+                                <div className={`bg-neutral-950 rounded-[12px] p-3 sm:p-4 flex flex-col gap-3 h-full transition-colors ${hasGradient ? '' : 'border border-white/10 hover:border-white/20 shadow-sm'}`}>
+                                  
+                                  <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-none truncate">
+                                        {formattedDate}
+                                      </span>
+                                      {/* FLEXBOX FIX: shrink-0 origin-left e margin negativa ajudam a ignorar o scale */}
+                                      {game.broadcast_tag && (
+                                        <div className="shrink-0 transform scale-[0.70] origin-left -mr-5 flex items-center">
+                                          <BroadcastBadge tag={game.broadcast_tag} />
+                                        </div>
+                                      )}
+                                    </div>
+                                    <span className={`text-[9px] font-black uppercase tracking-widest shrink-0 ml-2 ${isFinished ? 'text-green-500' : 'text-neutral-500'}`}>
+                                      {isFinished ? 'Final' : formattedTime}
                                     </span>
-                                    {game.broadcast_tag && (
-                                      <div className="scale-75 origin-left">
-                                        <BroadcastBadge tag={game.broadcast_tag} />
+                                  </div>
+
+                                  <div className="flex flex-col gap-2">
+                                    <div className={`flex items-center justify-between ${isFinished && !awayWon ? 'opacity-40' : 'opacity-100'}`}>
+                                      <div className="flex items-center gap-2">
+                                        {awayTeam?.logo_url ? <img src={awayTeam.logo_url} className="w-6 h-6 object-contain" alt="" /> : <div className="w-6 h-6 bg-white/5 rounded-full" />}
+                                        <span className="font-black text-sm text-white uppercase">{awayTeam?.abbreviation || 'AWAY'}</span>
                                       </div>
-                                    )}
-                                  </div>
-                                  <span className={`text-[9px] font-black uppercase tracking-widest ${isFinished ? 'text-green-500' : 'text-neutral-500'}`}>
-                                    {isFinished ? 'Final' : formattedTime}
-                                  </span>
-                                </div>
-
-                                <div className="flex flex-col gap-2">
-                                  <div className={`flex items-center justify-between ${isFinished && !awayWon ? 'opacity-40' : 'opacity-100'}`}>
-                                    <div className="flex items-center gap-2">
-                                      {awayTeam?.logo_url ? <img src={awayTeam.logo_url} className="w-6 h-6 object-contain" alt="" /> : <div className="w-6 h-6 bg-white/5 rounded-full" />}
-                                      <span className="font-black text-sm text-white uppercase">{awayTeam?.abbreviation || 'AWAY'}</span>
+                                      <span className={`font-black text-lg ${isFinished && awayWon ? 'text-white' : (isFinished ? 'text-gray-400' : 'text-neutral-700')}`}>
+                                        {isFinished ? game.away_score : '-'}
+                                      </span>
                                     </div>
-                                    <span className={`font-black text-lg ${isFinished && awayWon ? 'text-white' : (isFinished ? 'text-gray-400' : 'text-neutral-700')}`}>
-                                      {isFinished ? game.away_score : '-'}
-                                    </span>
+
+                                    <div className={`flex items-center justify-between ${isFinished && !homeWon ? 'opacity-40' : 'opacity-100'}`}>
+                                      <div className="flex items-center gap-2">
+                                        {homeTeam?.logo_url ? <img src={homeTeam.logo_url} className="w-6 h-6 object-contain" alt="" /> : <div className="w-6 h-6 bg-white/5 rounded-full" />}
+                                        <span className="font-black text-sm text-white uppercase">{homeTeam?.abbreviation || 'HOME'}</span>
+                                      </div>
+                                      <span className={`font-black text-lg ${isFinished && homeWon ? 'text-white' : (isFinished ? 'text-gray-400' : 'text-neutral-700')}`}>
+                                        {isFinished ? game.home_score : '-'}
+                                      </span>
+                                    </div>
                                   </div>
 
-                                  <div className={`flex items-center justify-between ${isFinished && !homeWon ? 'opacity-40' : 'opacity-100'}`}>
-                                    <div className="flex items-center gap-2">
-                                      {homeTeam?.logo_url ? <img src={homeTeam.logo_url} className="w-6 h-6 object-contain" alt="" /> : <div className="w-6 h-6 bg-white/5 rounded-full" />}
-                                      <span className="font-black text-sm text-white uppercase">{homeTeam?.abbreviation || 'HOME'}</span>
-                                    </div>
-                                    <span className={`font-black text-lg ${isFinished && homeWon ? 'text-white' : (isFinished ? 'text-gray-400' : 'text-neutral-700')}`}>
-                                      {isFinished ? game.home_score : '-'}
-                                    </span>
-                                  </div>
                                 </div>
                               </div>
                             );

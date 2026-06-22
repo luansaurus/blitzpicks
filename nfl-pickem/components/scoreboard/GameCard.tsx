@@ -14,6 +14,7 @@ interface GameCardProps {
     status?: string;
     home_score?: number;
     away_score?: number;
+    stadium?: { name: string; city: string };
   };
   userTeamColor: string;
   homeTeam: { name: string; abbr: string; color: string; logo?: string; conference?: string | null };
@@ -21,15 +22,19 @@ interface GameCardProps {
   existingPick?: { home_guess: number; away_guess: number } | null;
   onPickChange?: (gameId: string | number, home: string, away: string) => void;
   isUnsaved?: boolean;
+  isPlayoffLocked?: boolean; // <-- NOVA PROP DE TRAVA
 }
 
-export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, existingPick, onPickChange, isUnsaved }: GameCardProps) {
+export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, existingPick, onPickChange, isUnsaved, isPlayoffLocked = false }: GameCardProps) {
   const [awayPredict, setAwayPredict] = useState(existingPick?.away_guess?.toString() || "");
   const [homePredict, setHomePredict] = useState(existingPick?.home_guess?.toString() || "");
   const [isTimeBlocked, setIsTimeBlocked] = useState(false);
   
   const gameDate = new Date(game.game_time);
   const isFinished = game.status === 'finished';
+
+  // O input desativa se o tempo acabou, se o jogo acabou OU se for um playoff bloqueado
+  const isInputDisabled = isTimeBlocked || isFinished || isPlayoffLocked;
 
   useEffect(() => {
     if (!isUnsaved) {
@@ -50,7 +55,6 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
     return () => clearInterval(interval);
   }, [gameDate]);
 
-  // Lógica de Acertos e Pontos (CORRIGIDA: Usando fundo sólido escuro para bloquear o gradiente)
   let pointsEarned = 0;
   let resultColorClass = '';
   
@@ -80,94 +84,78 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
   const formattedDate = gameDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
   const formattedTime = gameDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
   
-  // --- MÁQUINA DE TEMATIZAÇÃO (GRADIENTES) ---
   const isPlayoff = ['WC', 'DR', 'AFCC', 'NFCC', 'CC', 'SB'].includes(game.week);
   const conf = homeTeam?.conference || awayTeam?.conference;
   
-  let wrapperClass = "transition-all duration-300 rounded-[14px] h-full ";
-  let innerCardClass = "rounded-[12px] p-3 sm:p-4 flex flex-col gap-2 relative h-full ";
-  let hasGradient = false;
+  let wrapperClass = "transition-all duration-300 rounded-[14px] h-full p-[2px] hover:-translate-y-[1px] relative mt-2 ";
 
   if (game.week === 'SB') {
-    wrapperClass += "p-[2px] bg-gradient-to-br from-purple-600 via-pink-500 to-amber-500 shadow-[0_0_15px_rgba(168,85,247,0.3)]";
-    hasGradient = true;
+    wrapperClass += "bg-gradient-to-br from-purple-600 via-pink-500 to-amber-500 shadow-[0_0_15px_rgba(168,85,247,0.3)]";
   } else if (isPlayoff) {
     if (game.week === 'AFCC' || conf === 'AFC') {
-      wrapperClass += "p-[1.5px] bg-gradient-to-br from-[#E31837] to-white shadow-[0_0_15px_rgba(227,24,55,0.15)]";
-      hasGradient = true;
+      wrapperClass += "bg-gradient-to-br from-[#E31837] to-white shadow-[0_0_15px_rgba(227,24,55,0.15)]";
     } else if (game.week === 'NFCC' || conf === 'NFC') {
-      wrapperClass += "p-[1.5px] bg-gradient-to-br from-[#013369] to-white shadow-[0_0_15px_rgba(1,51,105,0.15)]";
-      hasGradient = true;
+      wrapperClass += "bg-gradient-to-br from-[#013369] to-white shadow-[0_0_15px_rgba(1,51,105,0.15)]";
+    } else {
+      wrapperClass += "bg-gradient-to-br from-neutral-600 to-black shadow-sm";
     }
   } else if (game.broadcast_tag) {
-    hasGradient = true;
     switch(game.broadcast_tag) {
-      case 'TNF': 
-        wrapperClass += "p-[1.5px] bg-gradient-to-br from-[#00A8E1] to-white shadow-[0_0_15px_rgba(0,168,225,0.15)]";
-        break;
-      case 'SNF': 
-        wrapperClass += "p-[1.5px] bg-gradient-to-br from-[#E2D82C] to-white shadow-[0_0_15px_rgba(226,216,44,0.15)]";
-        break;
-      case 'MNF': 
-        wrapperClass += "p-[1.5px] bg-gradient-to-br from-[#CC0000] to-white shadow-[0_0_15px_rgba(204,0,0,0.15)]";
-        break;
-      case 'INT': 
-        wrapperClass += "p-[1.5px] bg-gradient-to-br from-indigo-600 to-cyan-400 shadow-[0_0_15px_rgba(79,70,229,0.15)]";
-        break;
-      default:
-        wrapperClass += "p-[1.5px] bg-gradient-to-br from-gray-500 to-white shadow-[0_0_15px_rgba(255,255,255,0.1)]";
+      case 'TNF': wrapperClass += "bg-gradient-to-br from-[#00A8E1] to-white shadow-[0_0_15px_rgba(0,168,225,0.15)]"; break;
+      case 'SNF': wrapperClass += "bg-gradient-to-br from-[#E2D82C] to-white shadow-[0_0_15px_rgba(226,216,44,0.15)]"; break;
+      case 'MNF': wrapperClass += "bg-gradient-to-br from-[#CC0000] to-white shadow-[0_0_15px_rgba(204,0,0,0.15)]"; break;
+      case 'INT': wrapperClass += "bg-gradient-to-br from-indigo-600 to-cyan-400 shadow-[0_0_15px_rgba(79,70,229,0.15)]"; break;
+      default: wrapperClass += "bg-gradient-to-br from-gray-500 to-white shadow-[0_0_15px_rgba(255,255,255,0.1)]";
     }
   } else {
-    wrapperClass += "p-0";
+    wrapperClass += "bg-gradient-to-br from-neutral-600 to-black hover:from-neutral-500 shadow-sm";
   }
 
-  if (hasGradient) {
-    innerCardClass += isFinished && existingPick ? resultColorClass : "bg-neutral-950";
-  } else {
-    if (isFinished && existingPick) {
-      innerCardClass += resultColorClass;
-    } else if (isUnsaved) {
-      innerCardClass += "bg-neutral-900 border-2";
-    } else {
-      innerCardClass += "bg-neutral-900 border border-white/5 hover:border-white/20";
-    }
-  }
-
-  const cardOpacity = isTimeBlocked || isFinished ? "opacity-90" : "shadow-sm";
-  innerCardClass += ` ${cardOpacity}`;
+  let innerCardClass = "rounded-[12px] p-3 sm:p-4 flex flex-col gap-2 relative h-full ";
+  innerCardClass += isFinished && existingPick ? resultColorClass : "bg-neutral-950";
+  innerCardClass += isInputDisabled ? " opacity-90" : " shadow-sm";
 
   const blockNegativeKeys = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === '-' || e.key === 'e' || e.key === '+' || e.key === ',' || e.key === '.') e.preventDefault();
   };
 
   return (
-    <div className={wrapperClass}>
-      <div 
-        className={innerCardClass}
-        style={isUnsaved && !hasGradient ? { borderColor: userTeamColor, boxShadow: `0 0 15px ${userTeamColor}30` } : {}}
-      >
-        <div className="flex justify-between items-center pb-2 border-b border-white/5 mb-1">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="text-[9px] text-gray-500 font-bold uppercase truncate leading-none">
-              {formattedDate}
+    <div className={wrapperClass} style={isUnsaved ? { background: userTeamColor, boxShadow: `0 0 15px ${userTeamColor}60` } : {}}>
+      
+      {/* SELO FLUTUANTE SIMPLES */}
+      {game.broadcast_tag && (
+        <div className="absolute -top-[14px] right-3 z-20 scale-90 origin-bottom drop-shadow-lg">
+          <BroadcastBadge tag={game.broadcast_tag} />
+        </div>
+      )}
+
+      <div className={innerCardClass}>
+        <div className="flex justify-between items-start pb-2 border-b border-white/5 mb-2 gap-2">
+          <div className="flex flex-col gap-1 min-w-0">
+            <span className="text-[10px] text-gray-400 font-bold uppercase truncate leading-none">
+              {formattedDate} <span className="mx-1">•</span> {formattedTime}
             </span>
-            {game.broadcast_tag && (
-              <div className="shrink-0 scale-[0.85] origin-left">
-                <BroadcastBadge tag={game.broadcast_tag} />
-              </div>
+            {game.stadium && (
+              <span className="text-[9px] text-gray-500 font-semibold truncate leading-none mt-0.5" title={`${game.stadium.name}, ${game.stadium.city}`}>
+                📍 {game.stadium.name}, {game.stadium.city}
+              </span>
             )}
           </div>
           
-          <div className="text-right shrink-0 ml-2">
-            {isFinished ? (
-              <span className="text-[8px] font-black uppercase tracking-widest text-green-500">Final</span>
-            ) : isTimeBlocked ? (
-              <span className="text-[8px] font-black uppercase tracking-widest text-red-500">Locked</span>
-            ) : isUnsaved ? (
-              <span className="text-[8px] font-black uppercase tracking-widest animate-pulse" style={{ color: hasGradient ? '#FFFFFF' : userTeamColor }}>Unsaved</span>
-            ) : (
-              <span className="text-[8px] font-black uppercase tracking-widest text-neutral-500">{formattedTime}</span>
-            )}
+          <div className="flex flex-col items-end shrink-0">
+            <div className="text-right leading-none">
+              {isFinished ? (
+                <span className="text-[9px] font-black uppercase tracking-widest text-green-500">Final</span>
+              ) : isPlayoffLocked ? (
+                <span className="text-[9px] font-black uppercase tracking-widest text-amber-500">Locked</span>
+              ) : isTimeBlocked ? (
+                <span className="text-[9px] font-black uppercase tracking-widest text-red-500">Locked</span>
+              ) : isUnsaved ? (
+                <span className="text-[9px] font-black uppercase tracking-widest animate-pulse" style={{ color: '#FFFFFF' }}>Unsaved</span>
+              ) : (
+                <span className="text-[9px] font-black uppercase tracking-widest text-neutral-500">Pending</span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -177,14 +165,17 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
               {isFinished && (
                 <span className="w-6 text-center text-[7px] font-black uppercase tracking-widest text-gray-500">Real</span>
               )}
-              <span className="w-9 text-center text-[7px] font-black uppercase tracking-widest text-gray-500">Pick</span>
+              <span className="w-12 text-center text-[7px] font-black uppercase tracking-widest text-gray-500">Pick</span>
             </div>
           </div>
           
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 min-w-0">
               {awayTeam?.logo && <img src={awayTeam.logo} className="w-5 h-5 object-contain shrink-0" alt="" />}
-              <span className="font-black text-xs text-white uppercase truncate">{awayTeam?.abbr || 'AWAY'}</span>
+              <span className="font-black text-xs text-white uppercase truncate">
+                <span className="sm:hidden">{awayTeam?.abbr || 'AWAY'}</span>
+                <span className="hidden sm:inline">{awayTeam?.name || awayTeam?.abbr || 'AWAY'}</span>
+              </span>
             </div>
             
             <div className="flex items-center gap-2 shrink-0">
@@ -194,7 +185,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                 </span>
               )}
               <input
-                type="number" min="0" onKeyDown={blockNegativeKeys} disabled={isTimeBlocked || isFinished} value={awayPredict} 
+                type="number" min="0" onKeyDown={blockNegativeKeys} disabled={isInputDisabled} value={awayPredict} 
                 onChange={(e) => {
                   const val = e.target.value;
                   if (val === "" || parseInt(val) >= 0) {
@@ -203,7 +194,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                   }
                 }} 
                 placeholder="-"
-                className={`w-9 h-8 border rounded text-center text-xs font-black text-white focus:outline-none transition p-0 disabled:opacity-60 disabled:cursor-not-allowed ${hasGradient ? 'bg-black/50 border-white/20 focus:border-white' : 'bg-black border-white/10 focus:border-white'}`}
+                className="w-12 h-10 bg-black/50 border border-white/20 rounded text-center text-sm font-black text-white focus:outline-none focus:border-white transition p-0 disabled:opacity-60 disabled:cursor-not-allowed"
               />
             </div>
           </div>
@@ -211,7 +202,10 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 min-w-0">
               {homeTeam?.logo && <img src={homeTeam.logo} className="w-5 h-5 object-contain shrink-0" alt="" />}
-              <span className="font-black text-xs text-white uppercase truncate">{homeTeam?.abbr || 'HOME'}</span>
+              <span className="font-black text-xs text-white uppercase truncate">
+                <span className="sm:hidden">{homeTeam?.abbr || 'HOME'}</span>
+                <span className="hidden sm:inline">{homeTeam?.name || homeTeam?.abbr || 'HOME'}</span>
+              </span>
             </div>
             
             <div className="flex items-center gap-2 shrink-0">
@@ -221,7 +215,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                 </span>
               )}
               <input
-                type="number" min="0" onKeyDown={blockNegativeKeys} disabled={isTimeBlocked || isFinished} value={homePredict} 
+                type="number" min="0" onKeyDown={blockNegativeKeys} disabled={isInputDisabled} value={homePredict} 
                 onChange={(e) => {
                   const val = e.target.value;
                   if (val === "" || parseInt(val) >= 0) {
@@ -230,7 +224,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                   }
                 }} 
                 placeholder="-"
-                className={`w-9 h-8 border rounded text-center text-xs font-black text-white focus:outline-none transition p-0 disabled:opacity-60 disabled:cursor-not-allowed ${hasGradient ? 'bg-black/50 border-white/20 focus:border-white' : 'bg-black border-white/10 focus:border-white'}`}
+                className="w-12 h-10 bg-black/50 border border-white/20 rounded text-center text-sm font-black text-white focus:outline-none focus:border-white transition p-0 disabled:opacity-60 disabled:cursor-not-allowed"
               />
             </div>
           </div>

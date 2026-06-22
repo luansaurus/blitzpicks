@@ -108,15 +108,12 @@ export default function PlayoffLiveView({ userAccentColor, userInitialSeeds, rea
 
   return (
     <div className="w-full overflow-x-auto pb-8 scrollbar-hide">
-      {/* CORREÇÃO: min-w expandido para 1600px. 
-        Isso garante que a matemática do Flexbox não esmague a NFC do lado direito.
-      */}
       <div className="min-w-[1600px] h-[720px] flex items-stretch justify-between relative bg-gradient-to-br from-[#0a0a0a] via-[#111111] to-[#0a0a0a] rounded-3xl border border-white/10 py-8 px-10 shadow-2xl overflow-hidden">
         
         <div className="absolute top-0 left-0 w-1/3 h-full bg-red-600/5 blur-[120px] pointer-events-none z-0"></div>
         <div className="absolute top-0 right-0 w-1/3 h-full bg-blue-600/5 blur-[120px] pointer-events-none z-0"></div>
 
-        {/* AFC - COLUNA 1 */}
+        {/* AFC - COLUNA 1 - SHRINK-0 adicionado */}
         <div className="flex flex-col justify-between z-10 py-4 shrink-0">
           <div className="flex flex-col items-center gap-1 z-10">
             <span className="text-[10px] font-black uppercase text-gray-500 tracking-widest text-center">AFC 1st Seed (BYE)</span>
@@ -131,18 +128,18 @@ export default function PlayoffLiveView({ userAccentColor, userInitialSeeds, rea
           {afc.wcMatchups.map(m => <MatchupBoxLive key={m.id} {...m} matchupId={m.id} conf="AFC" />)}
         </div>
 
-        {/* AFC - COLUNA 2 */}
+        {/* AFC - COLUNA 2 - SHRINK-0 adicionado */}
         <div className="flex flex-col justify-around z-10 pl-8 border-l border-dashed border-white/10 shrink-0">
           <MatchupBoxLive {...afc.div1} matchupId="div_1" conf="AFC" />
           <MatchupBoxLive {...afc.div2} matchupId="div_2" conf="AFC" />
         </div>
 
-        {/* AFC - COLUNA 3 */}
+        {/* AFC - COLUNA 3 - SHRINK-0 adicionado */}
         <div className="flex flex-col justify-center z-10 pl-8 border-l border-dashed border-white/10 shrink-0">
           <MatchupBoxLive {...afc.champ} matchupId="champ" conf="AFC" />
         </div>
 
-        {/* CENTRO: SUPER BOWL LXI */}
+        {/* CENTRO: SUPER BOWL LXI - SHRINK-0 adicionado */}
         <div className="shrink-0 flex flex-col justify-center items-center z-10 px-8 mx-4 pb-12 relative min-w-[260px]">
           <img src="https://upload.wikimedia.org/wikipedia/fr/7/74/Super_Bowl_LXI_Logo.png" alt="SB LXI" className="h-32 mb-6 drop-shadow-[0_0_25px_rgba(255,255,255,0.15)]" />
           
@@ -163,18 +160,18 @@ export default function PlayoffLiveView({ userAccentColor, userInitialSeeds, rea
           )}
         </div>
 
-        {/* NFC - COLUNA 3 */}
+        {/* NFC - COLUNA 3 - SHRINK-0 adicionado */}
         <div className="flex flex-col justify-center z-10 pr-8 border-r border-dashed border-white/10 shrink-0">
           <MatchupBoxLive {...nfc.champ} matchupId="champ" conf="NFC" />
         </div>
 
-        {/* NFC - COLUNA 2 */}
+        {/* NFC - COLUNA 2 - SHRINK-0 adicionado */}
         <div className="flex flex-col justify-around z-10 pr-8 border-r border-dashed border-white/10 shrink-0">
           <MatchupBoxLive {...nfc.div1} matchupId="div_1" conf="NFC" />
           <MatchupBoxLive {...nfc.div2} matchupId="div_2" conf="NFC" />
         </div>
 
-        {/* NFC - COLUNA 1 */}
+        {/* NFC - COLUNA 1 - SHRINK-0 adicionado */}
         <div className="flex flex-col justify-between z-10 py-4 shrink-0">
           <div className="flex flex-col items-center gap-1 z-10">
             <span className="text-[10px] font-black uppercase text-gray-500 tracking-widest text-center">NFC 1st Seed (BYE)</span>

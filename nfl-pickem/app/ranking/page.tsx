@@ -6,6 +6,7 @@ import Header from '../../components/layout/header';
 import { createClient } from '../../utils/supabase/client';
 import { getThemeColor } from '../../utils/theme';
 import LoadingScreen from '@/components/ui/LoadingScreen';
+import BroadcastBadge from '@/components/ui/BroadcastBadge';
 
 function getPickResult(game: any, guess: any) {
   if (!game || !guess || game.home_score === null || game.away_score === null) {
@@ -29,6 +30,51 @@ function getPickResult(game: any, guess: any) {
     return { points: 0, colorClass: 'bg-red-500/10', textClass: 'text-red-500' };
   }
 }
+
+// Helper de Estilo Compartilhado
+const getGameCardStyles = (game: any, conf: string | undefined | null) => {
+  let wrapperClass = "transition-all duration-300 rounded-[14px] h-full w-full ";
+  let hasGradient = false;
+
+  const isPlayoff = ['WC', 'DR', 'AFCC', 'NFCC', 'CC', 'SB'].includes(game.week);
+  
+  const rawTags = game.broadcast_tag ? game.broadcast_tag.split(',').map((t: string) => t.trim()) : [];
+  const tags = [...rawTags].sort((a, b) => {
+    if (a === 'INT') return -1;
+    if (b === 'INT') return 1;
+    return 0;
+  });
+
+  if (game.week === 'SB') {
+    wrapperClass += "p-[2px] bg-gradient-to-br from-purple-600 via-pink-500 to-amber-500 shadow-[0_0_15px_rgba(168,85,247,0.3)]";
+    hasGradient = true;
+  } else if (isPlayoff) {
+    if (game.week === 'AFCC' || conf === 'AFC') {
+      wrapperClass += "p-[1.5px] bg-gradient-to-br from-[#E31837] to-white shadow-[0_0_15px_rgba(227,24,55,0.15)]";
+      hasGradient = true;
+    } else if (game.week === 'NFCC' || conf === 'NFC') {
+      wrapperClass += "p-[1.5px] bg-gradient-to-br from-[#013369] to-white shadow-[0_0_15px_rgba(1,51,105,0.15)]";
+      hasGradient = true;
+    }
+  } else if (tags.length > 0) {
+    hasGradient = true;
+    if (tags.includes('TNF')) {
+      wrapperClass += "p-[1.5px] bg-gradient-to-br from-[#00A8E1] to-white shadow-[0_0_15px_rgba(0,168,225,0.15)]";
+    } else if (tags.includes('SNF')) {
+      wrapperClass += "p-[1.5px] bg-gradient-to-br from-[#E2D82C] to-white shadow-[0_0_15px_rgba(226,216,44,0.15)]";
+    } else if (tags.includes('MNF')) {
+      wrapperClass += "p-[1.5px] bg-gradient-to-br from-[#CC0000] to-white shadow-[0_0_15px_rgba(204,0,0,0.15)]";
+    } else if (tags.includes('INT')) {
+      wrapperClass += "p-[1.5px] bg-gradient-to-br from-indigo-600 to-cyan-400 shadow-[0_0_15px_rgba(79,70,229,0.15)]";
+    } else {
+      wrapperClass += "p-[1.5px] bg-gradient-to-br from-gray-500 to-white shadow-[0_0_15px_rgba(255,255,255,0.1)]";
+    }
+  } else {
+    wrapperClass += "p-0";
+  }
+
+  return { wrapperClass, hasGradient, tags };
+};
 
 export default function RankingPage() {
   const router = useRouter();
@@ -70,7 +116,6 @@ export default function RankingPage() {
       if (profile?.favorite_team_id) {
         const { data: teamInfo } = await supabase.from('teams').select('primary_color').eq('id', profile.favorite_team_id).single();
         if (teamInfo?.primary_color) {
-          // CORREÇÃO: Transforma a cor no tom Neon antes de salvar no estado e no cache!
           const neonColor = getThemeColor(teamInfo.primary_color);
           setUserColor(neonColor);
           localStorage.setItem('blitz_accent', neonColor);
@@ -80,7 +125,7 @@ export default function RankingPage() {
 
       const { data: teams } = await supabase.from('teams').select('*');
       const tMap: Record<string, any> = {};
-      teams?.forEach(t => { tMap[t.id.toString()] = { name: t.name, abbr: t.abbreviation, logo: t.logo_url }; });
+      teams?.forEach(t => { tMap[t.id.toString()] = { name: t.name, abbr: t.abbreviation, logo: t.logo_url, conference: t.conference }; });
       setTeamsMap(tMap);
 
       const { data: games } = await supabase.from('games').select('*').order('game_time', { ascending: true });
@@ -112,10 +157,13 @@ export default function RankingPage() {
 
       const { data: users } = await supabase
         .from('profiles')
-        .select('id, nickname, score, favorite_team_id, teams ( logo_url, abbreviation )')
+        .select('id, nickname, score, favorite_team_id, is_test, teams ( logo_url, abbreviation )')
         .order('score', { ascending: false });
 
-      if (users) setLeaderboard(users);
+      if (users) {
+        const validUsers = users.filter(u => u.is_test !== true);
+        setLeaderboard(validUsers);
+      }
       
       setLoading(false);
     }
@@ -172,7 +220,9 @@ export default function RankingPage() {
                 <tr className="text-[10px] text-gray-500 uppercase tracking-widest bg-black/40 border-b border-white/5">
                   <th className="px-4 py-3 font-bold w-12 text-center">Pos</th>
                   <th className="px-4 py-3 font-bold">Player</th>
+                  {/* Score Centralizado */}
                   <th className="px-4 py-3 font-bold text-center w-24">Score</th>
+                  {/* Spy Alinhado à direita */}
                   <th className="px-4 py-3 font-bold text-right w-24">Spy</th>
                 </tr>
               </thead>
@@ -208,20 +258,26 @@ export default function RankingPage() {
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-4 text-right">
-                          <div className="flex flex-col items-end gap-1">
+                        
+                        {/* Célula de Score centralizada para acompanhar o cabeçalho */}
+                        <td className="px-4 py-4">
+                          <div className="flex flex-col items-center justify-center gap-1">
                             <span className="font-black text-base sm:text-lg text-white">{user.score}</span>
                           </div>
                         </td>
+                        
+                        {/* Célula de Spy alinhada à direita e encapsulada */}
                         <td className="px-4 py-4">
-                           {!isCurrentUser && (
-                              <button 
-                                className="flex items-center gap-1 text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded transition-all hover:scale-105"
-                                style={{ backgroundColor: `${userColor}20`, color: userColor }}
-                              >
-                                {isExpanded ? 'Hide' : 'Spy'} {isExpanded ? '▲' : '👁️'}
-                              </button>
-                            )}
+                           <div className="flex justify-end">
+                             {!isCurrentUser && (
+                                <button 
+                                  className="flex items-center gap-1 text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded transition-all hover:scale-105"
+                                  style={{ backgroundColor: `${userColor}20`, color: userColor }}
+                                >
+                                  {isExpanded ? 'Hide' : 'Spy'} {isExpanded ? '▲' : '👁️'}
+                                </button>
+                              )}
+                           </div>
                         </td>
                       </tr>
 
@@ -267,21 +323,25 @@ export default function RankingPage() {
                                     displayWeeks.map(week => {
                                       const isWeekOpen = expandedWeek === week;
                                       const weekGames = gamesByWeek[week];
+                                      const isSuperBowlWeek = week === 'SB';
 
                                       return (
-                                        <div key={week} className="bg-neutral-900/40 rounded-xl border border-white/5 overflow-hidden shadow-sm transition-all">
+                                        <div key={week} className={`rounded-xl border overflow-hidden transition-all ${isSuperBowlWeek && isWeekOpen ? 'border-purple-500/50 shadow-[0_0_30px_rgba(168,85,247,0.15)]' : 'bg-neutral-900/40 border-white/5 shadow-sm'}`}>
                                           <button
                                             onClick={(e) => { e.stopPropagation(); setExpandedWeek(isWeekOpen ? null : week); }}
-                                            className="w-full flex justify-between items-center p-3 sm:p-4 bg-neutral-900 hover:bg-neutral-800 transition text-left border-b border-white/5"
+                                            className={`w-full flex justify-between items-center p-3 sm:p-4 transition text-left border-b border-white/5 ${isSuperBowlWeek ? 'bg-gradient-to-r from-purple-900/40 via-black to-amber-900/40 hover:from-purple-900/60' : 'bg-neutral-900 hover:bg-neutral-800'}`}
                                           >
-                                            <span className="font-black text-sm uppercase tracking-widest" style={{ color: isWeekOpen ? userColor : '#ffffff' }}>
-                                              {spyPhase === 'playoffs' ? (playoffNames[week] || week) : `Week ${week}`}
-                                            </span>
+                                            <div className="flex items-center gap-2">
+                                              {isWeekOpen && isSuperBowlWeek && <div className="text-lg animate-pulse">🏆</div>}
+                                              <span className="font-black text-sm uppercase tracking-widest" style={{ color: isWeekOpen && !isSuperBowlWeek ? userColor : '#ffffff' }}>
+                                                {spyPhase === 'playoffs' ? (playoffNames[week] || week) : `Week ${week}`}
+                                              </span>
+                                            </div>
                                             <span className="text-gray-500 text-xs font-bold shrink-0">{isWeekOpen ? '▲' : '▼'}</span>
                                           </button>
 
                                           {isWeekOpen && (
-                                            <div className="p-3 bg-black/20 animate-fadeIn">
+                                            <div className={`p-3 ${isSuperBowlWeek ? 'bg-black/40' : 'bg-black/20'} animate-fadeIn`}>
                                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                                                 {weekGames.map(game => {
                                                   const theirGuess = expandedUserGuesses.find(g => g.game_id === game.id);
@@ -294,42 +354,68 @@ export default function RankingPage() {
                                                   const theirResult = getPickResult(game, theirGuess);
                                                   const myResult = getPickResult(game, myGuess);
 
+                                                  const { wrapperClass, hasGradient, tags } = getGameCardStyles(game, homeTeam?.conference || awayTeam?.conference);
+
                                                   return (
-                                                    <div key={game.id} className="bg-neutral-950 border border-white/10 rounded-lg overflow-hidden flex flex-col">
-                                                      <div className="p-2 sm:p-3 border-b border-white/5 bg-neutral-900/80 flex justify-between items-center gap-2">
-                                                        <div className="flex items-center gap-2">
-                                                          {awayTeam?.logo ? <img src={awayTeam.logo} title={awayTeam?.abbr} className="w-6 h-6 object-contain" alt={awayTeam?.abbr} /> : <span className="text-[10px] font-black uppercase text-white">{awayTeam?.abbr}</span>}
-                                                          <span className="text-[9px] font-black text-gray-500">@</span>
-                                                          {homeTeam?.logo ? <img src={homeTeam.logo} title={homeTeam?.abbr} className="w-6 h-6 object-contain" alt={homeTeam?.abbr} /> : <span className="text-[10px] font-black uppercase text-white">{homeTeam?.abbr}</span>}
+                                                    <div key={game.id} className={wrapperClass}>
+                                                      <div className={`bg-neutral-950 rounded-[12px] overflow-hidden flex flex-col h-full transition-colors ${hasGradient ? '' : 'border border-white/10 hover:border-white/20 shadow-sm'}`}>
+                                                        
+                                                        <div className="p-2 sm:p-3 border-b border-white/5 bg-neutral-900/80 flex justify-between items-center gap-2">
+                                                          <div className="flex items-center gap-1.5 min-w-0">
+                                                            <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest leading-none truncate">
+                                                              {new Date(game.game_time).toLocaleDateString("en-US", { month: 'short', day: 'numeric' })}
+                                                            </span>
+                                                            {tags.length > 0 && (
+                                                              <div className="shrink-0 transform scale-[0.70] origin-left -mr-8 flex items-center gap-1.5">
+                                                                {tags.map((tag: string) => (
+                                                                  <BroadcastBadge key={tag} tag={tag} />
+                                                                ))}
+                                                              </div>
+                                                            )}
+                                                          </div>
+                                                          <div className="shrink-0 ml-2">
+                                                            {isFinished ? (
+                                                              <span className="text-[9px] font-black uppercase tracking-widest text-green-500">Final</span>
+                                                            ) : (
+                                                              <span className="text-[9px] font-black uppercase tracking-widest text-neutral-500">Upcoming</span>
+                                                            )}
+                                                          </div>
                                                         </div>
 
-                                                        <div className="flex flex-col items-end">
-                                                          {isFinished ? (
-                                                            <>
-                                                              <span className="text-[8px] font-black uppercase tracking-widest text-green-500 mb-0.5">Final</span>
-                                                              <span className="text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 bg-black/50 border border-white/10 rounded text-white">{game.away_score} - {game.home_score}</span>
-                                                            </>
-                                                          ) : (
-                                                            <>
-                                                              <span className="text-[8px] font-black uppercase tracking-widest text-neutral-500 mb-0.5">Upcoming</span>
-                                                              <span className="text-[9px] font-bold text-gray-500 tracking-widest">{new Date(game.game_time).toLocaleDateString("en-US", { month: 'short', day: 'numeric' })}</span>
-                                                            </>
-                                                          )}
-                                                        </div>
-                                                      </div>
-
-                                                      <div className="grid grid-cols-2 divide-x divide-white/5">
-                                                        <div className={`p-3 flex flex-col items-center justify-center transition-colors ${isFinished ? theirResult.colorClass : 'bg-transparent'}`}>
-                                                          <span className="text-[8px] uppercase font-bold text-gray-500 tracking-widest mb-1 truncate w-full text-center">{user.nickname}</span>
-                                                          <span className={`font-black text-sm ${theirGuess ? 'text-white' : 'text-gray-600'}`}>{theirGuess ? `${theirGuess.away_guess} - ${theirGuess.home_guess}` : 'N/A'}</span>
-                                                          {isFinished && theirGuess && <span className={`text-[9px] font-black uppercase mt-1 ${theirResult.textClass}`}>{theirResult.points} PTS</span>}
+                                                        <div className="flex justify-between items-center p-3 bg-black/40 border-b border-white/5">
+                                                          <div className="flex items-center gap-2">
+                                                            {awayTeam?.logo ? <img src={awayTeam.logo} title={awayTeam?.abbr} className="w-5 h-5 object-contain" alt={awayTeam?.abbr} /> : <span className="text-[10px] font-black uppercase text-white">{awayTeam?.abbr}</span>}
+                                                            <span className="text-[10px] font-black text-gray-500">@</span>
+                                                            {homeTeam?.logo ? <img src={homeTeam.logo} title={homeTeam?.abbr} className="w-5 h-5 object-contain" alt={homeTeam?.abbr} /> : <span className="text-[10px] font-black uppercase text-white">{homeTeam?.abbr}</span>}
+                                                          </div>
+                                                          
+                                                          <div className="flex flex-col items-end shrink-0 ml-2">
+                                                            {isFinished ? (
+                                                              <span className="text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 bg-white/5 border border-white/10 rounded text-white">
+                                                                {game.away_score} - {game.home_score}
+                                                              </span>
+                                                            ) : (
+                                                              <span className="text-[9px] font-bold text-gray-500 tracking-widest">
+                                                                {new Date(game.game_time).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
+                                                              </span>
+                                                            )}
+                                                          </div>
                                                         </div>
 
-                                                        <div className={`p-3 flex flex-col items-center justify-center transition-colors ${isFinished ? myResult.colorClass : 'bg-transparent'}`}>
-                                                          <span className="text-[8px] uppercase font-bold text-gray-500 tracking-widest mb-1 truncate w-full text-center">You</span>
-                                                          <span className={`font-black text-sm ${myGuess ? 'text-white' : 'text-gray-600'}`}>{myGuess ? `${myGuess.away_guess} - ${myGuess.home_guess}` : 'N/A'}</span>
-                                                          {isFinished && myGuess && <span className={`text-[9px] font-black uppercase mt-1 ${myResult.textClass}`}>{myResult.points} PTS</span>}
+                                                        <div className="grid grid-cols-2 divide-x divide-white/5 grow">
+                                                          <div className={`p-3 flex flex-col items-center justify-center transition-colors ${isFinished ? theirResult.colorClass : 'bg-transparent'}`}>
+                                                            <span className="text-[8px] uppercase font-bold text-gray-500 tracking-widest mb-1 truncate w-full text-center">{user.nickname}</span>
+                                                            <span className={`font-black text-sm ${theirGuess ? 'text-white' : 'text-gray-600'}`}>{theirGuess ? `${theirGuess.away_guess} - ${theirGuess.home_guess}` : 'N/A'}</span>
+                                                            {isFinished && theirGuess && <span className={`text-[9px] font-black uppercase mt-1 ${theirResult.textClass}`}>{theirResult.points} PTS</span>}
+                                                          </div>
+
+                                                          <div className={`p-3 flex flex-col items-center justify-center transition-colors ${isFinished ? myResult.colorClass : 'bg-transparent'}`}>
+                                                            <span className="text-[8px] uppercase font-bold text-gray-500 tracking-widest mb-1 truncate w-full text-center">You</span>
+                                                            <span className={`font-black text-sm ${myGuess ? 'text-white' : 'text-gray-600'}`}>{myGuess ? `${myGuess.away_guess} - ${myGuess.home_guess}` : 'N/A'}</span>
+                                                            {isFinished && myGuess && <span className={`text-[9px] font-black uppercase mt-1 ${myResult.textClass}`}>{myResult.points} PTS</span>}
+                                                          </div>
                                                         </div>
+                                                        
                                                       </div>
                                                     </div>
                                                   );
