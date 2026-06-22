@@ -9,8 +9,8 @@ import { getThemeColor } from '../../utils/theme';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 
 const TBD_TEAM = { 
-  name: 'To Be Determined', 
-  abbr: 'TBD', 
+  name: 'Free Agent', 
+  abbr: 'FA', 
   color: '#333333', 
   logo: 'https://upload.wikimedia.org/wikipedia/en/a/a2/National_Football_League_logo.svg',
   conference: null
@@ -22,11 +22,10 @@ export default function SchedulePage() {
   const [myGuesses, setMyGuesses] = useState<any[]>([]);
   
   const [draftPicks, setDraftPicks] = useState<Record<string, { home: number, away: number }>>({});
-  const [isSavingPicks, setIsSavingPicks] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'error'>('idle');
   const [expandedWeek, setExpandedWeek] = useState<string | null>(null);
   const [seasonMode, setSeasonMode] = useState<'regular' | 'playoffs'>('regular');
   
-  // Inicialização inteligente da cor usando o cache do navegador
   const [userColor, setUserColor] = useState(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem('blitz_accent') || '#E31837';
@@ -60,7 +59,6 @@ export default function SchedulePage() {
       if (profile?.favorite_team_id) {
         const { data: teamInfo } = await supabase.from('teams').select('primary_color').eq('id', profile.favorite_team_id).single();
         if (teamInfo?.primary_color) {
-          // Aplicação do filtro neon universal
           const neonColor = getThemeColor(teamInfo.primary_color);
           setUserColor(neonColor);
           localStorage.setItem('blitz_accent', neonColor);
@@ -127,12 +125,11 @@ export default function SchedulePage() {
   };
 
   const handleSaveAll = async () => {
-    setIsSavingPicks(true);
+    setSaveStatus('saving');
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
     
     const payload = Object.entries(draftPicks).map(([gameId, scores]) => ({
-      id: parseInt(gameId),
       user_id: session.user.id,
       game_id: parseInt(gameId),
       home_guess: scores.home,
@@ -145,10 +142,12 @@ export default function SchedulePage() {
       const { data: newGuesses } = await supabase.from('guesses').select('*').eq('user_id', session.user.id);
       if (newGuesses) setMyGuesses(newGuesses);
       setDraftPicks({});
+      setSaveStatus('idle');
     } else {
-      alert("Erro ao salvar palpites.");
+      console.error("Failed to save picks:", error);
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 3000);
     }
-    setIsSavingPicks(false);
   };
 
   const filteredWeeks = Object.keys(gamesByWeek).filter(week => {
@@ -171,7 +170,7 @@ export default function SchedulePage() {
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div>
               <h1 className="text-3xl sm:text-4xl font-black italic uppercase tracking-wider">
-                Other <span style={{ color: userColor, textShadow: `0 0 15px ${userColor}80, 0 1px 2px rgba(255,255,255,0.2)` }}>Picks</span>
+                All <span style={{ color: userColor, textShadow: `0 0 15px ${userColor}80, 0 1px 2px rgba(255,255,255,0.2)` }}>Matchups</span>
               </h1>
               <p className="text-gray-400 mt-1 font-medium text-xs sm:text-sm">Manage all your predictions for the entire season.</p>
             </div>
@@ -274,18 +273,34 @@ export default function SchedulePage() {
 
       {Object.keys(draftPicks).length > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-md animate-slideUp">
-          <div className="bg-neutral-900 border-2 rounded-2xl p-4 flex items-center justify-between gap-4" style={{ borderColor: userColor, boxShadow: `0 10px 40px ${userColor}50` }}>
+          <div 
+            className="bg-neutral-900 border-2 rounded-2xl p-4 flex items-center justify-between gap-4 transition-all duration-300" 
+            style={{ 
+              borderColor: saveStatus === 'error' ? '#ef4444' : userColor, 
+              boxShadow: `0 10px 40px ${saveStatus === 'error' ? '#ef444450' : userColor + '50'}` 
+            }}
+          >
             <div className="flex flex-col">
-              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: userColor, textShadow: `0 0 10px ${userColor}80` }}>Unsaved Changes</span>
-              <span className="text-sm font-bold text-white">{Object.keys(draftPicks).length} Pick(s) pending</span>
+              <span 
+                className="text-[10px] font-black uppercase tracking-widest transition-colors duration-300" 
+                style={{ color: saveStatus === 'error' ? '#ef4444' : userColor, textShadow: saveStatus !== 'error' ? `0 0 10px ${userColor}80` : 'none' }}
+              >
+                {saveStatus === 'error' ? 'Sync Failed' : 'Unsaved Changes'}
+              </span>
+              <span className="text-sm font-bold text-white">
+                {Object.keys(draftPicks).length} Pick(s) pending
+              </span>
             </div>
             <button 
               onClick={handleSaveAll} 
-              disabled={isSavingPicks} 
+              disabled={saveStatus === 'saving'} 
               className="px-6 py-3 rounded-xl font-black uppercase tracking-widest transition-all shadow-md disabled:opacity-50 text-xs sm:text-sm" 
-              style={{ backgroundColor: userColor, color: '#000' }}
+              style={{ 
+                backgroundColor: saveStatus === 'error' ? '#ef4444' : userColor, 
+                color: saveStatus === 'error' ? '#ffffff' : '#000' 
+              }}
             >
-              {isSavingPicks ? 'Locking...' : 'Lock All'}
+              {saveStatus === 'saving' ? 'Locking...' : saveStatus === 'error' ? 'Try Again' : 'Lock All'}
             </button>
           </div>
         </div>

@@ -14,7 +14,7 @@ export default function Dashboard() {
   const [myGuesses, setMyGuesses] = useState<any[]>([]);
   
   const [draftPicks, setDraftPicks] = useState<Record<string, { home: number, away: number }>>({});
-  const [isSavingPicks, setIsSavingPicks] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'error'>('idle');
 
   const [userScore, setUserScore] = useState(0);
   const [favoriteTeamId, setFavoriteTeamId] = useState<number | string>('');
@@ -29,15 +29,18 @@ export default function Dashboard() {
   const router = useRouter();
 
   useEffect(() => {
-    // A instância do Supabase deve ser criada DENTRO do useEffect ou fora das dependências
-    // para não acionar um loop infinito de re-renderizações.
     const supabase = createClient();
 
     async function loadDashboardData() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push('/login'); return; }
 
-      const { data: profile } = await supabase.from('profiles').select('nickname, score, favorite_team_id').eq('id', session.user.id).single();
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('nickname, score, favorite_team_id')
+        .eq('id', session.user.id)
+        .single();
+        
       if (!profile?.nickname) { router.push('/setup'); return; }
 
       setUserScore(profile.score || 0);
@@ -46,7 +49,9 @@ export default function Dashboard() {
 
       const { data: teams } = await supabase.from('teams').select('*');
       const tMap: Record<string, any> = {};
-      teams?.forEach(t => { tMap[t.id.toString()] = { name: t.name, abbr: t.abbreviation, color: t.primary_color, logo: t.logo_url }; });
+      teams?.forEach(t => { 
+        tMap[t.id.toString()] = { name: t.name, abbr: t.abbreviation, color: t.primary_color, logo: t.logo_url }; 
+      });
       setTeamsDataMap(tMap);
 
       if (typeof window !== "undefined") {
@@ -54,15 +59,26 @@ export default function Dashboard() {
          if (savedAccent) setUserColor(savedAccent);
       }
 
-      const { data: gamesData } = await supabase.from('games').select('*, stadium(name, city)').order('game_time', { ascending: true });
+      const { data: gamesData } = await supabase
+        .from('games')
+        .select('*, stadium(name, city)')
+        .order('game_time', { ascending: true });
+
       if (gamesData && gamesData.length > 0) {
         setGames(gamesData);
         
         if (fTeamId) {
-          const teamGames = gamesData.filter(g => g.home_team_id?.toString() === fTeamId?.toString() || g.away_team_id?.toString() === fTeamId?.toString());
+          const teamGames = gamesData.filter(g => 
+            g.home_team_id?.toString() === fTeamId?.toString() || 
+            g.away_team_id?.toString() === fTeamId?.toString()
+          );
           
-          const finished = teamGames.filter(g => g.status === 'finished').sort((a, b) => new Date(b.game_time).getTime() - new Date(a.game_time).getTime());
-          const pending = teamGames.filter(g => g.status !== 'finished').sort((a, b) => new Date(a.game_time).getTime() - new Date(b.game_time).getTime());
+          const finished = teamGames
+            .filter(g => g.status === 'finished')
+            .sort((a, b) => new Date(b.game_time).getTime() - new Date(a.game_time).getTime());
+          const pending = teamGames
+            .filter(g => g.status !== 'finished')
+            .sort((a, b) => new Date(a.game_time).getTime() - new Date(b.game_time).getTime());
           
           setLastGame(finished[0] || null);
           setNextGame(pending[0] || null);
@@ -86,7 +102,7 @@ export default function Dashboard() {
       setLoading(false);
     }
     loadDashboardData();
-  }, [router]); // <-- ARRAY DE DEPENDÊNCIAS LIMPO (Loop Infinito removido)
+  }, [router]);
 
   const handlePickChange = (gameId: string | number, homeStr: string, awayStr: string) => {
     const gId = gameId.toString();
@@ -97,6 +113,7 @@ export default function Dashboard() {
     const home = homeStr === "" ? 0 : parseInt(homeStr);
     const away = awayStr === "" ? 0 : parseInt(awayStr);
     const existing = myGuesses.find(g => g.game_id.toString() === gId);
+    
     if (existing && existing.home_guess === home && existing.away_guess === away) {
       setDraftPicks(prev => { const next = { ...prev }; delete next[gId]; return next; });
       return;
@@ -105,13 +122,12 @@ export default function Dashboard() {
   };
 
   const handleSaveAll = async () => {
-    setIsSavingPicks(true);
+    setSaveStatus('saving');
     const supabase = createClient();
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
     
     const payload = Object.entries(draftPicks).map(([gameId, scores]) => ({
-      id: parseInt(gameId),
       user_id: session.user.id,
       game_id: parseInt(gameId),
       home_guess: scores.home,
@@ -124,10 +140,12 @@ export default function Dashboard() {
       const { data: newGuesses } = await supabase.from('guesses').select('*').eq('user_id', session.user.id);
       if (newGuesses) setMyGuesses(newGuesses);
       setDraftPicks({});
+      setSaveStatus('idle');
     } else {
-      alert("Erro ao salvar palpites.");
+      console.error("Failed to save picks:", error);
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 3000);
     }
-    setIsSavingPicks(false);
   };
 
   if (loading) return <LoadingScreen />;
@@ -192,13 +210,34 @@ export default function Dashboard() {
 
       {Object.keys(draftPicks).length > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-md animate-slideUp">
-          <div className="bg-neutral-900 border-2 rounded-2xl p-4 flex items-center justify-between gap-4" style={{ borderColor: userColor, boxShadow: `0 10px 40px ${userColor}50` }}>
+          <div 
+            className="bg-neutral-900 border-2 rounded-2xl p-4 flex items-center justify-between gap-4 transition-all duration-300" 
+            style={{ 
+              borderColor: saveStatus === 'error' ? '#ef4444' : userColor, 
+              boxShadow: `0 10px 40px ${saveStatus === 'error' ? '#ef444450' : userColor + '50'}` 
+            }}
+          >
             <div className="flex flex-col">
-              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: userColor, textShadow: `0 0 10px ${userColor}80` }}>Unsaved Changes</span>
-              <span className="text-sm font-bold text-white">{Object.keys(draftPicks).length} Pick(s) pending</span>
+              <span 
+                className="text-[10px] font-black uppercase tracking-widest transition-colors duration-300" 
+                style={{ color: saveStatus === 'error' ? '#ef4444' : userColor, textShadow: saveStatus !== 'error' ? `0 0 10px ${userColor}80` : 'none' }}
+              >
+                {saveStatus === 'error' ? 'Sync Failed' : 'Unsaved Changes'}
+              </span>
+              <span className="text-sm font-bold text-white">
+                {Object.keys(draftPicks).length} Pick(s) pending
+              </span>
             </div>
-            <button onClick={handleSaveAll} disabled={isSavingPicks} className="px-6 py-3 rounded-xl font-black uppercase tracking-widest transition-all shadow-md disabled:opacity-50 text-xs sm:text-sm" style={{ backgroundColor: userColor, color: '#000' }}>
-              {isSavingPicks ? 'Locking...' : 'Lock All'}
+            <button 
+              onClick={handleSaveAll} 
+              disabled={saveStatus === 'saving'} 
+              className="px-6 py-3 rounded-xl font-black uppercase tracking-widest transition-all shadow-md disabled:opacity-50 text-xs sm:text-sm" 
+              style={{ 
+                backgroundColor: saveStatus === 'error' ? '#ef4444' : userColor, 
+                color: saveStatus === 'error' ? '#ffffff' : '#000' 
+              }}
+            >
+              {saveStatus === 'saving' ? 'Locking...' : saveStatus === 'error' ? 'Try Again' : 'Lock All'}
             </button>
           </div>
         </div>
