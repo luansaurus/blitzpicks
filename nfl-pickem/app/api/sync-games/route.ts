@@ -35,7 +35,15 @@ export async function GET(request: Request) {
     const secret = searchParams.get('secret');
     
     if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ 
+        error: 'Unauthorized',
+        detetive: {
+          recebeuNaUrl: secret,
+          variavelExisteNaVercel: !!process.env.CRON_SECRET,
+          tamanhoNaVercel: process.env.CRON_SECRET?.length || 0,
+          tamanhoNaUrl: secret?.length || 0
+        }
+      }, { status: 401 });
     }
 
     const supabase = createClient(
