@@ -4,44 +4,10 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '../../components/layout/header';
 import PlayoffLiveView from '../../components/bracket/PlayoffLiveView';
+import GameCard from '../../components/scoreboard/GameCard';
 import { createClient } from '../../utils/supabase/client';
 import { getThemeColor } from '../../utils/theme';
 import LoadingScreen from '@/components/ui/LoadingScreen';
-import BroadcastBadge from '@/components/ui/BroadcastBadge';
-
-// Helper de Estilo (Mesmo motor do GameCard)
-const getGameCardStyles = (game: any, conf: string | undefined | null) => {
-  let wrapperClass = "transition-all duration-300 rounded-[14px] h-full w-full ";
-  let hasGradient = false;
-
-  const isPlayoff = ['WC', 'DR', 'AFCC', 'NFCC', 'CC', 'SB'].includes(game.week);
-
-  if (game.week === 'SB') {
-    wrapperClass += "p-[2px] bg-gradient-to-br from-purple-600 via-pink-500 to-amber-500 shadow-[0_0_15px_rgba(168,85,247,0.3)]";
-    hasGradient = true;
-  } else if (isPlayoff) {
-    if (game.week === 'AFCC' || conf === 'AFC') {
-      wrapperClass += "p-[1.5px] bg-gradient-to-br from-[#E31837] to-white shadow-[0_0_15px_rgba(227,24,55,0.15)]";
-      hasGradient = true;
-    } else if (game.week === 'NFCC' || conf === 'NFC') {
-      wrapperClass += "p-[1.5px] bg-gradient-to-br from-[#013369] to-white shadow-[0_0_15px_rgba(1,51,105,0.15)]";
-      hasGradient = true;
-    }
-  } else if (game.broadcast_tag) {
-    hasGradient = true;
-    switch(game.broadcast_tag) {
-      case 'TNF': wrapperClass += "p-[1.5px] bg-gradient-to-br from-[#00A8E1] to-white shadow-[0_0_15px_rgba(0,168,225,0.15)]"; break;
-      case 'SNF': wrapperClass += "p-[1.5px] bg-gradient-to-br from-[#E2D82C] to-white shadow-[0_0_15px_rgba(226,216,44,0.15)]"; break;
-      case 'MNF': wrapperClass += "p-[1.5px] bg-gradient-to-br from-[#CC0000] to-white shadow-[0_0_15px_rgba(204,0,0,0.15)]"; break;
-      case 'INT': wrapperClass += "p-[1.5px] bg-gradient-to-br from-indigo-600 to-cyan-400 shadow-[0_0_15px_rgba(79,70,229,0.15)]"; break;
-      default: wrapperClass += "p-[1.5px] bg-gradient-to-br from-gray-500 to-white shadow-[0_0_15px_rgba(255,255,255,0.1)]";
-    }
-  } else {
-    wrapperClass += "p-0";
-  }
-
-  return { wrapperClass, hasGradient };
-};
 
 export default function Results() {
   const [gamesByWeek, setGamesByWeek] = useState<Record<string, any[]>>({});
@@ -98,7 +64,7 @@ export default function Results() {
         const pct = totalGames === 0 ? 0 : (record.wins + (record.ties * 0.5)) / totalGames;
 
         const teamData = { ...t, ...record, pct, conference: t.conference };
-        tMap[t.id.toString()] = teamData;
+        tMap[t.id.toString()] = { name: t.name, abbr: t.abbreviation, color: t.primary_color, logo: t.logo_url };
 
         if (t.conference && t.division) {
           if (!groupedStandings[t.conference]) groupedStandings[t.conference] = {};
@@ -117,7 +83,7 @@ export default function Results() {
       setTeamsMap(tMap);
       setStandingsByConfAndDiv(groupedStandings);
 
-      const { data: games } = await supabase.from('games').select('*').order('game_time', { ascending: true });
+      const { data: games } = await supabase.from('games').select('*, stadium(name, city)').order('game_time', { ascending: true });
 
       if (games) {
         const grouped = games.reduce((acc, g) => {
@@ -347,68 +313,16 @@ export default function Results() {
                     {isWeekOpen && (
                       <div className={`p-3 sm:p-4 ${isSuperBowlWeek ? 'bg-black/40' : 'bg-black/30'}`}>
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-                          {weekGames.map(game => {
-                            const awayTeam = teamsMap[game.away_team_id?.toString()];
-                            const homeTeam = teamsMap[game.home_team_id?.toString()];
-                            const isFinished = game.status === 'finished';
-                            
-                            const gameDate = new Date(game.game_time);
-                            const formattedDate = gameDate.toLocaleDateString("en-US", { weekday: "short", month: "numeric", day: "numeric" });
-                            const formattedTime = gameDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
-                            
-                            const awayWon = isFinished && game.away_score > game.home_score;
-                            const homeWon = isFinished && game.home_score > game.away_score;
-
-                            // EXTRAINDO A COR E O GRADIENTE:
-                            const { wrapperClass, hasGradient } = getGameCardStyles(game, homeTeam?.conference || awayTeam?.conference);
-
-                            return (
-                              <div key={game.id} className={wrapperClass}>
-                                <div className={`bg-neutral-950 rounded-[12px] p-3 sm:p-4 flex flex-col gap-3 h-full transition-colors ${hasGradient ? '' : 'border border-white/10 hover:border-white/20 shadow-sm'}`}>
-                                  
-                                  <div className="flex justify-between items-center pb-2 border-b border-white/5">
-                                    <div className="flex items-center gap-1.5 min-w-0">
-                                      <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-none truncate">
-                                        {formattedDate}
-                                      </span>
-                                      {/* FLEXBOX FIX: shrink-0 origin-left e margin negativa ajudam a ignorar o scale */}
-                                      {game.broadcast_tag && (
-                                        <div className="shrink-0 transform scale-[0.70] origin-left -mr-5 flex items-center">
-                                          <BroadcastBadge tag={game.broadcast_tag} />
-                                        </div>
-                                      )}
-                                    </div>
-                                    <span className={`text-[9px] font-black uppercase tracking-widest shrink-0 ml-2 ${isFinished ? 'text-green-500' : 'text-neutral-500'}`}>
-                                      {isFinished ? 'Final' : formattedTime}
-                                    </span>
-                                  </div>
-
-                                  <div className="flex flex-col gap-2">
-                                    <div className={`flex items-center justify-between ${isFinished && !awayWon ? 'opacity-40' : 'opacity-100'}`}>
-                                      <div className="flex items-center gap-2">
-                                        {awayTeam?.logo_url ? <img src={awayTeam.logo_url} className="w-6 h-6 object-contain" alt="" /> : <div className="w-6 h-6 bg-white/5 rounded-full" />}
-                                        <span className="font-black text-sm text-white uppercase">{awayTeam?.abbreviation || 'AWAY'}</span>
-                                      </div>
-                                      <span className={`font-black text-lg ${isFinished && awayWon ? 'text-white' : (isFinished ? 'text-gray-400' : 'text-neutral-700')}`}>
-                                        {isFinished ? game.away_score : '-'}
-                                      </span>
-                                    </div>
-
-                                    <div className={`flex items-center justify-between ${isFinished && !homeWon ? 'opacity-40' : 'opacity-100'}`}>
-                                      <div className="flex items-center gap-2">
-                                        {homeTeam?.logo_url ? <img src={homeTeam.logo_url} className="w-6 h-6 object-contain" alt="" /> : <div className="w-6 h-6 bg-white/5 rounded-full" />}
-                                        <span className="font-black text-sm text-white uppercase">{homeTeam?.abbreviation || 'HOME'}</span>
-                                      </div>
-                                      <span className={`font-black text-lg ${isFinished && homeWon ? 'text-white' : (isFinished ? 'text-gray-400' : 'text-neutral-700')}`}>
-                                        {isFinished ? game.home_score : '-'}
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                </div>
-                              </div>
-                            );
-                          })}
+                          {weekGames.map(game => (
+                            <GameCard 
+                              key={game.id} 
+                              game={game} 
+                              userTeamColor={userColor} 
+                              homeTeam={teamsMap[game.home_team_id?.toString()] || { name: 'Home', abbr: 'HOME', color: '#171717' }}
+                              awayTeam={teamsMap[game.away_team_id?.toString()] || { name: 'Away', abbr: 'AWAY', color: '#171717' }}
+                              hidePicks={true}
+                            />
+                          ))}
                         </div>
                       </div>
                     )}
