@@ -14,6 +14,9 @@ interface UserTeamHeroProps {
 export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsDataMap }: UserTeamHeroProps) {
   const [teamInfo, setTeamInfo] = useState<any>(null);
   const [teamRecord, setTeamRecord] = useState<string>("0-0-0");
+  
+  const [seasonLeaders, setSeasonLeaders] = useState<any[]>([]);
+  const [loadingLeaders, setLoadingLeaders] = useState<boolean>(true);
 
   useEffect(() => {
     async function fetchTeamAndStandings() {
@@ -36,6 +39,46 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
         
       if (stdData) {
         setTeamRecord(`${stdData.wins}-${stdData.losses}-${stdData.ties}`);
+      }
+      
+      if (teamData && teamData.abbreviation && teamData.abbreviation !== 'NFL') {
+        try {
+          const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/${teamData.abbreviation.toLowerCase()}`);
+          if (res.ok) {
+            const espnData = await res.json();
+            const stats = espnData?.team?.record?.items?.[0]?.stats;
+            
+            if (stats && Array.isArray(stats) && stats.length > 0) {
+              const passing = stats.find((s: any) => s.name === 'passingYards');
+              const rushing = stats.find((s: any) => s.name === 'rushingYards');
+              const receiving = stats.find((s: any) => s.name === 'receivingYards');
+
+              // Nomes mais descritivos e tipos de jardas cravados
+              setSeasonLeaders([
+                { category: 'Passing', name: 'Total', stat: `${passing?.value || 0} PASS YDS` },
+                { category: 'Rushing', name: 'Total', stat: `${rushing?.value || 0} RUSH YDS` },
+                { category: 'Receiving', name: 'Total', stat: `${receiving?.value || 0} REC YDS` },
+              ]);
+            } else {
+              setSeasonLeaders([
+                { category: 'Passing', name: 'Preseason', stat: '0 PASS YDS' },
+                { category: 'Rushing', name: 'Preseason', stat: '0 RUSH YDS' },
+                { category: 'Receiving', name: 'Preseason', stat: '0 REC YDS' },
+              ]);
+            }
+          }
+        } catch (error) {
+          console.error("Erro ao buscar stats da ESPN", error);
+          setSeasonLeaders([
+            { category: 'Passing', name: 'Offline', stat: '- PASS YDS' },
+            { category: 'Rushing', name: 'Offline', stat: '- RUSH YDS' },
+            { category: 'Receiving', name: 'Offline', stat: '- REC YDS' },
+          ]);
+        } finally {
+          setLoadingLeaders(false);
+        }
+      } else {
+          setLoadingLeaders(false);
       }
     }
     
@@ -79,15 +122,11 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
   return (
     <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl group flex flex-col bg-neutral-950">
       
-      {/* 1. Background dinâmico em Gradiente */}
       <div 
         className="absolute inset-0 opacity-20 transition-all duration-700 group-hover:opacity-30 group-hover:scale-105 z-0"
-        style={{ 
-          background: `linear-gradient(135deg, ${teamInfo.primary_color} 0%, transparent 100%)`,
-        }}
+        style={{ background: `linear-gradient(135deg, ${teamInfo.primary_color} 0%, transparent 100%)` }}
       />
 
-      {/* 2. Escudo Gigante Opaco no Fundo (Canto Superior Direito) */}
       {teamInfo.logo_url && (
         <img 
           src={teamInfo.logo_url} 
@@ -96,53 +135,72 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
         />
       )}
       
-      {/* Conteúdo Principal do Hero */}
-      <div className="relative z-10 flex items-center justify-between p-6 sm:p-10">
-        <div className="flex items-center gap-4 sm:gap-6">
+      <div className="relative z-10 flex flex-col md:flex-row gap-6 items-start md:items-center justify-between p-6 sm:p-10">
+        
+        <div className="flex items-center gap-4 sm:gap-6 w-full md:w-auto">
           {teamInfo.logo_url ? (
-            <div className="w-20 h-20 sm:w-28 sm:h-28 bg-black/40 p-3 sm:p-4 rounded-full border border-white/10 shadow-[0_0_30px_rgba(0,0,0,0.5)] backdrop-blur-md">
+            <div className="w-16 h-16 sm:w-28 sm:h-28 bg-black/40 p-3 sm:p-4 rounded-full border border-white/10 shadow-[0_0_30px_rgba(0,0,0,0.5)] backdrop-blur-md shrink-0">
               <img src={teamInfo.logo_url} alt={teamInfo.name} className="w-full h-full object-contain drop-shadow-xl" />
             </div>
           ) : (
-            <div className="w-20 h-20 sm:w-28 sm:h-28 bg-black/30 rounded-full border border-white/10" />
+            <div className="w-16 h-16 sm:w-28 sm:h-28 bg-black/30 rounded-full border border-white/10 shrink-0" />
           )}
           
-          <div>
-            <h1 className="text-2xl sm:text-4xl font-black italic uppercase tracking-widest text-white drop-shadow-md">
+          <div className="flex flex-col">
+            <h1 className="text-xl sm:text-4xl font-black italic uppercase tracking-widest text-white drop-shadow-md leading-none mb-1">
               {teamInfo.name}
             </h1>
-            
             {!isGenericNFL ? (
-              <p className="text-xs sm:text-sm font-bold text-gray-400 uppercase tracking-widest mt-1">
+              <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-widest leading-none">
                 {teamRecord} • Locker Room
               </p>
             ) : (
-              <p className="text-xs sm:text-sm font-bold text-gray-400 uppercase tracking-widest mt-1">
+              <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-widest leading-none">
                 Global Locker Room
               </p>
             )}
           </div>
         </div>
 
-        <div className="text-right">
-          <div className="flex flex-col items-end">
-            <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-500">Total Points</span>
-            {/* CORREÇÃO AQUI: Texto sempre branco, brilho da cor do time */}
-            <span 
-              className="text-4xl sm:text-6xl font-black italic tracking-tighter text-white" 
-              style={{ textShadow: `0 0 25px ${teamInfo.primary_color}` }}
-            >
-              {score}
-            </span>
-          </div>
+        <div className="flex flex-col items-start md:items-end w-full md:w-auto mt-4 md:mt-0 pt-4 md:pt-0 border-t border-white/10 md:border-t-0">
+            
+            <div className="flex flex-col items-start md:items-end mb-4">
+                <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-500">Total Points</span>
+                <span 
+                className="text-4xl sm:text-6xl font-black italic tracking-tighter text-white leading-none mt-1" 
+                style={{ textShadow: `0 0 25px ${teamInfo.primary_color}` }}
+                >
+                {score}
+                </span>
+            </div>
+
+            {!isGenericNFL && seasonLeaders.length > 0 && (
+                <div className="w-full md:w-64 bg-black/40 border border-white/10 rounded-lg p-3">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-gray-500 block mb-2 text-center md:text-right">Season Totals</span>
+                    {loadingLeaders ? (
+                        <div className="animate-pulse space-y-2">
+                             <div className="h-3 bg-white/5 rounded w-full"></div>
+                             <div className="h-3 bg-white/5 rounded w-full"></div>
+                             <div className="h-3 bg-white/5 rounded w-full"></div>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col gap-1.5">
+                            {seasonLeaders.map((leader, i) => (
+                                <div key={i} className="flex justify-between items-center text-[9px] sm:text-[10px]">
+                                    <span className="text-gray-400 uppercase font-bold tracking-widest">{leader.category}: <span className="text-white normal-case font-medium tracking-normal">{leader.name}</span></span>
+                                    <span className="text-white font-black">{leader.stat}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
       </div>
 
-      {/* Sub-painel com Último e Próximo Jogo */}
       {(!isGenericNFL && (lastGame || nextGame)) && (
         <div className="relative z-10 bg-black/50 border-t border-white/10 backdrop-blur-xl grid grid-cols-2 divide-x divide-white/10">
           
-          {/* Last Match */}
           <div className="p-3 sm:p-4 flex flex-col justify-center items-center text-center">
             <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Last Match</span>
             {lastGame ? (
@@ -156,7 +214,6 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
             )}
           </div>
 
-          {/* Next Kickoff */}
           <div className="p-3 sm:p-4 flex flex-col justify-center items-center text-center">
             <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Next Kickoff</span>
             {nextGame ? (

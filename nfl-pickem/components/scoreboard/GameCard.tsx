@@ -15,6 +15,7 @@ interface GameCardProps {
     home_score?: number;
     away_score?: number;
     clock?: string;
+    meta_data?: any;
     stadium?: { name: string; city: string };
   };
   userTeamColor: string;
@@ -28,13 +29,12 @@ interface GameCardProps {
 }
 
 export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, existingPick, onPickChange, isUnsaved, isPlayoffLocked = false, hidePicks = false }: GameCardProps) {
-  
-  // 🛡️ A TRAVA DE SEGURANÇA: Previne render fantasma do Next.js
   if (!game || !game.game_time) return null;
 
   const [awayPredict, setAwayPredict] = useState(existingPick?.away_guess?.toString() || "");
   const [homePredict, setHomePredict] = useState(existingPick?.home_guess?.toString() || "");
   const [isTimeBlocked, setIsTimeBlocked] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   
   const gameDate = new Date(game.game_time);
   const isFinished = game.status === 'finished';
@@ -101,7 +101,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
     return 0;
   });
 
-  let wrapperClass = "transition-all duration-300 rounded-[14px] h-full relative mt-2 ";
+  let wrapperClass = "transition-all duration-300 rounded-[14px] h-full relative mt-2 flex flex-col ";
 
   if (hasGameStarted && existingPick && !hidePicks) {
     wrapperClass += "p-0";
@@ -120,28 +120,19 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
         wrapperClass += "bg-gradient-to-br from-neutral-600 to-black shadow-sm";
       }
     } else if (sortedTags.length > 0) {
-      if (sortedTags.includes('TNF')) {
-        wrapperClass += "bg-gradient-to-br from-[#00A8E1] to-white shadow-[0_0_15px_rgba(0,168,225,0.15)]";
-      } else if (sortedTags.includes('SNF')) {
-        wrapperClass += "bg-gradient-to-br from-[#E2D82C] to-white shadow-[0_0_15px_rgba(226,216,44,0.15)]";
-      } else if (sortedTags.includes('MNF')) {
-        wrapperClass += "bg-gradient-to-br from-[#CC0000] to-white shadow-[0_0_15px_rgba(204,0,0,0.15)]";
-      } else if (sortedTags.includes('INT')) {
-        wrapperClass += "bg-gradient-to-br from-indigo-600 to-cyan-400 shadow-[0_0_15px_rgba(79,70,229,0.15)]";
-      } else {
-        wrapperClass += "bg-gradient-to-br from-gray-500 to-white shadow-[0_0_15px_rgba(255,255,255,0.1)]";
-      }
+      if (sortedTags.includes('TNF')) wrapperClass += "bg-gradient-to-br from-[#00A8E1] to-white shadow-[0_0_15px_rgba(0,168,225,0.15)]";
+      else if (sortedTags.includes('SNF')) wrapperClass += "bg-gradient-to-br from-[#E2D82C] to-white shadow-[0_0_15px_rgba(226,216,44,0.15)]";
+      else if (sortedTags.includes('MNF')) wrapperClass += "bg-gradient-to-br from-[#CC0000] to-white shadow-[0_0_15px_rgba(204,0,0,0.15)]";
+      else if (sortedTags.includes('INT')) wrapperClass += "bg-gradient-to-br from-indigo-600 to-cyan-400 shadow-[0_0_15px_rgba(79,70,229,0.15)]";
+      else wrapperClass += "bg-gradient-to-br from-gray-500 to-white shadow-[0_0_15px_rgba(255,255,255,0.1)]";
     } else {
       wrapperClass += "bg-gradient-to-br from-neutral-600 to-black hover:from-neutral-500 shadow-sm";
     }
   }
 
-  let innerCardClass = "rounded-[12px] p-3 sm:p-4 flex flex-col gap-2 relative h-full ";
-  if (hasGameStarted && existingPick && !hidePicks) {
-    innerCardClass += ` ${resultColorClass}`;
-  } else {
-    innerCardClass += " bg-neutral-950";
-  }
+  let innerCardClass = "rounded-[12px] p-3 sm:p-4 flex flex-col gap-2 relative grow ";
+  if (hasGameStarted && existingPick && !hidePicks) innerCardClass += ` ${resultColorClass}`;
+  else innerCardClass += " bg-neutral-950";
   innerCardClass += isInputDisabled && !isLive ? " opacity-90" : " shadow-sm";
 
   const blockNegativeKeys = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -150,6 +141,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
 
   const awayWon = hasGameStarted && game.away_score !== undefined && game.home_score !== undefined && game.away_score > game.home_score;
   const homeWon = hasGameStarted && game.away_score !== undefined && game.home_score !== undefined && game.home_score > game.away_score;
+  const hasMetaData = game.meta_data && hasGameStarted;
 
   return (
     <div className={wrapperClass} style={isUnsaved ? { background: userTeamColor, boxShadow: `0 0 15px ${userTeamColor}60` } : {}}>
@@ -206,10 +198,15 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
             </div>
           )}
           
-          {/* AWAY TEAM */}
           <div className="flex items-center justify-between gap-2">
-            <div className={`flex items-center gap-1.5 min-w-0 transition-opacity ${hidePicks && hasGameStarted && !awayWon ? 'opacity-40' : 'opacity-100'}`}>
-              {awayTeam?.logo && <img src={awayTeam.logo} className="w-5 h-5 object-contain shrink-0" alt="" />}
+            <div className={`flex items-center gap-2 min-w-0 transition-opacity ${hidePicks && hasGameStarted && !awayWon ? 'opacity-40' : 'opacity-100'}`}>
+              {awayTeam?.logo ? (
+                <img src={awayTeam.logo} className="w-6 h-6 object-contain" alt={awayTeam?.abbr} />
+              ) : (
+                <div className="w-6 h-6 bg-white/5 rounded-full flex items-center justify-center">
+                  <span className="text-[8px] font-black">{awayTeam?.abbr?.[0]}</span>
+                </div>
+              )}
               <span className="font-black text-xs text-white uppercase truncate">
                 <span className="sm:hidden">{awayTeam?.abbr || 'AWAY'}</span>
                 <span className="hidden sm:inline">{awayTeam?.name || awayTeam?.abbr || 'AWAY'}</span>
@@ -232,10 +229,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                     type="number" min="0" onKeyDown={blockNegativeKeys} disabled={isInputDisabled} value={awayPredict} 
                     onChange={(e) => {
                       const val = e.target.value;
-                      if (val === "" || parseInt(val) >= 0) {
-                        setAwayPredict(val);
-                        if (onPickChange) onPickChange(game.id, homePredict, val);
-                      }
+                      if (val === "" || parseInt(val) >= 0) { setAwayPredict(val); if (onPickChange) onPickChange(game.id, homePredict, val); }
                     }} 
                     placeholder="-"
                     className="w-12 h-10 bg-black/50 border border-white/20 rounded text-center text-sm font-black text-white focus:outline-none focus:border-white transition p-0 disabled:opacity-60 disabled:cursor-not-allowed"
@@ -245,10 +239,15 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
             </div>
           </div>
 
-          {/* HOME TEAM */}
           <div className="flex items-center justify-between gap-2">
-            <div className={`flex items-center gap-1.5 min-w-0 transition-opacity ${hidePicks && hasGameStarted && !homeWon ? 'opacity-40' : 'opacity-100'}`}>
-              {homeTeam?.logo && <img src={homeTeam.logo} className="w-5 h-5 object-contain shrink-0" alt="" />}
+            <div className={`flex items-center gap-2 min-w-0 transition-opacity ${hidePicks && hasGameStarted && !homeWon ? 'opacity-40' : 'opacity-100'}`}>
+              {homeTeam?.logo ? (
+                <img src={homeTeam.logo} className="w-6 h-6 object-contain" alt={homeTeam?.abbr} />
+              ) : (
+                <div className="w-6 h-6 bg-white/5 rounded-full flex items-center justify-center">
+                  <span className="text-[8px] font-black">{homeTeam?.abbr?.[0]}</span>
+                </div>
+              )}
               <span className="font-black text-xs text-white uppercase truncate">
                 <span className="sm:hidden">{homeTeam?.abbr || 'HOME'}</span>
                 <span className="hidden sm:inline">{homeTeam?.name || homeTeam?.abbr || 'HOME'}</span>
@@ -271,10 +270,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                     type="number" min="0" onKeyDown={blockNegativeKeys} disabled={isInputDisabled} value={homePredict} 
                     onChange={(e) => {
                       const val = e.target.value;
-                      if (val === "" || parseInt(val) >= 0) {
-                        setHomePredict(val);
-                        if (onPickChange) onPickChange(game.id, val, awayPredict);
-                      }
+                      if (val === "" || parseInt(val) >= 0) { setHomePredict(val); if (onPickChange) onPickChange(game.id, val, awayPredict); }
                     }} 
                     placeholder="-"
                     className="w-12 h-10 bg-black/50 border border-white/20 rounded text-center text-sm font-black text-white focus:outline-none focus:border-white transition p-0 disabled:opacity-60 disabled:cursor-not-allowed"
@@ -285,15 +281,100 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
           </div>
         </div>
 
-        {/* CÁLCULO DE PONTOS - Só renderiza se hidePicks for false */}
         {!hidePicks && hasGameStarted && existingPick && (
-          <div className="mt-1 pt-2 border-t border-white/5 flex justify-between items-center">
+          <div className="mt-2 pt-2 border-t border-white/5 flex justify-between items-center">
             <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">Pick Result {isLive && <span className="text-red-400"> (Proj)</span>}</span>
             <div className={`text-white text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded flex items-center gap-1 ${pointsEarned > 0 ? (isLive ? 'bg-black/50 border border-white/10' : 'bg-black/50') : 'bg-red-950/50'}`}>
               <span className={isLive && pointsEarned > 0 ? 'animate-pulse text-green-400' : ''}>{pointsEarned} PTS</span>
             </div>
           </div>
         )}
+
+        {/* GAVETA DE STATS */}
+        {hasMetaData && (
+          <div className="mt-3">
+            <button 
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="w-full pt-2 pb-1 border-t border-white/5 text-[9px] font-bold text-gray-500 uppercase tracking-widest hover:text-white transition flex justify-center items-center gap-1"
+            >
+              {isExpanded ? 'Hide Game Stats ▲' : 'View Game Stats ▼'}
+            </button>
+
+            {isExpanded && (
+              <div className="pt-2 flex flex-col gap-3 animate-fadeIn">
+                
+                <div className="bg-black/40 rounded-lg p-2 border border-white/5">
+                  <table className="w-full text-[9px] font-bold text-center">
+                    <thead>
+                      <tr className="text-gray-500 border-b border-white/5">
+                        <th className="text-left pb-1 pl-1">Team</th>
+                        <th className="pb-1 w-6">1</th><th className="pb-1 w-6">2</th>
+                        <th className="pb-1 w-6">3</th><th className="pb-1 w-6">4</th>
+                        <th className="pb-1 w-8 text-white">T</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      <tr>
+                        <td className="text-left pt-1 pl-1 text-white">{awayTeam?.abbr}</td>
+                        <td className="pt-1 text-gray-400">{game.meta_data.linescores?.away?.[0] ?? '-'}</td>
+                        <td className="pt-1 text-gray-400">{game.meta_data.linescores?.away?.[1] ?? '-'}</td>
+                        <td className="pt-1 text-gray-400">{game.meta_data.linescores?.away?.[2] ?? '-'}</td>
+                        <td className="pt-1 text-gray-400">{game.meta_data.linescores?.away?.[3] ?? '-'}</td>
+                        <td className="pt-1 text-white">{game.away_score}</td>
+                      </tr>
+                      <tr>
+                        <td className="text-left pt-1 pl-1 text-white">{homeTeam?.abbr}</td>
+                        <td className="pt-1 text-gray-400">{game.meta_data.linescores?.home?.[0] ?? '-'}</td>
+                        <td className="pt-1 text-gray-400">{game.meta_data.linescores?.home?.[1] ?? '-'}</td>
+                        <td className="pt-1 text-gray-400">{game.meta_data.linescores?.home?.[2] ?? '-'}</td>
+                        <td className="pt-1 text-gray-400">{game.meta_data.linescores?.home?.[3] ?? '-'}</td>
+                        <td className="pt-1 text-white">{game.home_score}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex gap-2 text-[9px]">
+                  {/* AWAY LEADERS */}
+                  <div className="flex-1 bg-black/40 rounded-lg p-2 border border-white/5">
+                    <span className="font-black text-gray-500 uppercase tracking-widest block mb-2">{awayTeam?.abbr} Leaders</span>
+                    <div className="flex flex-col gap-1.5">
+                      {game.meta_data.leaders?.away?.map((l: any, i: number) => {
+                        const formattedStat = l.stat ? l.stat.replace('YDS', `${l.category.toUpperCase()} YDS`) : '-';
+                        return (
+                          // NOVA ESTRUTURA: Empilhada e com background sutil
+                          <div key={i} className="flex flex-col bg-white/5 rounded p-1.5">
+                            <span className="text-gray-300 font-bold truncate leading-tight mb-0.5">{l.name}</span>
+                            <span className="text-white font-black text-[8px] leading-tight">{formattedStat}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  
+                  {/* HOME LEADERS */}
+                  <div className="flex-1 bg-black/40 rounded-lg p-2 border border-white/5">
+                    <span className="font-black text-gray-500 uppercase tracking-widest block mb-2">{homeTeam?.abbr} Leaders</span>
+                    <div className="flex flex-col gap-1.5">
+                      {game.meta_data.leaders?.home?.map((l: any, i: number) => {
+                        const formattedStat = l.stat ? l.stat.replace('YDS', `${l.category.toUpperCase()} YDS`) : '-';
+                        return (
+                          // NOVA ESTRUTURA: Empilhada e com background sutil
+                          <div key={i} className="flex flex-col bg-white/5 rounded p-1.5">
+                            <span className="text-gray-300 font-bold truncate leading-tight mb-0.5">{l.name}</span>
+                            <span className="text-white font-black text-[8px] leading-tight">{formattedStat}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
     </div>
   );
