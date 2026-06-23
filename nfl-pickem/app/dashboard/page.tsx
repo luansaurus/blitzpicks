@@ -47,10 +47,22 @@ export default function Dashboard() {
       let fTeamId = profile.favorite_team_id;
       if (fTeamId) setFavoriteTeamId(fTeamId);
 
+      // Busca os times e as campanhas (standings)
       const { data: teams } = await supabase.from('teams').select('*');
+      const { data: standings } = await supabase.from('standings').select('*');
+      
       const tMap: Record<string, any> = {};
       teams?.forEach(t => { 
-        tMap[t.id.toString()] = { name: t.name, abbr: t.abbreviation, color: t.primary_color, logo: t.logo_url }; 
+        const record = standings?.find(s => s.team_id?.toString() === t.id.toString());
+        const recordStr = record ? `${record.wins}-${record.losses}${record.ties > 0 ? `-${record.ties}` : ''}` : '0-0';
+        
+        tMap[t.id.toString()] = { 
+          name: t.name, 
+          abbr: t.abbreviation, 
+          color: t.primary_color, 
+          logo: t.logo_url,
+          record: recordStr 
+        }; 
       });
       setTeamsDataMap(tMap);
 

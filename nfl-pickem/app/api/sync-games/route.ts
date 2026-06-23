@@ -134,6 +134,14 @@ export async function GET(request: Request) {
             .maybeSingle();
             
           if (gameCheck) {
+            
+            // TRAVA DE SEGURANÇA: Se o jogo já estava "finished" no nosso banco de dados,
+            // não precisamos atualizar de novo. Pula para o próximo jogo.
+            if (gameCheck.status === 'finished') {
+                console.log(`⚠️ Jogo já estava FINALIZADO. Pulando para não duplicar standings.`);
+                continue;
+            }
+
             let dbStatus = 'pending';
             if (isFinished) dbStatus = 'finished';
             else if (isInProgress) dbStatus = 'in_progress';
@@ -153,7 +161,6 @@ export async function GET(request: Request) {
               })
               .eq('id', gameCheck.id);
 
-            // LOGS DETETIVES AQUI:
             if (error) {
               console.error(`❌ Erro do Supabase ao atualizar ${awayAbbr} @ ${homeAbbr}:`, error.message);
             } else {
@@ -187,7 +194,6 @@ export async function GET(request: Request) {
 }
 
 async function recalculateStandings(supabase: any) {
-  // ... (mesmo código de antes, não mudou nada aqui)
   const { data: teams } = await supabase.from('teams').select('id, conference, division');
   const { data: games } = await supabase.from('games')
     .select('home_team_id, away_team_id, home_score, away_score, status, week')
@@ -254,7 +260,6 @@ async function recalculateStandings(supabase: any) {
 }
 
 async function recalculateLeaderboard(supabase: any) {
-  // ... (mesmo código de antes)
   const { data: users } = await supabase.from('profiles').select('id');
   const { data: games } = await supabase.from('games').select('id, home_score, away_score').eq('status', 'finished') as { data: GameRecord[] | null };
   const { data: guesses } = await supabase.from('guesses').select('*');

@@ -19,14 +19,23 @@ interface GameCardProps {
     stadium?: { name: string; city: string };
   };
   userTeamColor: string;
-  homeTeam: { name: string; abbr: string; color: string; logo?: string; conference?: string | null };
-  awayTeam: { name: string; abbr: string; color: string; logo?: string; conference?: string | null };
+  homeTeam: { name: string; abbr: string; color: string; logo?: string; conference?: string | null; record?: string };
+  awayTeam: { name: string; abbr: string; color: string; logo?: string; conference?: string | null; record?: string };
   existingPick?: { home_guess: number; away_guess: number } | null;
   onPickChange?: (gameId: string | number, home: string, away: string) => void;
   isUnsaved?: boolean;
   isPlayoffLocked?: boolean;
   hidePicks?: boolean;
 }
+
+const formatRecord = (recordStr?: string) => {
+  if (!recordStr) return "";
+  const parts = recordStr.split('-');
+  if (parts.length === 3 && parts[2] === '0') {
+    return `${parts[0]}-${parts[1]}`;
+  }
+  return recordStr;
+};
 
 export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, existingPick, onPickChange, isUnsaved, isPlayoffLocked = false, hidePicks = false }: GameCardProps) {
   if (!game || !game.game_time) return null;
@@ -186,9 +195,9 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
           </div>
         </div>
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           {!hidePicks && (
-            <div className="flex justify-end">
+            <div className="flex justify-end mb-[-4px]">
               <div className="flex items-center gap-2">
                 {hasGameStarted && (
                   <span className="w-6 text-center text-[7px] font-black uppercase tracking-widest text-gray-500">{isLive ? 'Live' : 'Real'}</span>
@@ -199,18 +208,26 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
           )}
           
           <div className="flex items-center justify-between gap-2">
-            <div className={`flex items-center gap-2 min-w-0 transition-opacity ${hidePicks && hasGameStarted && !awayWon ? 'opacity-40' : 'opacity-100'}`}>
+            <div className={`flex items-center gap-3 min-w-0 transition-opacity ${hidePicks && hasGameStarted && !awayWon ? 'opacity-40' : 'opacity-100'}`}>
               {awayTeam?.logo ? (
-                <img src={awayTeam.logo} className="w-6 h-6 object-contain" alt={awayTeam?.abbr} />
+                <img src={awayTeam.logo} className="w-7 h-7 object-contain shrink-0" alt={awayTeam?.abbr} />
               ) : (
-                <div className="w-6 h-6 bg-white/5 rounded-full flex items-center justify-center">
-                  <span className="text-[8px] font-black">{awayTeam?.abbr?.[0]}</span>
+                <div className="w-7 h-7 bg-white/5 rounded-full flex items-center justify-center shrink-0">
+                  <span className="text-[9px] font-black">{awayTeam?.abbr?.[0]}</span>
                 </div>
               )}
-              <span className="font-black text-xs text-white uppercase truncate">
-                <span className="sm:hidden">{awayTeam?.abbr || 'AWAY'}</span>
-                <span className="hidden sm:inline">{awayTeam?.name || awayTeam?.abbr || 'AWAY'}</span>
-              </span>
+              <div className="flex flex-col min-w-0 justify-center">
+                <div className="flex items-baseline gap-2 min-w-0">
+                  <span className="font-black text-sm sm:text-base text-white uppercase truncate leading-none">
+                    {awayTeam?.name || awayTeam?.abbr || 'AWAY'}
+                  </span>
+                  {awayTeam?.record && (
+                    <span className="text-[9px] text-gray-500 font-bold tracking-widest leading-none">
+                      {formatRecord(awayTeam.record)}
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
             
             <div className="flex items-center gap-2 shrink-0">
@@ -240,18 +257,26 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
           </div>
 
           <div className="flex items-center justify-between gap-2">
-            <div className={`flex items-center gap-2 min-w-0 transition-opacity ${hidePicks && hasGameStarted && !homeWon ? 'opacity-40' : 'opacity-100'}`}>
+            <div className={`flex items-center gap-3 min-w-0 transition-opacity ${hidePicks && hasGameStarted && !homeWon ? 'opacity-40' : 'opacity-100'}`}>
               {homeTeam?.logo ? (
-                <img src={homeTeam.logo} className="w-6 h-6 object-contain" alt={homeTeam?.abbr} />
+                <img src={homeTeam.logo} className="w-7 h-7 object-contain shrink-0" alt={homeTeam?.abbr} />
               ) : (
-                <div className="w-6 h-6 bg-white/5 rounded-full flex items-center justify-center">
-                  <span className="text-[8px] font-black">{homeTeam?.abbr?.[0]}</span>
+                <div className="w-7 h-7 bg-white/5 rounded-full flex items-center justify-center shrink-0">
+                  <span className="text-[9px] font-black">{homeTeam?.abbr?.[0]}</span>
                 </div>
               )}
-              <span className="font-black text-xs text-white uppercase truncate">
-                <span className="sm:hidden">{homeTeam?.abbr || 'HOME'}</span>
-                <span className="hidden sm:inline">{homeTeam?.name || homeTeam?.abbr || 'HOME'}</span>
-              </span>
+              <div className="flex flex-col min-w-0 justify-center">
+                <div className="flex items-baseline gap-2 min-w-0">
+                  <span className="font-black text-sm sm:text-base text-white uppercase truncate leading-none">
+                    {homeTeam?.name || homeTeam?.abbr || 'HOME'}
+                  </span>
+                  {homeTeam?.record && (
+                    <span className="text-[9px] text-gray-500 font-bold tracking-widest leading-none">
+                      {formatRecord(homeTeam.record)}
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
             
             <div className="flex items-center gap-2 shrink-0">
@@ -335,14 +360,12 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                 </div>
 
                 <div className="flex gap-2 text-[9px]">
-                  {/* AWAY LEADERS */}
                   <div className="flex-1 bg-black/40 rounded-lg p-2 border border-white/5">
                     <span className="font-black text-gray-500 uppercase tracking-widest block mb-2">{awayTeam?.abbr} Leaders</span>
                     <div className="flex flex-col gap-1.5">
                       {game.meta_data.leaders?.away?.map((l: any, i: number) => {
                         const formattedStat = l.stat ? l.stat.replace('YDS', `${l.category.toUpperCase()} YDS`) : '-';
                         return (
-                          // NOVA ESTRUTURA: Empilhada e com background sutil
                           <div key={i} className="flex flex-col bg-white/5 rounded p-1.5">
                             <span className="text-gray-300 font-bold truncate leading-tight mb-0.5">{l.name}</span>
                             <span className="text-white font-black text-[8px] leading-tight">{formattedStat}</span>
@@ -352,14 +375,12 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                     </div>
                   </div>
                   
-                  {/* HOME LEADERS */}
                   <div className="flex-1 bg-black/40 rounded-lg p-2 border border-white/5">
                     <span className="font-black text-gray-500 uppercase tracking-widest block mb-2">{homeTeam?.abbr} Leaders</span>
                     <div className="flex flex-col gap-1.5">
                       {game.meta_data.leaders?.home?.map((l: any, i: number) => {
                         const formattedStat = l.stat ? l.stat.replace('YDS', `${l.category.toUpperCase()} YDS`) : '-';
                         return (
-                          // NOVA ESTRUTURA: Empilhada e com background sutil
                           <div key={i} className="flex flex-col bg-white/5 rounded p-1.5">
                             <span className="text-gray-300 font-bold truncate leading-tight mb-0.5">{l.name}</span>
                             <span className="text-white font-black text-[8px] leading-tight">{formattedStat}</span>

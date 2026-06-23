@@ -12,6 +12,7 @@ export default function AdminPage() {
   const [teamsDataMap, setTeamsDataMap] = useState<Record<string, any>>({});
   const [draftScores, setDraftScores] = useState<Record<string, { home: number | null, away: number | null }>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false); // Estado para o botão de Sync
   const [expandedWeek, setExpandedWeek] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   
@@ -75,6 +76,8 @@ export default function AdminPage() {
   const handleSaveAllScores = async () => {
     setIsSaving(true);
     const updates = Object.entries(draftScores).map(async ([gameId, scores]) => {
+      // Se tiver placar rascunhado e não era finalizado, marca como "in_progress" provisoriamente (se não quiser que zere a api)
+      // Mas para manter a sua lógica atual, só atualizar os números já ajuda.
       return supabase.from('games').update({ home_score: scores.home, away_score: scores.away }).eq('id', parseInt(gameId));
     });
 
@@ -94,11 +97,32 @@ export default function AdminPage() {
           setGamesByWeek(grouped);
       }
       setDraftScores({});
-      alert("✅ Resultados oficiais salvos e Leaderboard atualizado!");
+      // Omiti o alert() conforme solicitado, ele atualiza silenciosamente.
     } catch (err) {
       alert("Erro ao salvar. Verifique se o placar é numérico.");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Botão animado para rodar a API direto do painel
+  const forceApiSync = async () => {
+    setIsSyncing(true);
+    try {
+      // Use sua senha aqui, ou crie um input para o admin digitar
+      const response = await fetch('/api/sync-games?secret=UkyZcmgwUfp25Ij5'); 
+      const data = await response.json();
+      
+      if(data.success) {
+        // Recarrega a página ou a lista de jogos para ver o resultado
+        window.location.reload(); 
+      } else {
+        alert("Erro na API: " + JSON.stringify(data));
+      }
+    } catch (err) {
+      alert("Erro ao conectar com a API.");
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -113,11 +137,23 @@ export default function AdminPage() {
   return (
     <main className="min-h-screen bg-neutral-950 text-white font-sans pb-32">
       <Header />
-      {/* Expandido para max-w-7xl para acomodar 5 colunas */}
       <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6 mt-4">
-        <div>
-          <h1 className="text-3xl sm:text-4xl font-black italic uppercase tracking-wider" style={{ color: userColor }}>Control Room</h1>
-          <p className="text-gray-400 mt-1 font-medium text-xs sm:text-sm">Atualize os resultados oficiais. Os pontos serão distribuídos automaticamente.</p>
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-black italic uppercase tracking-wider" style={{ color: userColor }}>Control Room</h1>
+            <p className="text-gray-400 mt-1 font-medium text-xs sm:text-sm">Update manually the game results. The points will be awarded accordingly. If the api is not working properly press the FORCE API SYNC button.</p>
+          </div>
+          
+          {/* BOTÃO ANIMADO DE SYNC API */}
+          <button 
+            onClick={forceApiSync}
+            disabled={isSyncing}
+            className={`relative overflow-hidden px-6 py-3 rounded-lg font-black uppercase tracking-widest text-xs transition-all shadow-lg border border-white/20 group ${isSyncing ? 'opacity-70 cursor-wait' : 'hover:scale-105'}`}
+            style={{ backgroundColor: `${userColor}20`, color: userColor }}
+          >
+            <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
+            {isSyncing ? '🔄 Syncing with ESPN...' : '⚡ Force API Sync'}
+          </button>
         </div>
 
         <div className="space-y-3">
@@ -132,13 +168,14 @@ export default function AdminPage() {
 
                 {isOpen && (
                   <div className="p-4 bg-black/20 border-t border-white/5 animate-fadeIn">
-                    {/* Grid com 5 colunas em telas xl */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                       {gamesByWeek[week].map((game) => {
                         const isUnsaved = !!draftScores[game.id.toString()];
                         const displayAway = draftScores[game.id.toString()]?.away !== undefined ? draftScores[game.id.toString()].away : game.away_score;
                         const displayHome = draftScores[game.id.toString()]?.home !== undefined ? draftScores[game.id.toString()].home : game.home_score;
+                        
                         const isFinished = game.status === 'finished';
+                        const isLive = game.status === 'in_progress';
 
                         const awayTeam = teamsDataMap[game.away_team_id];
                         const homeTeam = teamsDataMap[game.home_team_id];
@@ -163,7 +200,9 @@ export default function AdminPage() {
                                 {isUnsaved ? (
                                   <span className="text-[9px] font-black uppercase tracking-widest animate-pulse" style={{ color: userColor }}>Unsaved</span> 
                                 ) : isFinished ? (
-                                  <span className="text-[9px] font-black uppercase tracking-widest text-green-500">Official</span> 
+                                  <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">FINAL</span> 
+                                ) : isLive ? (
+                                  <span className="text-[9px] font-black uppercase tracking-widest text-red-500 animate-pulse">LIVE</span> 
                                 ) : (
                                   <span className="text-[9px] font-black uppercase tracking-widest text-gray-600">Pending</span>
                                 )}
@@ -235,7 +274,7 @@ export default function AdminPage() {
               <span className="text-sm font-bold text-white">{Object.keys(draftScores).length} game(s) edited</span>
             </div>
             <button onClick={handleSaveAllScores} disabled={isSaving} className="px-6 py-3 rounded-xl font-black uppercase tracking-widest text-black shadow-md transition-colors text-xs sm:text-sm disabled:opacity-50" style={{ backgroundColor: userColor }}>
-              {isSaving ? 'Processing...' : 'Broadcast'}
+              {isSaving ? 'Processing...' : 'Lock Results'}
             </button>
           </div>
         </div>

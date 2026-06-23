@@ -67,22 +67,28 @@ export default function SchedulePage() {
         }
       }
 
-          const { data: teams } = await supabase.from('teams').select('*');
-          const tMap: Record<string, any> = {};
-          teams?.forEach(t => { 
-            tMap[t.id.toString()] = { 
-              name: t.name, 
-              abbr: t.abbreviation, 
-              color: t.primary_color, 
-              logo: t.logo_url,
-              conference: t.conference 
-            }; 
-          });
-          setTeamsDataMap(tMap);
+      // Busca os times e as campanhas (standings)
+      const { data: teams } = await supabase.from('teams').select('*');
+      const { data: standings } = await supabase.from('standings').select('*');
+      
+      const tMap: Record<string, any> = {};
+      teams?.forEach(t => { 
+        const record = standings?.find(s => s.team_id?.toString() === t.id.toString());
+        const recordStr = record ? `${record.wins}-${record.losses}${record.ties > 0 ? `-${record.ties}` : ''}` : '0-0';
+
+        tMap[t.id.toString()] = { 
+          name: t.name, 
+          abbr: t.abbreviation, 
+          color: t.primary_color, 
+          logo: t.logo_url,
+          conference: t.conference,
+          record: recordStr
+        }; 
+      });
+      setTeamsDataMap(tMap);
 
       const { data: gamesData } = await supabase.from('games').select('*, stadium(name, city)').order('game_time', { ascending: true });
       if (gamesData && gamesData.length > 0) {
-        // Mapeia se a semana 18 terminou inteiramente antes de liberar palpites oficiais de playoffs
         const w18Games = gamesData.filter(g => g.week === '18');
         const w18Done = w18Games.length > 0 && w18Games.every(g => g.status === 'finished');
         setIsWeek18Finished(w18Done);
@@ -204,7 +210,6 @@ export default function SchedulePage() {
 
         <div className="space-y-4">
           
-          {/* BANNER DE AVISO DE PLAYOFFS BLOQUEADOS */}
           {seasonMode === 'playoffs' && !isWeek18Finished && (
             <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex items-center justify-center text-center animate-fadeIn">
               <span className="text-amber-500 font-bold text-xs uppercase tracking-widest">
@@ -223,7 +228,6 @@ export default function SchedulePage() {
               const weekGames = gamesByWeek[week];
               const isSuperBowlWeek = week === 'SB';
 
-              // Verifica se a semana em renderização é playoff para aplicar a trava caso a regular não acabou
               const isPlayoffWeek = playoffOrder.includes(week);
               const lockThisCard = isPlayoffWeek && !isWeek18Finished;
 

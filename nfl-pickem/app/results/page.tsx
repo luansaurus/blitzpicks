@@ -63,8 +63,17 @@ export default function Results() {
         const totalGames = record.wins + record.losses + record.ties;
         const pct = totalGames === 0 ? 0 : (record.wins + (record.ties * 0.5)) / totalGames;
 
+        const recordStr = `${record.wins}-${record.losses}${record.ties > 0 ? `-${record.ties}` : ''}`;
+        
         const teamData = { ...t, ...record, pct, conference: t.conference };
-        tMap[t.id.toString()] = { name: t.name, abbr: t.abbreviation, color: t.primary_color, logo: t.logo_url };
+        
+        tMap[t.id.toString()] = { 
+          name: t.name, 
+          abbr: t.abbreviation, 
+          color: t.primary_color, 
+          logo: t.logo_url,
+          record: recordStr 
+        };
 
         if (t.conference && t.division) {
           if (!groupedStandings[t.conference]) groupedStandings[t.conference] = {};
