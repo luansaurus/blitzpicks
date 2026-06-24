@@ -48,16 +48,26 @@ export default function Header() {
   
   const [logoUrl, setLogoUrl] = useState<string>('https://upload.wikimedia.org/wikipedia/en/a/a2/National_Football_League_logo.svg');
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
-  const [loadingLogout, setLoadingLogout] = useState(false); // Estado de controle de logout
+  const [isVip, setIsVip] = useState<boolean>(false);
+  const [loadingLogout, setLoadingLogout] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
     async function fetchUserData() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
-      const { data: profile } = await supabase.from('profiles').select('favorite_team_id, is_admin').eq('id', session.user.id).single();
+      
+      // Adicionado 'is_vip' na busca
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('favorite_team_id, is_admin, is_vip')
+        .eq('id', session.user.id)
+        .single();
+        
       if (profile) {
         setIsAdmin(!!profile.is_admin);
+        setIsVip(!!profile.is_vip);
+        
         if (profile.favorite_team_id) {
           const { data: team } = await supabase.from('teams').select('logo_url, primary_color').eq('id', profile.favorite_team_id).single();
           if (team) {
@@ -77,14 +87,13 @@ export default function Header() {
     fetchUserData();
   }, [supabase]);
 
-  // Função de Logout Atualizada
   const handleLogout = async () => {
     if (loadingLogout) return;
     setLoadingLogout(true);
     
     try {
       await supabase.auth.signOut();
-      router.refresh(); // Crucial para limpar o cache do Next.js
+      router.refresh();
       router.push('/login');
     } catch (error) {
       console.error("Erro ao efetuar logout:", error);
@@ -122,8 +131,21 @@ export default function Header() {
             })}
           </nav>
 
-          <div className="flex items-center gap-4 sm:gap-6">
-            {isAdmin && <Link href="/admin" className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-amber-500 hover:text-amber-400 transition-colors">Admin</Link>}
+          <div className="flex items-center gap-3 sm:gap-6">
+            {/* Botões de Acesso Especial com ícones para mobile */}
+            {(isAdmin || isVip) && (
+              <Link href="/vip" className="text-red-400 hover:text-yellow-300 transition-colors drop-shadow-[0_0_8px_rgba(168,85,247,0.5)]">
+                <span className="hidden sm:inline text-[10px] font-black uppercase tracking-widest">VIP Area</span>
+                <span className="sm:hidden text-lg">💎</span>
+              </Link>
+            )}
+            {isAdmin && (
+              <Link href="/admin" className="text-red-400 hover:text-yellow-300 transition-colors drop-shadow-[0_0_8px_rgba(168,85,247,0.5)]">
+                <span className="hidden sm:inline text-[10px] font-black uppercase tracking-widest">Admin</span>
+                <span className="sm:hidden text-lg">⚙️</span>
+              </Link>
+            )}
+            
             <Link href="/setup" title="Profile" className="hover:scale-105 transition-transform flex items-center gap-2">
               <span className="hidden md:inline-block text-[10px] font-bold text-gray-400 uppercase tracking-widest">Profile</span>
               <div className="w-8 h-8 rounded-full border-2 bg-black flex items-center justify-center overflow-hidden shadow-lg p-0.5" style={{ borderColor: 'var(--team-accent)' }}>
@@ -131,7 +153,6 @@ export default function Header() {
               </div>
             </Link>
             
-            {/* Botão com a nova função e estado desabilitado */}
             <button 
               onClick={handleLogout} 
               disabled={loadingLogout}
@@ -139,7 +160,6 @@ export default function Header() {
             >
               {loadingLogout ? 'Signing Out...' : 'Sign Out'}
             </button>
-            
           </div>
         </div>
       </header>

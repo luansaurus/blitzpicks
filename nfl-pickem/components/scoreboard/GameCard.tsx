@@ -195,7 +195,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
           </div>
         </div>
 
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 w-full">
           {!hidePicks && (
             <div className="flex justify-end mb-[-4px]">
               <div className="flex items-center gap-2">
@@ -207,26 +207,27 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
             </div>
           )}
           
-          <div className="flex items-center justify-between gap-2">
-            <div className={`flex items-center gap-3 min-w-0 transition-opacity ${hidePicks && hasGameStarted && !awayWon ? 'opacity-40' : 'opacity-100'}`}>
+          {/* AWAY TEAM */}
+          <div className="flex items-center justify-between gap-2 w-full">
+            <div className={`flex items-center gap-2 sm:gap-1 flex-1 min-w-0 transition-opacity ${hidePicks && hasGameStarted && !awayWon ? 'opacity-40' : 'opacity-100'}`}>
               {awayTeam?.logo ? (
-                <img src={awayTeam.logo} className="w-7 h-7 object-contain shrink-0" alt={awayTeam?.abbr} />
+                <img src={awayTeam.logo} className="w-6 h-6 sm:w-7 sm:h-7 object-contain shrink-0" alt={awayTeam?.abbr} />
               ) : (
-                <div className="w-7 h-7 bg-white/5 rounded-full flex items-center justify-center shrink-0">
+                <div className="w-6 h-6 sm:w-7 sm:h-7 bg-white/5 rounded-full flex items-center justify-center shrink-0">
                   <span className="text-[9px] font-black">{awayTeam?.abbr?.[0]}</span>
                 </div>
               )}
-              <div className="flex flex-col min-w-0 justify-center">
-                <div className="flex items-baseline gap-2 min-w-0">
-                  <span className="font-black text-sm sm:text-base text-white uppercase truncate leading-none">
-                    {awayTeam?.name || awayTeam?.abbr || 'AWAY'}
+              
+              {/* O segredo para não quebrar: flex-1 e min-w-0 forçam o nome a encolher e o record a ficar firme */}
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                <span className="font-black text-sm sm:text-base text-white uppercase truncate leading-none">
+                  {awayTeam?.name || awayTeam?.abbr || 'AWAY'}
+                </span>
+                {awayTeam?.record && (
+                  <span className="text-[9px] text-gray-500 font-bold tracking-widest leading-none shrink-0 whitespace-nowrap mt-0.5">
+                    {formatRecord(awayTeam.record)}
                   </span>
-                  {awayTeam?.record && (
-                    <span className="text-[9px] text-gray-500 font-bold tracking-widest leading-none">
-                      {formatRecord(awayTeam.record)}
-                    </span>
-                  )}
-                </div>
+                )}
               </div>
             </div>
             
@@ -256,26 +257,26 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-2">
-            <div className={`flex items-center gap-3 min-w-0 transition-opacity ${hidePicks && hasGameStarted && !homeWon ? 'opacity-40' : 'opacity-100'}`}>
+          {/* HOME TEAM */}
+          <div className="flex items-center justify-between gap-2 w-full">
+            <div className={`flex items-center gap-2 sm:gap-1 flex-1 min-w-0 transition-opacity ${hidePicks && hasGameStarted && !homeWon ? 'opacity-40' : 'opacity-100'}`}>
               {homeTeam?.logo ? (
-                <img src={homeTeam.logo} className="w-7 h-7 object-contain shrink-0" alt={homeTeam?.abbr} />
+                <img src={homeTeam.logo} className="w-6 h-6 sm:w-7 sm:h-7 object-contain shrink-0" alt={homeTeam?.abbr} />
               ) : (
-                <div className="w-7 h-7 bg-white/5 rounded-full flex items-center justify-center shrink-0">
+                <div className="w-6 h-6 sm:w-7 sm:h-7 bg-white/5 rounded-full flex items-center justify-center shrink-0">
                   <span className="text-[9px] font-black">{homeTeam?.abbr?.[0]}</span>
                 </div>
               )}
-              <div className="flex flex-col min-w-0 justify-center">
-                <div className="flex items-baseline gap-2 min-w-0">
-                  <span className="font-black text-sm sm:text-base text-white uppercase truncate leading-none">
-                    {homeTeam?.name || homeTeam?.abbr || 'HOME'}
+              
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                <span className="font-black text-sm sm:text-base text-white uppercase truncate leading-none">
+                  {homeTeam?.name || homeTeam?.abbr || 'HOME'}
+                </span>
+                {homeTeam?.record && (
+                  <span className="text-[9px] text-gray-500 font-bold tracking-widest leading-none shrink-0 whitespace-nowrap mt-0.5">
+                    {formatRecord(homeTeam.record)}
                   </span>
-                  {homeTeam?.record && (
-                    <span className="text-[9px] text-gray-500 font-bold tracking-widest leading-none">
-                      {formatRecord(homeTeam.record)}
-                    </span>
-                  )}
-                </div>
+                )}
               </div>
             </div>
             
@@ -360,6 +361,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                 </div>
 
                 <div className="flex gap-2 text-[9px]">
+                  {/* AWAY LEADERS */}
                   <div className="flex-1 bg-black/40 rounded-lg p-2 border border-white/5">
                     <span className="font-black text-gray-500 uppercase tracking-widest block mb-2">{awayTeam?.abbr} Leaders</span>
                     <div className="flex flex-col gap-1.5">
@@ -375,6 +377,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                     </div>
                   </div>
                   
+                  {/* HOME LEADERS */}
                   <div className="flex-1 bg-black/40 rounded-lg p-2 border border-white/5">
                     <span className="font-black text-gray-500 uppercase tracking-widest block mb-2">{homeTeam?.abbr} Leaders</span>
                     <div className="flex flex-col gap-1.5">

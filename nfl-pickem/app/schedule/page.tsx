@@ -23,7 +23,10 @@ export default function SchedulePage() {
   
   const [draftPicks, setDraftPicks] = useState<Record<string, { home: number, away: number }>>({});
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'error'>('idle');
+  
   const [expandedWeek, setExpandedWeek] = useState<string | null>(null);
+  const [currentActiveWeek, setCurrentActiveWeek] = useState<string | null>(null); // NOVO ESTADO
+  
   const [seasonMode, setSeasonMode] = useState<'regular' | 'playoffs'>('regular');
   const [isWeek18Finished, setIsWeek18Finished] = useState(false);
   
@@ -67,7 +70,6 @@ export default function SchedulePage() {
         }
       }
 
-      // Busca os times e as campanhas (standings)
       const { data: teams } = await supabase.from('teams').select('*');
       const { data: standings } = await supabase.from('standings').select('*');
       
@@ -108,7 +110,9 @@ export default function SchedulePage() {
           .sort((a, b) => Number(a) - Number(b));
         
         const activeWeek = sortedWeeks.find(week => !grouped[week].every((g: any) => g.status === 'finished')) || sortedWeeks[sortedWeeks.length - 1];
-        setExpandedWeek(activeWeek);
+        
+        setCurrentActiveWeek(activeWeek); // Marca qual é a semana atual verdadeira
+        setExpandedWeek(activeWeek); // Abre ela automaticamente
       }
 
       const { data: guessesData } = await supabase.from('guesses').select('*').eq('user_id', session.user.id);
@@ -189,7 +193,7 @@ export default function SchedulePage() {
 
             <div className="flex bg-neutral-900 border border-white/10 p-1 rounded-lg w-fit shadow-lg">
               <button
-                onClick={() => { setSeasonMode('regular'); setExpandedWeek(null); }}
+                onClick={() => { setSeasonMode('regular'); setExpandedWeek(currentActiveWeek); }}
                 className={`px-4 py-2 rounded-md text-xs font-black uppercase tracking-widest transition-colors ${
                   seasonMode === 'regular' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'
                 }`}
@@ -231,6 +235,9 @@ export default function SchedulePage() {
               const isPlayoffWeek = playoffOrder.includes(week);
               const lockThisCard = isPlayoffWeek && !isWeek18Finished;
 
+              const isCurrentWeek = week === currentActiveWeek;
+              const isFinished = weekGames.length > 0 && weekGames.every(g => g.status === 'finished');
+
               return (
                 <div key={week} className={`rounded-xl border overflow-hidden transition-all ${isSuperBowlWeek && isWeekOpen ? 'border-purple-500/50 shadow-[0_0_30px_rgba(168,85,247,0.15)]' : 'border-white/5 shadow-sm bg-neutral-900/30'}`}>
                   
@@ -250,10 +257,21 @@ export default function SchedulePage() {
                         {getWeekName(week)}
                       </span>
                       
-                      {isWeekOpen && !isSuperBowlWeek && (
-                        <span className="text-[9px] uppercase font-black px-1.5 py-0.5 bg-white/10 rounded text-white tracking-widest hidden sm:inline-block">
-                          Active View
-                        </span>
+                      {/* BADGES DA SEMANA */}
+                      {!isSuperBowlWeek && (
+                        isCurrentWeek ? (
+                          <span className="hidden sm:inline-block text-[8px] sm:text-[9px] uppercase font-black px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded border border-red-500/30 tracking-widest animate-pulse ml-2">
+                            Current Week
+                          </span>
+                        ) : isFinished ? (
+                          <span className="hidden sm:inline-block text-[8px] sm:text-[9px] uppercase font-black px-1.5 py-0.5 bg-white/10 text-gray-400 rounded tracking-widest ml-2">
+                            Finished
+                          </span>
+                        ) : (
+                          <span className="hidden sm:inline-block text-[8px] sm:text-[9px] uppercase font-black px-1.5 py-0.5 bg-white/5 text-gray-500 rounded tracking-widest ml-2">
+                            Upcoming
+                          </span>
+                        )
                       )}
                     </div>
                     <span className="text-gray-500 text-xs font-bold shrink-0">
@@ -263,7 +281,7 @@ export default function SchedulePage() {
 
                   {isWeekOpen && (
                     <div className={`p-3 sm:p-4 ${isSuperBowlWeek ? 'bg-black/40' : 'bg-black/20'} animate-fadeIn`}>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
                         {weekGames.map((game) => {
                           const existingPick = myGuesses.find(g => g.game_id?.toString() === game.id?.toString());
                           const isUnsaved = !!draftPicks[game.id.toString()];

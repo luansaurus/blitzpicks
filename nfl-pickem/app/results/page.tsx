@@ -16,6 +16,7 @@ export default function Results() {
   
   const [isStandingsOpen, setIsStandingsOpen] = useState(false);
   const [expandedWeek, setExpandedWeek] = useState<string | null>(null);
+  const [currentActiveWeek, setCurrentActiveWeek] = useState<string | null>(null); // NOVO ESTADO
   
   const [seasonPhase, setSeasonPhase] = useState<'regular' | 'playoffs'>('regular');
   const [playoffView, setPlayoffView] = useState<'cards' | 'bracket'>('cards');
@@ -113,7 +114,8 @@ export default function Results() {
         const allSortedWeeks = [...regularWeeks, ...playoffWeeks];
         const activeWeek = allSortedWeeks.find(week => !grouped[week].every((g: any) => g.status === 'finished')) || allSortedWeeks[allSortedWeeks.length - 1];
         
-        setExpandedWeek(activeWeek);
+        setCurrentActiveWeek(activeWeek); // Salva a semana real como ativa
+        setExpandedWeek(activeWeek);      // Abre ela diretamente
         
         if (activeWeek && isNaN(Number(activeWeek))) {
           setSeasonPhase('playoffs');
@@ -289,6 +291,9 @@ export default function Results() {
                 const isWeekOpen = expandedWeek === week;
                 const weekGames = gamesByWeek[week];
                 const isSuperBowlWeek = week === 'SB';
+                
+                const isCurrentWeek = week === currentActiveWeek;
+                const isFinished = weekGames.length > 0 && weekGames.every(g => g.status === 'finished');
 
                 return (
                   <div key={week} className={`rounded-xl border overflow-hidden transition-all animate-fadeIn ${isSuperBowlWeek && isWeekOpen ? 'border-purple-500/50 shadow-[0_0_30px_rgba(168,85,247,0.15)]' : 'bg-neutral-900/40 border-white/5 shadow-sm'}`}>
@@ -308,10 +313,21 @@ export default function Results() {
                           {seasonPhase === 'playoffs' ? (playoffNames[week] || week) : `Week ${week}`}
                         </span>
                         
-                        {isWeekOpen && !isSuperBowlWeek && (
-                          <span className="text-[9px] uppercase font-black px-1.5 py-0.5 bg-white/10 rounded text-white tracking-widest hidden sm:inline-block">
-                            Active View
-                          </span>
+                        {/* BADGES DA SEMANA */}
+                        {!isSuperBowlWeek && (
+                          isCurrentWeek ? (
+                            <span className="hidden sm:inline-block text-[8px] sm:text-[9px] uppercase font-black px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded border border-red-500/30 tracking-widest animate-pulse ml-2">
+                              Current Week
+                            </span>
+                          ) : isFinished ? (
+                            <span className="hidden sm:inline-block text-[8px] sm:text-[9px] uppercase font-black px-1.5 py-0.5 bg-white/10 text-gray-400 rounded tracking-widest ml-2">
+                              Finished
+                            </span>
+                          ) : (
+                            <span className="hidden sm:inline-block text-[8px] sm:text-[9px] uppercase font-black px-1.5 py-0.5 bg-white/5 text-gray-500 rounded tracking-widest ml-2">
+                              Upcoming
+                            </span>
+                          )
                         )}
                       </div>
                       <span className="text-gray-500 text-xs font-bold shrink-0">

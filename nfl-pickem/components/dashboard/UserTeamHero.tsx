@@ -148,8 +148,6 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
 
   const isGenericNFL = teamInfo.abbreviation === 'NFL';
 
-  // --- NOVA FONTE DE VERDADE PARA O SEU RECORD ---
-  // Puxando o record direto do teamsDataMap fornecido pelo Pai, para nunca perder a sincronia!
   const myRecordFromMap = teamsDataMap?.[teamId?.toString() || '']?.record;
   const formattedMyRecord = myRecordFromMap ? formatRecord(myRecordFromMap) : "0-0";
 
@@ -248,16 +246,19 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
         </div>
         
         <div className="flex justify-center items-center gap-4 sm:gap-8 mb-6 bg-black/40 py-6 px-4 rounded-xl border border-white/5">
+           
            <div className="flex flex-col items-center flex-1">
              <span className="text-[10px] font-bold text-gray-500 mb-2">{isHome ? 'HOME' : 'AWAY'}</span>
              {myLogo && <img src={myLogo} alt="Home Team" className="w-12 h-12 sm:w-16 sm:h-16 object-contain mb-2 drop-shadow-lg" />}
-             <div className="flex items-baseline gap-1.5 sm:gap-2">
-               <span className="text-3xl sm:text-4xl font-black text-white leading-none">{teamInfo.abbreviation}</span>
-               {myRecordStr && <span className="text-sm sm:text-base font-bold text-gray-500 leading-none">{myRecordStr}</span>}
+             
+             {/* NOME DO TIME E RECORD NA VERTICAL CORRIGIDO */}
+             <div className="flex flex-col items-center">
+               <span className="text-3xl sm:text-4xl font-black text-white leading-none mb-1">{teamInfo.abbreviation}</span>
+               {myRecordStr && <span className="text-[10px] sm:text-xs font-bold text-gray-500 leading-none">{myRecordStr}</span>}
              </div>
            </div>
            
-           <div className="flex items-center gap-3 sm:gap-5 pb-2">
+           <div className="flex items-center gap-3 sm:gap-5 pb-6">
              <span className={`text-4xl sm:text-6xl font-black ${wonMatch ? 'text-green-400' : isTie ? 'text-white' : 'text-gray-300'}`}>
                {myScore !== null ? myScore : '-'}
              </span>
@@ -270,11 +271,14 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
            <div className="flex flex-col items-center flex-1">
              <span className="text-[10px] font-bold text-gray-500 mb-2">{!isHome ? 'HOME' : 'AWAY'}</span>
              {oppLogo && <img src={oppLogo} alt="Away Team" className="w-12 h-12 sm:w-16 sm:h-16 object-contain mb-2 drop-shadow-lg" />}
-             <div className="flex items-baseline gap-1.5 sm:gap-2">
-               {oppRecordStr && <span className="text-sm sm:text-base font-bold text-gray-500 leading-none">{oppRecordStr}</span>}
-               <span className="text-3xl sm:text-4xl font-black text-white leading-none">{oppAbbr}</span>
+             
+             {/* NOME DO TIME E RECORD NA VERTICAL CORRIGIDO */}
+             <div className="flex flex-col items-center">
+               <span className="text-3xl sm:text-4xl font-black text-white leading-none mb-1">{oppAbbr}</span>
+               {oppRecordStr && <span className="text-[10px] sm:text-xs font-bold text-gray-500 leading-none">{oppRecordStr}</span>}
              </div>
            </div>
+           
         </div>
 
         {(homeLeaders.length > 0 || awayLeaders.length > 0) ? (

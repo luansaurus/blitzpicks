@@ -12,14 +12,20 @@ export default function AdminPage() {
   const [teamsDataMap, setTeamsDataMap] = useState<Record<string, any>>({});
   const [draftScores, setDraftScores] = useState<Record<string, { home: number | null, away: number | null }>>({});
   const [isSaving, setIsSaving] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false); // Estado para o botão de Sync
+  const [isSyncing, setIsSyncing] = useState(false);
   const [expandedWeek, setExpandedWeek] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   
+  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' } | null>(null);
   const [userColor, setUserColor] = useState('#f59e0b');
   
   const router = useRouter();
   const supabase = createClient();
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
 
   useEffect(() => {
     async function checkAdminAndLoadData() {
@@ -75,16 +81,39 @@ export default function AdminPage() {
 
   const handleSaveAllScores = async () => {
     setIsSaving(true);
-    const updates = Object.entries(draftScores).map(async ([gameId, scores]) => {
-      // Se tiver placar rascunhado e não era finalizado, marca como "in_progress" provisoriamente (se não quiser que zere a api)
-      // Mas para manter a sua lógica atual, só atualizar os números já ajuda.
-      return supabase.from('games').update({ home_score: scores.home, away_score: scores.away }).eq('id', parseInt(gameId));
+    let hasNewFinishedGame = false;
+
+    const updates = Object.entries(draftScores).map(([gameId, scores]) => {
+      const isComplete = scores.home !== null && scores.away !== null;
+      
+      const payload: any = { 
+        home_score: scores.home, 
+        away_score: scores.away 
+      };
+
+      if (isComplete) {
+        payload.status = 'finished';
+        payload.clock = 'FINAL';
+        hasNewFinishedGame = true;
+      } else if (scores.home !== null || scores.away !== null) {
+        payload.status = 'in_progress';
+      } else {
+        payload.status = 'pending';
+        payload.clock = null;
+      }
+
+      return supabase.from('games').update(payload).eq('id', parseInt(gameId));
     });
 
     try {
       const results = await Promise.all(updates);
       const hasError = results.some(r => r.error !== null);
-      if (hasError) throw new Error("Falha ao salvar um ou mais jogos.");
+      if (hasError) throw new Error("Falha ao atualizar.");
+
+      // CHAMA A API SEGURA NO BACKEND PARA RECALCULAR TUDO
+      if (hasNewFinishedGame) {
+        await fetch('/api/recalculate', { method: 'POST' });
+      }
 
       const { data: updatedGames } = await supabase.from('games').select('*').order('game_time', { ascending: true });
       if (updatedGames) {
@@ -97,33 +126,37 @@ export default function AdminPage() {
           setGamesByWeek(grouped);
       }
       setDraftScores({});
-      // Omiti o alert() conforme solicitado, ele atualiza silenciosamente.
+      
+      if (hasNewFinishedGame) {
+        showToast("Match finished successfully! Points and Standings locked.", "success");
+      } else {
+        showToast("Live scores updated.", "info");
+      }
+
     } catch (err) {
-      alert("Erro ao salvar. Verifique se o placar é numérico.");
+      showToast("Error saving scores. Check formats.", "error");
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Botão animado para rodar a API direto do painel
   const forceApiSync = async () => {
     setIsSyncing(true);
+    showToast("Requesting ESPN data...", "info");
+    
     try {
-      // Use sua senha aqui, ou crie um input para o admin digitar
       const response = await fetch('/api/sync-games?secret=UkyZcmgwUfp25Ij5'); 
       const data = await response.json();
-      
       if(data.success) {
-        // Recarrega a página ou a lista de jogos para ver o resultado
         window.location.reload(); 
       } else {
-        alert("Erro na API: " + JSON.stringify(data));
+        showToast("Auto-sync failed to respond.", "error");
+        setIsSyncing(false);
       }
     } catch (err) {
-      alert("Erro ao conectar com a API.");
-    } finally {
+      showToast("Connection to API Server lost.", "error");
       setIsSyncing(false);
-    }
+    } 
   };
 
   const blockNegativeKeys = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -135,16 +168,33 @@ export default function AdminPage() {
   const weeks = Object.keys(gamesByWeek).sort((a, b) => Number(a) - Number(b));
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-white font-sans pb-32">
+    <main className="min-h-screen bg-neutral-950 text-white font-sans pb-32 relative">
       <Header />
+      
+      {toast && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-slideDown">
+          <div className={`px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 backdrop-blur-md border ${
+            toast.type === 'success' ? 'bg-[#10b981]/20 border-[#10b981]/50 text-[#10b981]' : 
+            toast.type === 'error' ? 'bg-[#ef4444]/20 border-[#ef4444]/50 text-[#ef4444]' : 
+            'bg-white/10 border-white/20 text-white'
+          }`}>
+            <span className="text-lg">
+              {toast.type === 'success' ? '✅' : toast.type === 'error' ? '❌' : '🔄'}
+            </span>
+            <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest">
+              {toast.message}
+            </span>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6 mt-4">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl sm:text-4xl font-black italic uppercase tracking-wider" style={{ color: userColor }}>Control Room</h1>
-            <p className="text-gray-400 mt-1 font-medium text-xs sm:text-sm">Update manually the game results. The points will be awarded accordingly. If the api is not working properly press the FORCE API SYNC button.</p>
+            <p className="text-gray-400 mt-1 font-medium text-xs sm:text-sm">Atualize os resultados oficiais e acompanhe as transmissões.</p>
           </div>
           
-          {/* BOTÃO ANIMADO DE SYNC API */}
           <button 
             onClick={forceApiSync}
             disabled={isSyncing}
@@ -152,7 +202,7 @@ export default function AdminPage() {
             style={{ backgroundColor: `${userColor}20`, color: userColor }}
           >
             <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
-            {isSyncing ? '🔄 Syncing with ESPN...' : '⚡ Force API Sync'}
+            {isSyncing ? 'Syncing...' : '⚡ Force API Sync'}
           </button>
         </div>
 
@@ -186,7 +236,6 @@ export default function AdminPage() {
                             className={`flex flex-col p-3 rounded-xl border transition-colors shadow-sm ${isUnsaved ? 'bg-white/5' : 'border-white/5 bg-black/40'}`} 
                             style={isUnsaved ? { borderColor: userColor, boxShadow: `0 0 15px ${userColor}20` } : {}}
                           >
-                            {/* Header do Card (Data, Hora e Status) */}
                             <div className="flex justify-between items-start mb-3 pb-2 border-b border-white/5">
                               <div className="flex flex-col">
                                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-tight">
@@ -209,9 +258,7 @@ export default function AdminPage() {
                               </div>
                             </div>
 
-                            {/* Corpo do Card (Inputs) */}
                             <div className="flex flex-col gap-2 grow justify-center">
-                              {/* Away Team Input */}
                               <div className="flex items-center justify-between bg-black/60 p-2 rounded-lg border border-white/5 hover:border-white/10 transition-colors">
                                 <div className="flex items-center gap-2 min-w-0 pr-2">
                                   {awayTeam?.logo ? <img src={awayTeam.logo} alt="" className="w-5 h-5 object-contain shrink-0" /> : <div className="w-5 h-5 bg-white/5 rounded-full shrink-0" />}
@@ -229,7 +276,6 @@ export default function AdminPage() {
                                 />
                               </div>
 
-                              {/* Home Team Input */}
                               <div className="flex items-center justify-between bg-black/60 p-2 rounded-lg border border-white/5 hover:border-white/10 transition-colors">
                                 <div className="flex items-center gap-2 min-w-0 pr-2">
                                   {homeTeam?.logo ? <img src={homeTeam.logo} alt="" className="w-5 h-5 object-contain shrink-0" /> : <div className="w-5 h-5 bg-white/5 rounded-full shrink-0" />}
@@ -248,7 +294,6 @@ export default function AdminPage() {
                               </div>
                             </div>
 
-                            {/* Footer do Card (Broadcast) */}
                             {game.broadcast_tag && (
                               <div className="mt-3 flex justify-center scale-90 origin-bottom">
                                 <BroadcastBadge tag={game.broadcast_tag} />
