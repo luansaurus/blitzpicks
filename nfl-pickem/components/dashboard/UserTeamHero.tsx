@@ -18,7 +18,6 @@ const calculatePct = (w = 0, l = 0, t = 0) => {
   return pct === 1 ? "1.000" : pct.toFixed(3).replace("0.", ".");
 };
 
-// Helper para ocultar o empate se for 0
 const formatRecord = (recordStr?: string) => {
   if (!recordStr) return "";
   const parts = recordStr.split('-');
@@ -45,29 +44,16 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
       if (!teamId) return;
       const supabase = createClient();
       
-      const { data: teamData } = await supabase
-        .from('teams')
-        .select('*')
-        .eq('id', teamId)
-        .single();
-        
+      const { data: teamData } = await supabase.from('teams').select('*').eq('id', teamId).single();
       if (teamData) setTeamInfo(teamData);
 
       if (teamData && teamData.abbreviation !== 'NFL') {
-        
         try {
-          const { data: divTeams } = await supabase
-            .from('teams')
-            .select('id, name, abbreviation, logo_url')
-            .eq('conference', teamData.conference)
-            .eq('division', teamData.division);
+          const { data: divTeams } = await supabase.from('teams').select('id, name, abbreviation, logo_url').eq('conference', teamData.conference).eq('division', teamData.division);
 
           if (divTeams && divTeams.length > 0) {
             const divTeamIds = divTeams.map(t => t.id);
-            const { data: divStd } = await supabase
-              .from('standings')
-              .select('*')
-              .in('team_id', divTeamIds);
+            const { data: divStd } = await supabase.from('standings').select('*').in('team_id', divTeamIds);
 
             let merged = divTeams.map(t => {
               const std = divStd?.find(s => s.team_id === t.id) || {};
@@ -83,11 +69,8 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
             });
 
             setDivisionStandings(merged);
-
             const myStd = merged.find(m => m.id.toString() === teamId.toString());
-            if (myStd) {
-              setFullStandings(myStd);
-            }
+            if (myStd) setFullStandings(myStd);
           }
         } catch (e) {
           console.error("Erro ao buscar a classificação", e);
@@ -100,7 +83,6 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
           if (res.ok) {
             const espnData = await res.json();
             const stats = espnData?.team?.record?.items?.[0]?.stats;
-            
             if (stats && Array.isArray(stats) && stats.length > 0) {
               const passing = stats.find((s: any) => s.name === 'passingYards');
               const rushing = stats.find((s: any) => s.name === 'rushingYards');
@@ -147,7 +129,6 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
   }
 
   const isGenericNFL = teamInfo.abbreviation === 'NFL';
-
   const myRecordFromMap = teamsDataMap?.[teamId?.toString() || '']?.record;
   const formattedMyRecord = myRecordFromMap ? formatRecord(myRecordFromMap) : "0-0";
 
@@ -246,45 +227,37 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
         </div>
         
         <div className="flex justify-center items-center gap-4 sm:gap-8 mb-6 bg-black/40 py-6 px-4 rounded-xl border border-white/5">
-           
-           <div className="flex flex-col items-center flex-1">
-             <span className="text-[10px] font-bold text-gray-500 mb-2">{isHome ? 'HOME' : 'AWAY'}</span>
-             {myLogo && <img src={myLogo} alt="Home Team" className="w-12 h-12 sm:w-16 sm:h-16 object-contain mb-2 drop-shadow-lg" />}
-             
-             {/* NOME DO TIME E RECORD NA VERTICAL CORRIGIDO */}
-             <div className="flex flex-col items-center">
-               <span className="text-3xl sm:text-4xl font-black text-white leading-none mb-1">{teamInfo.abbreviation}</span>
-               {myRecordStr && <span className="text-[10px] sm:text-xs font-bold text-gray-500 leading-none">{myRecordStr}</span>}
-             </div>
-           </div>
-           
-           <div className="flex items-center gap-3 sm:gap-5 pb-6">
-             <span className={`text-4xl sm:text-6xl font-black ${wonMatch ? 'text-green-400' : isTie ? 'text-white' : 'text-gray-300'}`}>
-               {myScore !== null ? myScore : '-'}
-             </span>
-             <span className="text-gray-600 font-black text-xl sm:text-2xl">-</span>
-             <span className={`text-4xl sm:text-6xl font-black ${!wonMatch && !isTie && (myScore !== null) ? 'text-red-400' : isTie ? 'text-white' : 'text-gray-300'}`}>
-               {oppScore !== null ? oppScore : '-'}
-             </span>
-           </div>
-           
-           <div className="flex flex-col items-center flex-1">
-             <span className="text-[10px] font-bold text-gray-500 mb-2">{!isHome ? 'HOME' : 'AWAY'}</span>
-             {oppLogo && <img src={oppLogo} alt="Away Team" className="w-12 h-12 sm:w-16 sm:h-16 object-contain mb-2 drop-shadow-lg" />}
-             
-             {/* NOME DO TIME E RECORD NA VERTICAL CORRIGIDO */}
-             <div className="flex flex-col items-center">
-               <span className="text-3xl sm:text-4xl font-black text-white leading-none mb-1">{oppAbbr}</span>
-               {oppRecordStr && <span className="text-[10px] sm:text-xs font-bold text-gray-500 leading-none">{oppRecordStr}</span>}
-             </div>
-           </div>
-           
+            <div className="flex flex-col items-center flex-1">
+              <span className="text-[10px] font-bold text-gray-500 mb-2">{isHome ? 'HOME' : 'AWAY'}</span>
+              {myLogo && <img src={myLogo} alt="Home Team" className="w-12 h-12 sm:w-16 sm:h-16 object-contain mb-2 drop-shadow-lg" />}
+              <div className="flex flex-col items-center">
+                <span className="text-3xl sm:text-4xl font-black text-white leading-none mb-1">{teamInfo.abbreviation}</span>
+                {myRecordStr && <span className="text-[10px] sm:text-xs font-bold text-gray-500 leading-none">{myRecordStr}</span>}
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3 sm:gap-5 pb-6">
+              <span className={`text-4xl sm:text-6xl font-black ${wonMatch ? 'text-green-400' : isTie ? 'text-white' : 'text-gray-300'}`}>
+                {myScore !== null ? myScore : '-'}
+              </span>
+              <span className="text-gray-600 font-black text-xl sm:text-2xl">-</span>
+              <span className={`text-4xl sm:text-6xl font-black ${!wonMatch && !isTie && (myScore !== null) ? 'text-red-400' : isTie ? 'text-white' : 'text-gray-300'}`}>
+                {oppScore !== null ? oppScore : '-'}
+              </span>
+            </div>
+            
+            <div className="flex flex-col items-center flex-1">
+              <span className="text-[10px] font-bold text-gray-500 mb-2">{!isHome ? 'HOME' : 'AWAY'}</span>
+              {oppLogo && <img src={oppLogo} alt="Away Team" className="w-12 h-12 sm:w-16 sm:h-16 object-contain mb-2 drop-shadow-lg" />}
+              <div className="flex flex-col items-center">
+                <span className="text-3xl sm:text-4xl font-black text-white leading-none mb-1">{oppAbbr}</span>
+                {oppRecordStr && <span className="text-[10px] sm:text-xs font-bold text-gray-500 leading-none">{oppRecordStr}</span>}
+              </div>
+            </div>
         </div>
 
         {(homeLeaders.length > 0 || awayLeaders.length > 0) ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
-            
-            {/* AWAY LEADERS */}
             <div className="flex flex-col gap-3">
               <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 block border-b border-white/5 pb-2">
                 {awayAbbr} Leaders
@@ -302,7 +275,6 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
               </div>
             </div>
 
-            {/* HOME LEADERS */}
             <div className="flex flex-col gap-3">
               <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 block border-b border-white/5 pb-2">
                 {homeAbbr} Leaders
@@ -319,7 +291,6 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
                 })}
               </div>
             </div>
-
           </div>
         ) : (
           <div className="w-full flex items-center justify-center text-xs font-bold text-gray-600 uppercase tracking-widest py-4 bg-black/20 rounded-lg">
@@ -384,8 +355,9 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
             <div className="flex flex-col items-start md:items-end">
                 <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-500">Total Points</span>
                 <span 
-                className="text-5xl sm:text-7xl font-black italic tracking-tighter text-white leading-none mt-1" 
-                style={{ textShadow: `0 0 25px ${teamInfo.primary_color}` }}
+                  key={score} // A MÁGICA VISUAL ACONTECE AQUI (força animação ao atualizar)
+                  className="text-5xl sm:text-7xl font-black italic tracking-tighter text-white leading-none mt-1 animate-fadeIn" 
+                  style={{ textShadow: `0 0 25px ${teamInfo.primary_color}` }}
                 >
                 {score}
                 </span>
