@@ -36,6 +36,20 @@ export default function Dashboard() {
   const [contextLeagueId, setContextLeagueId] = useState<string | null>(null);
 
   const router = useRouter();
+  useEffect(() => {
+  const savedLeague = localStorage.getItem('last_selected_league');
+  if (savedLeague) {
+    setContextLeagueId(savedLeague);
+  }
+}, []);
+
+useEffect(() => {
+  if (contextLeagueId) {
+    localStorage.setItem('last_selected_league', contextLeagueId);
+  } else {
+    localStorage.removeItem('last_selected_league');
+  }
+}, [contextLeagueId]);
 
   useEffect(() => {
     const supabase = createClient();
