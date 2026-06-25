@@ -139,6 +139,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
     }
   }
 
+  // Restaurados os paddings maiores (p-3 sm:p-4)
   let innerCardClass = "rounded-[12px] p-3 sm:p-4 flex flex-col gap-2 relative grow ";
   if (hasGameStarted && existingPick && !hidePicks) innerCardClass += ` ${resultColorClass}`;
   else innerCardClass += " bg-neutral-950";
@@ -156,7 +157,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
     <div className={wrapperClass} style={isUnsaved ? { background: userTeamColor, boxShadow: `0 0 15px ${userTeamColor}60` } : {}}>
       
       {sortedTags.length > 0 && (
-        <div className="absolute -top-[14px] right-3 z-20 flex items-center gap-1.5 scale-90 origin-bottom-right drop-shadow-lg">
+        <div className="absolute -top-[12px] right-3 z-20 flex items-center gap-1 scale-[0.85] origin-bottom-right drop-shadow-md">
           {sortedTags.map(tag => (
             <BroadcastBadge key={tag} tag={tag} />
           ))}
@@ -164,20 +165,14 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
       )}
 
       <div className={innerCardClass}>
-        <div className="flex justify-between items-start pb-2 border-b border-white/5 mb-2 gap-2">
-          <div className="flex flex-col gap-1 min-w-0">
-            <span className="text-[10px] text-gray-400 font-bold uppercase truncate leading-none">
+        
+        {/* HEADER: DATA, STATUS E ESTÁDIO */}
+        <div className="flex flex-col gap-1.5 pb-2 border-b border-white/5 mb-1 w-full">
+          <div className="flex justify-between items-start gap-2">
+            <span className="text-[9px] sm:text-[10px] text-gray-400 font-bold uppercase truncate leading-none">
               {formattedDate} <span className="mx-1">•</span> {formattedTime}
             </span>
-            {game.stadium && (
-              <span className="text-[9px] text-gray-500 font-semibold truncate leading-none mt-0.5" title={`${game.stadium.name}, ${game.stadium.city}`}>
-                📍 {game.stadium.name}, {game.stadium.city}
-              </span>
-            )}
-          </div>
-          
-          <div className="flex flex-col items-end shrink-0">
-            <div className="text-right leading-none">
+            <div className="text-right leading-none shrink-0">
               {isFinished ? (
                 <span className="text-[9px] font-black uppercase tracking-widest text-green-500">Final</span>
               ) : isLive ? (
@@ -193,6 +188,13 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
               )}
             </div>
           </div>
+          
+          {/* Informação do Estádio em uma linha isolada abaixo da data */}
+          {game.stadium && (
+            <span className="text-[8px] sm:text-[9px] text-gray-500 font-semibold uppercase tracking-widest truncate leading-none w-full" title={`${game.stadium.name}, ${game.stadium.city}`}>
+              📍 {game.stadium.name}, {game.stadium.city}
+            </span>
+          )}
         </div>
 
         <div className="flex flex-col gap-3 w-full">
@@ -208,8 +210,8 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
           )}
           
           {/* AWAY TEAM */}
-          <div className="flex items-center justify-between gap-2 w-full">
-            <div className={`flex items-center gap-2 sm:gap-1 flex-1 min-w-0 transition-opacity ${hidePicks && hasGameStarted && !awayWon ? 'opacity-40' : 'opacity-100'}`}>
+          <div className="flex items-center justify-between gap-3 w-full">
+            <div className={`flex items-center gap-2 sm:gap-3 flex-1 min-w-0 transition-opacity ${hidePicks && hasGameStarted && !awayWon ? 'opacity-40' : 'opacity-100'}`}>
               {awayTeam?.logo ? (
                 <img src={awayTeam.logo} className="w-6 h-6 sm:w-7 sm:h-7 object-contain shrink-0" alt={awayTeam?.abbr} />
               ) : (
@@ -218,10 +220,9 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                 </div>
               )}
               
-              {/* O segredo para não quebrar: flex-1 e min-w-0 forçam o nome a encolher e o record a ficar firme */}
-              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-                <span className="font-black text-sm sm:text-base text-white uppercase truncate leading-none">
-                  {awayTeam?.name || awayTeam?.abbr || 'AWAY'}
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+                <span className="font-black text-xs sm:text-sm text-white uppercase truncate leading-none" style={{ fontSize: (awayTeam?.name?.length || 0) > 10 ? '0.75rem' : '' }}>
+                  {awayTeam?.name?.split(' ').pop() || awayTeam?.abbr || 'AWAY'}
                 </span>
                 {awayTeam?.record && (
                   <span className="text-[9px] text-gray-500 font-bold tracking-widest leading-none shrink-0 whitespace-nowrap mt-0.5">
@@ -243,6 +244,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                       {game.away_score}
                     </span>
                   )}
+                  {/* Inputs levemente maiores para o toque fácil */}
                   <input
                     type="number" min="0" onKeyDown={blockNegativeKeys} disabled={isInputDisabled} value={awayPredict} 
                     onChange={(e) => {
@@ -250,7 +252,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                       if (val === "" || parseInt(val) >= 0) { setAwayPredict(val); if (onPickChange) onPickChange(game.id, homePredict, val); }
                     }} 
                     placeholder="-"
-                    className="w-12 h-10 bg-black/50 border border-white/20 rounded text-center text-sm font-black text-white focus:outline-none focus:border-white transition p-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-12 h-9 sm:h-10 bg-black/50 border border-white/20 rounded-md text-center text-sm sm:text-base font-black text-white focus:outline-none focus:border-white transition p-0 disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 </>
               )}
@@ -258,8 +260,8 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
           </div>
 
           {/* HOME TEAM */}
-          <div className="flex items-center justify-between gap-2 w-full">
-            <div className={`flex items-center gap-2 sm:gap-1 flex-1 min-w-0 transition-opacity ${hidePicks && hasGameStarted && !homeWon ? 'opacity-40' : 'opacity-100'}`}>
+          <div className="flex items-center justify-between gap-3 w-full">
+            <div className={`flex items-center gap-2 sm:gap-3 flex-1 min-w-0 transition-opacity ${hidePicks && hasGameStarted && !homeWon ? 'opacity-40' : 'opacity-100'}`}>
               {homeTeam?.logo ? (
                 <img src={homeTeam.logo} className="w-6 h-6 sm:w-7 sm:h-7 object-contain shrink-0" alt={homeTeam?.abbr} />
               ) : (
@@ -268,9 +270,9 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                 </div>
               )}
               
-              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-                <span className="font-black text-sm sm:text-base text-white uppercase truncate leading-none">
-                  {homeTeam?.name || homeTeam?.abbr || 'HOME'}
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+                <span className="font-black text-xs sm:text-sm text-white uppercase truncate leading-none" style={{ fontSize: (homeTeam?.name?.length || 0) > 10 ? '0.75rem' : '' }}>
+                  {homeTeam?.name?.split(' ').pop() || homeTeam?.abbr || 'HOME'}
                 </span>
                 {homeTeam?.record && (
                   <span className="text-[9px] text-gray-500 font-bold tracking-widest leading-none shrink-0 whitespace-nowrap mt-0.5">
@@ -299,7 +301,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                       if (val === "" || parseInt(val) >= 0) { setHomePredict(val); if (onPickChange) onPickChange(game.id, val, awayPredict); }
                     }} 
                     placeholder="-"
-                    className="w-12 h-10 bg-black/50 border border-white/20 rounded text-center text-sm font-black text-white focus:outline-none focus:border-white transition p-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-12 h-9 sm:h-10 bg-black/50 border border-white/20 rounded-md text-center text-sm sm:text-base font-black text-white focus:outline-none focus:border-white transition p-0 disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 </>
               )}

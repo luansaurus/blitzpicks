@@ -5,9 +5,21 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '../../utils/supabase/client';
 import { getThemeColor } from '@/utils/theme';
 
-// O mesmo Motor HSL do Header para garantir contraste e vivacidade
-const getSafeColor = (hex: string) => {
-  if (!hex) return '#E31837'; // Padrão NFL Red
+const getSafeColor = (hex: string, teamName?: string) => {
+  if (!hex) return '#E31837';
+
+  // 1. Evita que tons cinzas/pratas percam a neutralidade e virem rosa
+  const isGreyish = (h: string) => {
+    const r = parseInt(h.substring(1, 3), 16);
+    const g = parseInt(h.substring(3, 5), 16);
+    const b = parseInt(h.substring(5, 7), 16);
+    return Math.abs(r - g) < 20 && Math.abs(g - b) < 20 && Math.abs(r - b) < 20;
+  };
+
+  if (isGreyish(hex)) return hex;
+
+  // 2. Trava de segurança para garantir o Prata Clássico do Raiders
+  if (teamName?.toLowerCase().includes('raiders')) return '#C0C0C0';
 
   let r = parseInt(hex.substring(1, 3), 16) / 255;
   let g = parseInt(hex.substring(3, 5), 16) / 255;
@@ -15,9 +27,7 @@ const getSafeColor = (hex: string) => {
 
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
-  let h = 0;
-  let s = 0;
-  let l = (max + min) / 2;
+  let h = 0, s = 0, l = (max + min) / 2;
 
   if (max !== min) {
     const d = max - min;
@@ -30,10 +40,9 @@ const getSafeColor = (hex: string) => {
     h /= 6;
   }
 
-  if (l < 0.45) {
-    l = 0.55; 
-    s = Math.max(s, 0.90); 
-  }
+  // Ajusta o brilho de times escuros (Eagles, Patriots) mantendo o tom original intacto
+  if (l < 0.35) l = 0.5;
+  if (s < 0.3) s = 0.6;
 
   const hue2rgb = (p: number, q: number, t: number) => {
     if (t < 0) t += 1;
@@ -86,18 +95,16 @@ export default function SetupPage() {
       if (teamsError) {
         console.error('Erro ao buscar os times:', teamsError);
       } else if (teamsData) {
-        setTeams(teamsData);
+        const teamsList = teamsData || [];
+        const freeAgent = teamsList.find(t => t.abbreviation === 'TBD');
+        const others = teamsList.filter(t => t.abbreviation !== 'TBD');
+        const finalList = freeAgent 
+          ? [{ ...freeAgent, name: 'Free Agent' }, ...others] 
+          : others;
+
+        setTeams(finalList);
       }
-const teamsList = teamsData || [];
-
-// Identifica o time TBD/Free Agent e coloca no topo
-const freeAgent = teamsList.find(t => t.abbreviation === 'TBD');
-const others = teamsList.filter(t => t.abbreviation !== 'TBD');
-const finalList = freeAgent 
-  ? [{ ...freeAgent, name: 'Free Agent' }, ...others] 
-  : others;
-
-setTeams(finalList);
+      
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('nickname, favorite_team_id')
@@ -119,22 +126,12 @@ setTeams(finalList);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!nickname) {
-      alert("Please enter a nickname.");
-      return;
-    }
+    if (!nickname) return;
 
     setSaving(true);
-
     try {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError || !session) {
-        alert("Session error. Please log in again.");
-        router.push('/login');
-        return;
-      }
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { router.push('/login'); return; }
 
       const updateData: any = { 
         id: session.user.id,
@@ -142,27 +139,17 @@ setTeams(finalList);
         favorite_team_id: selectedTeamId
       };
 
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .upsert(updateData);
+      const { error: updateError } = await supabase.from('profiles').upsert(updateData);
+      if (updateError) throw updateError;
 
-      if (updateError) {
-        alert(`Failed to update profile: ${updateError.message}`);
-        setSaving(false);
-        return;
-      }
-
-      // Atualiza a cor global no localStorage se a pessoa trocou de time
       const chosenTeam = teams.find(t => t.id === selectedTeamId);
-      const newColor = chosenTeam ? getSafeColor(chosenTeam.primary_color) : '#E31837';
+      const newColor = chosenTeam ? getSafeColor(chosenTeam.primary_color, chosenTeam.name) : '#E31837';
       localStorage.setItem('blitz_accent', newColor);
       document.documentElement.style.setProperty('--team-accent', newColor);
 
       router.push('/dashboard');
-      
     } catch (catchError) {
-      console.error("💥 [Setup] Unexpected crash in handleSaveProfile:", catchError);
-      alert("An unexpected error occurred. Check your browser console.");
+      console.error(catchError);
       setSaving(false);
     }
   };
@@ -175,53 +162,28 @@ setTeams(finalList);
     );
   }
 
-  
   const selectedTeamData = teams.find(t => t.id === selectedTeamId);
-  // Aplica a função getSafeColor na cor selecionada para renderizar na tela
   const rawColor = selectedTeamData?.primary_color || '#E31837';
-  const themeColor = getSafeColor(rawColor);
-
-  const nflDefaultOption = {
-    id: null,
-    name: 'No Team',
-    abbreviation: 'NFL',
-    primary_color: '#E31837',
-    logo_url: 'https://upload.wikimedia.org/wikipedia/en/a/a2/National_Football_League_logo.svg'
-  };
-
+  const themeColor = getSafeColor(rawColor, selectedTeamData?.name);
 
   return (
     <main className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center py-12 px-4 sm:px-6">
       <div className="w-full max-w-2xl bg-neutral-900 border border-white/10 rounded-2xl p-6 sm:p-10 shadow-2xl relative overflow-hidden">
-        
-        <div className="absolute -top-10 -right-10 opacity-5 pointer-events-none">
-          <span className="text-[120px] font-black italic">DRAFT</span>
-        </div>
-
-        <div className="text-center mb-10 relative z-10">
+        <div className="text-center mb-10">
           <h1 className="text-3xl sm:text-4xl font-black italic tracking-tighter text-white uppercase">
-            Sign <span className="transition-colors duration-500" style={{ color: themeColor }}>Contract</span>
+            Sign <span style={{ color: themeColor }}>Contract</span>
           </h1>
-          <p className="text-gray-400 mt-2 font-medium text-sm sm:text-base">
-            Customize your profile before entering the field.
-          </p>
+          <p className="text-gray-400 mt-2 font-medium text-sm sm:text-base">Customize your profile before entering the field.</p>
         </div>
 
-        <form onSubmit={handleSaveProfile} className="space-y-8 relative z-10">
-          
+        <form onSubmit={handleSaveProfile} className="space-y-8">
           <div>
-            <label className="block text-xs sm:text-sm font-bold uppercase tracking-widest text-gray-400 mb-3">
-              Player Nickname
-            </label>
+            <label className="block text-xs sm:text-sm font-bold uppercase tracking-widest text-gray-400 mb-3">Player Nickname</label>
             <input
-              type="text"
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-              className="w-full bg-black border border-white/10 rounded-xl px-4 py-4 text-white focus:outline-none focus:ring-1 transition font-bold text-lg shadow-inner"
-              // Remova o focusBorderColor e use propriedades CSS padrão do React!
+              type="text" value={nickname} onChange={(e) => setNickname(e.target.value)}
+              className="w-full bg-black border border-white/10 rounded-xl px-4 py-4 text-white focus:outline-none focus:ring-1 transition font-bold text-lg"
               style={{ outlineColor: themeColor, '--tw-ring-color': themeColor } as React.CSSProperties}
-              placeholder="Digite seu nickname..."
-              required
+              placeholder="Your nickname..." required
             />
           </div>
 
@@ -230,45 +192,29 @@ setTeams(finalList);
               <span>Select Franchise</span>
               <span className="text-gray-600 text-[10px]">OPTIONAL</span>
             </label>
-            
             <div className="-m-3 p-3 grid grid-cols-2 sm:grid-cols-4 gap-3 max-h-[300px] overflow-y-auto custom-scrollbar">
-{teams.map((team) => {
-  const isSelected = selectedTeamId === team.id;
-  const displayName = team.abbreviation === 'TBD' ? 'Free Agent' : team.abbreviation;
-  
-  // Usamos a função getThemeColor (que você já tem no seu utils) 
-  // para garantir a borda Neon apenas no selecionado
-  const cardBorderColor = isSelected ? getThemeColor(team.primary_color || '#E31837') : 'transparent';
+              {teams.map((team) => {
+                const isSelected = selectedTeamId === team.id;
+                const displayName = team.abbreviation === 'TBD' ? 'Free Agent' : team.abbreviation;
+                const cardBorderColor = isSelected ? getSafeColor(team.primary_color || '#E31837', team.name) : 'transparent';
 
-  return (
-    <div
-      key={team.id}
-      onClick={() => setSelectedTeamId(team.id)} 
-      className={`cursor-pointer border rounded-lg p-2 flex flex-col items-center justify-center gap-1 transition-all duration-300 ${
-        isSelected 
-          ? 'bg-white/10 shadow-lg scale-105 z-10' 
-          : 'bg-black/40 border-white/5 hover:border-white/10 opacity-80 hover:opacity-100 z-0'
-      }`}
-      style={{ borderColor: cardBorderColor }}
-    >
-      {team.logo_url ? (
-        <img src={team.logo_url} alt={team.name} className="w-8 h-8 object-contain" />
-      ) : (
-        <div className="w-8 h-8 bg-white/5 rounded-full" />
-      )}
-      <span className="text-[9px] font-black uppercase tracking-widest text-center text-white truncate w-full">
-        {displayName}
-      </span>
-    </div>
-  );
-})}
+                return (
+                  <div
+                    key={team.id} onClick={() => setSelectedTeamId(team.id)} 
+                    className={`cursor-pointer border rounded-lg p-2 flex flex-col items-center justify-center gap-1 transition-all duration-300 ${isSelected ? 'bg-white/10 shadow-lg scale-105 z-10' : 'bg-black/40 border-white/5 hover:border-white/10 opacity-80'}`}
+                    style={{ borderColor: cardBorderColor }}
+                  >
+                    {team.logo_url ? <img src={team.logo_url} alt="" className="w-8 h-8 object-contain" /> : <div className="w-8 h-8 bg-white/5 rounded-full" />}
+                    <span className="text-[9px] font-black uppercase tracking-widest text-center text-white truncate w-full">{displayName}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
           <button
-            type="submit"
-            disabled={saving || !nickname}
-            className="w-full text-white font-black py-4 sm:py-5 rounded-xl uppercase tracking-widest transition shadow-lg disabled:opacity-50 mt-4 text-sm sm:text-base hover:opacity-90"
+            type="submit" disabled={saving || !nickname}
+            className="w-full text-white font-black py-4 sm:py-5 rounded-xl uppercase tracking-widest transition shadow-lg disabled:opacity-50 text-sm sm:text-base"
             style={{ backgroundColor: themeColor }}
           >
             {saving ? "Signing..." : "Enter Locker Room"}
