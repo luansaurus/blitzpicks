@@ -104,10 +104,10 @@ export default function Header() {
 
   const navLinks = [
     { name: 'Locker', path: '/dashboard', icon: '🏈' },
-    { name: 'Picks', path: '/schedule', icon: '📝' },
+    { name: 'Picks', path: '/picks', icon: '📝' },
     { name: 'Bracket', path: '/bracket', icon: '🏆' },
     { name: 'Ranking', path: '/ranking', icon: '📊' },
-    { name: 'Results', path: '/results', icon: '✅' }
+    { name: 'NFL Results', path: '/results', icon: '✅' }
   ];
 
   return (

@@ -189,6 +189,8 @@ export default function SchedulePage() {
                 All <span style={{ color: userColor, textShadow: `0 0 15px ${userColor}80, 0 1px 2px rgba(255,255,255,0.2)` }}>Matchups</span>
               </h1>
               <p className="text-gray-400 mt-1 font-medium text-xs sm:text-sm">Manage all your predictions for the entire season.</p>
+              <p className="text-gray-400 mt-1 font-small text-xs sm:text-sm">The points displayed are defined by the Global Points.</p>
+          
             </div>
 
             <div className="flex bg-neutral-900 border border-white/10 p-1 rounded-lg w-fit shadow-lg">
