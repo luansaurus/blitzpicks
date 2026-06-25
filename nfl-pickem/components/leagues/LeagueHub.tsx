@@ -415,7 +415,10 @@ export default function LeagueHub({ userColor, currentUserId, isAdmin, isVip }: 
                 
                 {/* TOGGLES PARA REMOVER REGRAS */}
                 <div className="mb-4">
-                  <span className="text-[10px] font-black uppercase text-gray-500 tracking-widest block mb-2">Custom Points System</span>
+                  <span className="text-[11px] font-black uppercase text-gray-500 tracking-widest block mb-2">Custom Points System</span>
+                  <span className="text-[8px] font-black uppercase text-green-500 tracking-widest block mb-2">Exact: exact winner and score</span>
+                  <span className="text-[8px] font-black uppercase text-blue-500 tracking-widest block mb-2">Diff: correct winner, different score but correct score difference</span>
+                  <span className="text-[8px] font-black uppercase text-amber-500 tracking-widest block mb-2">Win: correct winner, different score and score difference</span>
                   <div className="grid grid-cols-3 gap-2">
                     
                     <div className={`border rounded-lg p-2 flex flex-col items-center transition-all ${useExact ? 'bg-black/60 border-white/10' : 'bg-black/20 border-transparent opacity-40 grayscale'}`}>
