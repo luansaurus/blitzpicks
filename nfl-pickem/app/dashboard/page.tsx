@@ -11,16 +11,23 @@ import LeagueHub from '../../components/leagues/LeagueHub';
 import { getPickResult } from '@/utils/scoring';
 
 export default function Dashboard() {
+  const supabase = createClient();
+  const router = useRouter();
+
   const [games, setGames] = useState<any[]>([]);
   const [teamsDataMap, setTeamsDataMap] = useState<Record<string, any>>({});
   const [myGuesses, setMyGuesses] = useState<any[]>([]);
+  const [allGuesses, setAllGuesses] = useState<any[]>([]);
+  const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [leagueMembersMap, setLeagueMembersMap] = useState<Record<string, string[]>>({});
+  
+  const [championships, setChampionships] = useState<any[]>([]);
   
   const [draftPicks, setDraftPicks] = useState<Record<string, { home: number, away: number }>>({});
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'error'>('idle');
 
   const [favoriteTeamId, setFavoriteTeamId] = useState<number | string>('');
   const [userColor, setUserColor] = useState('#E31837');
-  
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isVip, setIsVip] = useState(false);
@@ -28,32 +35,23 @@ export default function Dashboard() {
 
   const [currentWeek, setCurrentWeek] = useState<string>('1');
   const [loading, setLoading] = useState(true);
-
   const [lastGame, setLastGame] = useState<any>(null);
   const [nextGame, setNextGame] = useState<any>(null);
   
   const [myLeagues, setMyLeagues] = useState<any[]>([]);
   const [contextLeagueId, setContextLeagueId] = useState<string | null>(null);
 
-  const router = useRouter();
   useEffect(() => {
-  const savedLeague = localStorage.getItem('last_selected_league');
-  if (savedLeague) {
-    setContextLeagueId(savedLeague);
-  }
-}, []);
-
-useEffect(() => {
-  if (contextLeagueId) {
-    localStorage.setItem('last_selected_league', contextLeagueId);
-  } else {
-    localStorage.removeItem('last_selected_league');
-  }
-}, [contextLeagueId]);
+    const savedLeague = localStorage.getItem('last_selected_league');
+    if (savedLeague) setContextLeagueId(savedLeague);
+  }, []);
 
   useEffect(() => {
-    const supabase = createClient();
+    if (contextLeagueId) localStorage.setItem('last_selected_league', contextLeagueId);
+    else localStorage.removeItem('last_selected_league');
+  }, [contextLeagueId]);
 
+  useEffect(() => {
     async function loadDashboardData() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push('/login'); return; }
@@ -66,12 +64,21 @@ useEffect(() => {
       setIsVip(profile.is_vip);
       if (profile.favorite_team_id) setFavoriteTeamId(profile.favorite_team_id);
 
-      const { data: teams } = await supabase.from('teams').select('*');
-      const { data: standings } = await supabase.from('standings').select('*');
-      
+      const [resTeams, resStandings, resGames, resGuesses, resMembers, resUsers, resChamps] = await Promise.all([
+        supabase.from('teams').select('*'),
+        supabase.from('standings').select('*'),
+        supabase.from('games').select('*, stadium(name, city)').order('game_time', { ascending: true }),
+        supabase.from('guesses').select('*'),
+        supabase.from('league_members').select('league_id, user_id, leagues(*)'),
+        supabase.from('profiles').select('id, nickname, score, global_titles, is_test, teams ( logo_url, abbreviation )'),
+        supabase.from('championships').select('*')
+      ]);
+
+      if (resChamps.data) setChampionships(resChamps.data);
+
       const tMap: Record<string, any> = {};
-      teams?.forEach(t => { 
-        const record = standings?.find(s => s.team_id?.toString() === t.id.toString());
+      resTeams.data?.forEach(t => { 
+        const record = resStandings.data?.find(s => s.team_id?.toString() === t.id.toString());
         tMap[t.id.toString()] = { 
           name: t.name, abbr: t.abbreviation, color: t.primary_color, logo: t.logo_url,
           record: record ? `${record.wins}-${record.losses}${record.ties > 0 ? `-${record.ties}` : ''}` : '0-0' 
@@ -79,48 +86,47 @@ useEffect(() => {
       });
       setTeamsDataMap(tMap);
 
-      if (typeof window !== "undefined") {
-         const savedAccent = localStorage.getItem('blitz_accent');
-         if (savedAccent) setUserColor(savedAccent);
-      }
+      const savedAccent = localStorage.getItem('blitz_accent');
+      if (savedAccent) setUserColor(savedAccent);
 
-      const { data: gamesData } = await supabase.from('games').select('*, stadium(name, city)').order('game_time', { ascending: true });
-
-      if (gamesData && gamesData.length > 0) {
-        setGames(gamesData);
+      if (resGames.data && resGames.data.length > 0) {
+        setGames(resGames.data);
         if (profile.favorite_team_id) {
-          const teamGames = gamesData.filter(g => g.home_team_id?.toString() === profile.favorite_team_id?.toString() || g.away_team_id?.toString() === profile.favorite_team_id?.toString());
+          const teamGames = resGames.data.filter(g => g.home_team_id?.toString() === profile.favorite_team_id?.toString() || g.away_team_id?.toString() === profile.favorite_team_id?.toString());
           const finished = teamGames.filter(g => g.status === 'finished').sort((a, b) => new Date(b.game_time).getTime() - new Date(a.game_time).getTime());
           const pending = teamGames.filter(g => g.status !== 'finished').sort((a, b) => new Date(a.game_time).getTime() - new Date(b.game_time).getTime());
           setLastGame(finished[0] || null);
           setNextGame(pending[0] || null);
         }
 
-        const grouped = gamesData.reduce((acc, g) => {
-          const w = g.week || '1';
-          if (!acc[w]) acc[w] = [];
-          acc[w].push(g);
-          return acc;
-        }, {} as Record<string, any[]>);
-
+        const grouped = resGames.data.reduce((acc, g) => { const w = g.week || '1'; if (!acc[w]) acc[w] = []; acc[w].push(g); return acc; }, {} as Record<string, any[]>);
         const sortedWeeks = Object.keys(grouped).sort((a, b) => Number(a) - Number(b));
-        const activeWeek = sortedWeeks.find(w => !grouped[w].every((game: any) => game.status === 'finished')) || sortedWeeks[sortedWeeks.length - 1];
-        setCurrentWeek(activeWeek);
+        setCurrentWeek(sortedWeeks.find(w => !grouped[w].every((game: any) => game.status === 'finished')) || sortedWeeks[sortedWeeks.length - 1]);
       }
 
-      const { data: guessesData } = await supabase.from('guesses').select('*').eq('user_id', session.user.id);
-      if (guessesData) setMyGuesses(guessesData);
+      if (resGuesses.data) setMyGuesses(resGuesses.data.filter(g => g.user_id === session.user.id));
+      setAllGuesses(resGuesses.data || []);
+      setAllUsers((resUsers.data || []).filter(u => !u.is_test));
 
-      const { data: memberships } = await supabase.from('league_members').select('league_id, leagues(*)').eq('user_id', session.user.id);
-      if (memberships) {
-        const leaguesData = memberships.map((m: any) => Array.isArray(m.leagues) ? m.leagues[0] : m.leagues).filter(Boolean);
-        setMyLeagues(leaguesData);
+      if (resMembers.data) {
+        const leaguesMap: Record<string, string[]> = {};
+        const userLeaguesTemp: any[] = [];
+        resMembers.data.forEach((m: any) => {
+          if (!leaguesMap[m.league_id]) leaguesMap[m.league_id] = [];
+          leaguesMap[m.league_id].push(m.user_id);
+          if (m.user_id === session.user.id) {
+            const f = m.leagues;
+            if (f) userLeaguesTemp.push(Array.isArray(f) ? f[0] : f);
+          }
+        });
+        setLeagueMembersMap(leaguesMap);
+        setMyLeagues(userLeaguesTemp);
       }
 
       setLoading(false);
     }
     loadDashboardData();
-  }, [router]);
+  }, [router, supabase]);
 
   const handlePickChange = (gameId: string | number, homeStr: string, awayStr: string) => {
     const gId = gameId.toString();
@@ -131,7 +137,6 @@ useEffect(() => {
     const home = homeStr === "" ? 0 : parseInt(homeStr);
     const away = awayStr === "" ? 0 : parseInt(awayStr);
     const existing = myGuesses.find(g => g.game_id.toString() === gId);
-    
     if (existing && existing.home_guess === home && existing.away_guess === away) {
       setDraftPicks(prev => { const next = { ...prev }; delete next[gId]; return next; });
       return;
@@ -141,21 +146,16 @@ useEffect(() => {
 
   const handleSaveAll = async () => {
     setSaveStatus('saving');
-    const supabase = createClient();
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
-    
     const payload = Object.entries(draftPicks).map(([gameId, scores]) => ({
-      user_id: session.user.id,
+      user_id: currentUserId,
       game_id: parseInt(gameId),
       home_guess: scores.home,
       away_guess: scores.away
     }));
 
     const { error } = await supabase.from('guesses').upsert(payload, { onConflict: 'user_id,game_id' });
-    
     if (!error) {
-      const { data: newGuesses } = await supabase.from('guesses').select('*').eq('user_id', session.user.id);
+      const { data: newGuesses } = await supabase.from('guesses').select('*').eq('user_id', currentUserId);
       if (newGuesses) setMyGuesses(newGuesses);
       setDraftPicks({});
       setSaveStatus('idle');
@@ -166,37 +166,86 @@ useEffect(() => {
   };
 
   const activeContextLeague = myLeagues.find(l => l.id === contextLeagueId);
-  const currentRules = activeContextLeague ? { 
-    exact: activeContextLeague.pts_exact, 
-    diff: activeContextLeague.pts_diff, 
-    winner: activeContextLeague.pts_winner 
-  } : undefined;
+  const currentRules = activeContextLeague ? { exact: activeContextLeague.pts_exact, diff: activeContextLeague.pts_diff, winner: activeContextLeague.pts_winner } : undefined;
 
-  // CÁLCULO DINÂMICO DOS PONTOS DO USUÁRIO BASEADO NA LIGA ATUAL
+  const isSeasonOver = useMemo(() => {
+    return games.length > 0 && games.every(g => g.status === 'finished');
+  }, [games]);
+
+  const leagueWinner = useMemo(() => {
+    if (!isSeasonOver || !allUsers.length) return null;
+    const rulesToUse = currentRules || { exact: 7, diff: 5, winner: 3 };
+    const validUserIds = contextLeagueId ? (leagueMembersMap[contextLeagueId] || []) : allUsers.map(u => u.id);
+    const competingUsers = allUsers.filter(u => validUserIds.includes(u.id));
+
+    const scores = competingUsers.map(user => {
+      let total = 0;
+      const uGuesses = allGuesses.filter(g => g.user_id === user.id);
+      uGuesses.forEach(guess => {
+        const game = games.find(g => g.id === guess.game_id);
+        if (game) total += getPickResult(game, guess, rulesToUse).points;
+      });
+      return { ...user, total };
+    });
+
+    scores.sort((a, b) => b.total - a.total);
+    return scores[0] || null;
+  }, [isSeasonOver, contextLeagueId, currentRules, allUsers, allGuesses, games, leagueMembersMap]);
+
   const dynamicScore = useMemo(() => {
     if (!games.length || !myGuesses.length) return 0;
     let total = 0;
     const rulesToUse = currentRules || { exact: 7, diff: 5, winner: 3 };
-
     myGuesses.forEach(guess => {
       const game = games.find(g => g.id.toString() === guess.game_id.toString());
       if (game && (game.status === 'finished' || game.status === 'in_progress')) {
         total += getPickResult(game, guess, rulesToUse).points;
       }
     });
-
     return total;
   }, [games, myGuesses, currentRules]);
+
+  // MOTOR SILENCIOSO: Atualiza o banco e o estado local imediatamente
+  useEffect(() => {
+    async function recordChampionship() {
+      if (!isSeasonOver || !leagueWinner) return;
+      
+      // CORREÇÃO DO ANO DA TEMPORADA: Pegar o primeiro jogo da matriz (ex: Setembro) em vez do último (Fevereiro do ano seguinte)
+      const firstGameTime = games[0]?.game_time;
+      const seasonYear = firstGameTime ? new Date(firstGameTime).getFullYear() : new Date().getFullYear();
+
+      const { data, error } = await supabase.from('championships').insert({
+        league_id: contextLeagueId || null,
+        winner_id: leagueWinner.id,
+        season_year: seasonYear
+      }).select().single();
+
+      if (!error && data) {
+        setChampionships(prev => [...prev, data]);
+        if (!contextLeagueId) {
+          setAllUsers(prev => prev.map(u => u.id === leagueWinner.id ? { ...u, global_titles: (u.global_titles || 0) + 1 } : u));
+        }
+      }
+    }
+    recordChampionship();
+  }, [isSeasonOver, leagueWinner, contextLeagueId, games, supabase]);
+
 
   if (loading) return <LoadingScreen />;
 
   const currentWeekGames = games.filter(game => game.week?.toString() === currentWeek.toString());
+  
+  const isCurrentUserWinner = leagueWinner?.id === currentUserId;
+  const showGoldTheme = !contextLeagueId || isCurrentUserWinner;
+
+  const leagueWinsCount = contextLeagueId ? championships.filter(c => c.league_id === contextLeagueId && c.winner_id === leagueWinner?.id).length : 0;
 
   return (
     <main className="min-h-screen bg-neutral-950 text-white font-sans pb-32 relative">
       <Header />
       
       <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-8 mt-4">
+        
         <div className="flex bg-neutral-900 border border-white/10 rounded-xl p-1 w-full max-w-sm mx-auto shadow-lg">
           <button onClick={() => setActiveDashboardTab('locker')} className={`flex-1 px-4 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${activeDashboardTab === 'locker' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-white'}`} style={activeDashboardTab === 'locker' ? { color: userColor } : {}}>🏈 My Locker</button>
           <button onClick={() => setActiveDashboardTab('leagues')} className={`flex-1 px-4 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${activeDashboardTab === 'leagues' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-white'}`} style={activeDashboardTab === 'leagues' ? { color: userColor } : {}}>🛡️ Leagues</button>
@@ -204,13 +253,43 @@ useEffect(() => {
 
         {activeDashboardTab === 'locker' ? (
           <div className="space-y-8 animate-fadeIn">
-            <UserTeamHero 
-              teamId={favoriteTeamId} 
-              score={dynamicScore} // ENVIA A PONTUAÇÃO DINÂMICA AQUI
-              lastGame={lastGame} 
-              nextGame={nextGame} 
-              teamsDataMap={teamsDataMap} 
-            />
+            
+            {isSeasonOver && leagueWinner && (
+              <div className={`w-full border-2 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl ${isCurrentUserWinner ? 'bg-gradient-to-r from-amber-500/20 via-yellow-600/10 to-amber-500/20 border-yellow-500/30 shadow-[0_0_30px_rgba(245,158,11,0.15)]' : 'bg-gradient-to-r from-neutral-800/40 via-zinc-900/40 to-neutral-800/40 border-slate-400/30'}`}>
+                <div className="flex items-center gap-4 text-center sm:text-left flex-col sm:flex-row">
+                  <span className="text-4xl animate-bounce">{isCurrentUserWinner ? '🌟' : '⭐'}</span>
+                  <div>
+                    <h2 className={`text-xl font-black uppercase tracking-wider ${isCurrentUserWinner ? 'text-yellow-400' : 'text-slate-300'}`}>
+                      {isCurrentUserWinner ? "Congratulations, Champion!" : "Season Finished!"}
+                    </h2>
+                    <p className="text-xs font-medium text-gray-400 uppercase mt-0.5">
+                      {contextLeagueId ? `League "${activeContextLeague?.name}"` : "Official Global Board"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 bg-black/40 px-5 py-3 border border-white/5 rounded-xl">
+                  {leagueWinner.teams?.logo_url && <img src={leagueWinner.teams.logo_url} className="w-8 h-8 object-contain" alt="" />}
+                  <div className="flex flex-col">
+                    
+                    <span className="text-base font-black text-white flex flex-wrap items-center gap-2">
+                      {leagueWinner.nickname}
+                      <div className="flex items-center gap-1">
+                        {leagueWinner.global_titles > 0 && (
+                          <span className="text-[9px] font-black text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-1.5 py-0.5 rounded">🌟 x{leagueWinner.global_titles}</span>
+                        )}
+                        {contextLeagueId && leagueWinsCount > 0 && (
+                          <span className="text-[9px] font-black text-slate-300 bg-slate-500/10 border border-slate-400/20 px-1.5 py-0.5 rounded">⭐ x{leagueWinsCount}</span>
+                        )}
+                      </div>
+                    </span>
+                    
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{leagueWinner.total} TOTAL PTS</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <UserTeamHero key={dynamicScore} teamId={favoriteTeamId} score={dynamicScore} lastGame={lastGame} nextGame={nextGame} teamsDataMap={teamsDataMap} />
 
             <div className="space-y-4">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-white/5 pb-3 gap-3">

@@ -7,7 +7,7 @@ import { createClient } from '../../utils/supabase/client';
 import { getThemeColor } from '../../utils/theme';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { getPickResult } from '@/utils/scoring';
-import SpyLockerRoom from '../../components/scoreboard/SpyLockerRoom'; // Importando o Componente Limpo!
+import SpyLockerRoom from '../../components/scoreboard/SpyLockerRoom';
 
 export default function RankingPage() {
   const router = useRouter();
@@ -36,7 +36,8 @@ export default function RankingPage() {
         const { data: teamInfo } = await supabase.from('teams').select('primary_color').eq('id', profile.favorite_team_id).single();
         if (teamInfo?.primary_color) setUserColor(getThemeColor(teamInfo.primary_color));
       } else if (typeof window !== "undefined") {
-         setUserColor(localStorage.getItem('blitz_accent') || '#E31837');
+         const savedAccent = localStorage.getItem('blitz_accent');
+         if (savedAccent) setUserColor(savedAccent);
       }
 
       const { data: teams } = await supabase.from('teams').select('*');
@@ -60,7 +61,8 @@ export default function RankingPage() {
       const { data: guessesData } = await supabase.from('guesses').select('*').eq('user_id', session.user.id);
       if (guessesData) setMyGuesses(guessesData);
 
-      const { data: users } = await supabase.from('profiles').select('id, nickname, score, is_test, teams ( logo_url, abbreviation )');
+      // CORREÇÃO DA BUSCA: Injetado o global_titles e o is_test para tipagem estrita
+      const { data: users } = await supabase.from('profiles').select('id, nickname, score, global_titles, is_test, teams ( logo_url, abbreviation )');
       const { data: allGuesses } = await supabase.from('guesses').select('user_id, game_id, home_guess, away_guess');
 
       if (users && games && allGuesses) {
@@ -130,12 +132,17 @@ export default function RankingPage() {
 
                     return (
                       <React.Fragment key={user.id}>
-                        <tr onClick={() => !isCurrentUser && setExpandedUserId(isExpanded ? null : user.id)} className={`transition-colors ${!isCurrentUser ? 'cursor-pointer hover:bg-white/[0.05]' : ''} ${isCurrentUser ? 'bg-white/5' : ''}`}>
+                        <tr onClick={() => !isCurrentUser && setExpandedUserId(isExpanded ? null : user.id)} className={`transition-colors ${!isCurrentUser ? 'cursor-pointer hover:bg-white/[0.05]' : ''} ${isCurrentUser ? 'bg-white/5' : ''} ${isExpanded ? 'bg-black/40' : ''}`}>
                           <td className="px-4 py-4 text-center"><span className={`text-sm font-black ${positionColor}`}>{index + 1}</span></td>
                           <td className="px-4 py-4">
                             <div className="flex items-center gap-3">
                               {user.teams?.logo_url ? <img src={user.teams.logo_url} className="w-6 h-6 object-contain" alt="" /> : <div className="w-6 h-6" />}
                               <span className={`font-bold text-sm ${isCurrentUser ? 'text-white' : 'text-gray-300'}`}>{user.nickname}</span>
+                              
+                              {/* ESTRELA DOURADA GLOBAL SEMPRE VISÍVEL SE HOUVER TÍTULOS ACUMULADOS */}
+                              {user.global_titles > 0 && (
+                                <span className="text-[8px] uppercase font-black px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 rounded border border-yellow-500/30 tracking-widest ml-1 shrink-0">🌟 x{user.global_titles}</span>
+                              )}
                             </div>
                           </td>
                           <td className="px-4 py-4 text-center">
@@ -155,7 +162,7 @@ export default function RankingPage() {
                           </td>
                         </tr>
                         
-                        {/* A CHAMADA DO COMPONENTE LIMPO SEM PASSAR RULES (usa o global automático) */}
+                        {/* CORREÇÃO DO ERRO DE SINTAXE DO IF (MUDADO PARA OPERADOR CURTO-CIRCUITO DO REACT) */}
                         {isExpanded && (
                           <SpyLockerRoom 
                             targetUserId={user.id} targetNickname={user.nickname} userColor={userColor} 

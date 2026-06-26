@@ -8,7 +8,7 @@ const TBD_TEAM = { abbreviation: 'TBD', logo_url: 'https://upload.wikimedia.org/
 
 interface PlayoffLiveViewProps {
   userAccentColor: string;
-  userInitialSeeds: { AFC: Record<number, Team>; NFC: Record<number, Team> };
+  userInitialSeeds: { AFC: Record<number, any>; NFC: Record<number, any> }; // Aceitando o output gerado dinamicamente
   realResults: Record<string, Team | null>;
 }
 

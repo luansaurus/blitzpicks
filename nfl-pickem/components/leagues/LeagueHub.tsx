@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { getPickResult } from '@/utils/scoring';
-import SpyLockerRoom from '../scoreboard/SpyLockerRoom'; // Importando o Componente Limpo!
+import SpyLockerRoom from '../scoreboard/SpyLockerRoom';
 
 export default function LeagueHub({ userColor, currentUserId, isAdmin, isVip }: any) {
   const supabase = createClient();
@@ -22,6 +22,9 @@ export default function LeagueHub({ userColor, currentUserId, isAdmin, isVip }: 
   const [teamsMap, setTeamsMap] = useState<Record<string, any>>({});
   const [leagueMembersMap, setLeagueMembersMap] = useState<Record<string, string[]>>({});
   
+  // ESTADO DOS TÍTULOS
+  const [championships, setChampionships] = useState<any[]>([]);
+
   const [displayedLeaderboard, setDisplayedLeaderboard] = useState<any[]>([]);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
 
@@ -35,10 +38,8 @@ export default function LeagueHub({ userColor, currentUserId, isAdmin, isVip }: 
   
   const [useExact, setUseExact] = useState(true);
   const [ptsExact, setPtsExact] = useState<string | number>('7');
-  
   const [useDiff, setUseDiff] = useState(true);
   const [ptsDiff, setPtsDiff] = useState<string | number>('5');
-  
   const [useWinner, setUseWinner] = useState(true);
   const [ptsWinner, setPtsWinner] = useState<string | number>('3');
   
@@ -75,16 +76,19 @@ export default function LeagueHub({ userColor, currentUserId, isAdmin, isVip }: 
     setGamesMap(gMap);
     setGamesByWeek(groupedGames);
 
-    const [{ data: leagues }, { data: members }, { data: users }, { data: guesses }] = await Promise.all([
+    // PUXANDO A TABELA CHAMPIONSHIPS NO PROMISE.ALL
+    const [{ data: leagues }, { data: members }, { data: users }, { data: guesses }, { data: champs }] = await Promise.all([
       supabase.from('leagues').select('*').order('created_at', { ascending: false }),
       supabase.from('league_members').select('*'),
-      supabase.from('profiles').select('id, nickname, is_test, teams ( logo_url, abbreviation )'),
-      supabase.from('guesses').select('*')
+      supabase.from('profiles').select('id, nickname, score, global_titles, is_test, teams ( logo_url, abbreviation )'),
+      supabase.from('guesses').select('*'),
+      supabase.from('championships').select('*')
     ]);
 
     setAllLeagues(leagues || []);
     setAllUsers((users || []).filter(u => !u.is_test));
     setAllGuesses(guesses || []);
+    setChampionships(champs || []);
 
     const lMap: Record<string, string[]> = {};
     const myTempLeagues: any[] = [];
@@ -144,11 +148,7 @@ export default function LeagueHub({ userColor, currentUserId, isAdmin, isVip }: 
   }, [activeLeagueId, activeTab, myLeagues, leagueMembersMap, allUsers, allGuesses, gamesMap]);
 
   const openCreateModal = () => {
-    setModalInput(''); 
-    setUseExact(true); setPtsExact('7'); 
-    setUseDiff(true); setPtsDiff('5'); 
-    setUseWinner(true); setPtsWinner('3'); 
-    setIsPrivateLeague(true);
+    setModalInput(''); setUseExact(true); setPtsExact('7'); setUseDiff(true); setPtsDiff('5'); setUseWinner(true); setPtsWinner('3'); setIsPrivateLeague(true);
     setModalError(''); setShowCreateModal(true);
   };
 
@@ -163,11 +163,9 @@ export default function LeagueHub({ userColor, currentUserId, isAdmin, isVip }: 
 
   const handleCreateLeague = async () => {
     if (!modalInput.trim()) { setModalError('League name cannot be empty.'); return; }
-    
     const exactVal = useExact ? (parseInt(String(ptsExact)) || 0) : null;
     const diffVal = useDiff ? (parseInt(String(ptsDiff)) || 0) : null;
     const winnerVal = useWinner ? (parseInt(String(ptsWinner)) || 0) : null;
-
     setIsProcessing(true);
     if (!isAdmin) {
       const { count } = await supabase.from('leagues').select('*', { count: 'exact', head: true }).eq('owner_id', currentUserId);
@@ -175,19 +173,11 @@ export default function LeagueHub({ userColor, currentUserId, isAdmin, isVip }: 
       if (count && count >= limit) { setModalError(`Limit reached! Max ${limit} leagues.`); setIsProcessing(false); return; }
     }
     const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-    
     const { data: newLeague, error } = await supabase.from('leagues').insert([{ 
       name: modalInput.trim(), owner_id: currentUserId, invite_code: inviteCode, is_private: isPrivateLeague,
       pts_exact: exactVal, pts_diff: diffVal, pts_winner: winnerVal
     }]).select().single();
-
-    if (error) { 
-      console.error("🔥 SUPABASE ERROR CREATE LEAGUE:", error);
-      setModalError('Error creating league. Check browser console.'); 
-      setIsProcessing(false); 
-      return; 
-    }
-    
+    if (error) { setModalError('Error creating league.'); setIsProcessing(false); return; }
     await supabase.from('league_members').insert({ league_id: newLeague.id, user_id: currentUserId });
     setShowCreateModal(false); setActiveLeagueId(newLeague.id); setActiveTab('leagues'); showToast("League created!", "success");
     await loadData(); setIsProcessing(false);
@@ -196,19 +186,14 @@ export default function LeagueHub({ userColor, currentUserId, isAdmin, isVip }: 
   const handleEditLeague = async () => {
     if (!activeLeagueId) return;
     setIsProcessing(true);
-    
     const exactVal = useExact ? (parseInt(String(ptsExact)) || 0) : null;
     const diffVal = useDiff ? (parseInt(String(ptsDiff)) || 0) : null;
     const winnerVal = useWinner ? (parseInt(String(ptsWinner)) || 0) : null;
-
     const { error } = await supabase.from('leagues').update({ 
       name: modalInput.trim(), is_private: isPrivateLeague, pts_exact: exactVal, pts_diff: diffVal, pts_winner: winnerVal 
     }).eq('id', activeLeagueId);
-    
-    if (error) {
-      console.error("🔥 SUPABASE ERROR EDIT LEAGUE:", error);
-      showToast("Error updating league.", "error");
-    } else { showToast("League rules updated!", "success"); setShowEditModal(false); loadData(); }
+    if (error) showToast("Error updating league.", "error");
+    else { showToast("League rules updated!", "success"); setShowEditModal(false); loadData(); }
     setIsProcessing(false);
   };
 
@@ -249,9 +234,7 @@ export default function LeagueHub({ userColor, currentUserId, isAdmin, isVip }: 
     else showToast("Error removing player.", "error");
   };
 
-  const handleNumberChange = (setter: any, value: string) => {
-    setter(value === '' ? '' : Number(value));
-  };
+  const handleNumberChange = (setter: any, value: string) => { setter(value === '' ? '' : Number(value)); };
 
   const selectedLeague = myLeagues.find(l => l.id === activeLeagueId);
   const isOwner = selectedLeague?.owner_id === currentUserId;
@@ -274,7 +257,7 @@ export default function LeagueHub({ userColor, currentUserId, isAdmin, isVip }: 
         <button onClick={() => { setActiveTab('hub'); setExpandedUserId(null); }} className={`flex-1 px-4 py-2 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all ${activeTab === 'hub' ? 'bg-white/10 text-white' : 'text-gray-500'}`} style={activeTab === 'hub' ? { color: userColor } : {}}>🏟️ League Hub</button>
       </div>
 
-      {activeTab === 'leagues' && (
+      {activeTab === 'leagues' && selectedLeague && (
         <div className="bg-neutral-900/40 border border-white/5 rounded-xl p-4 animate-fadeIn">
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-4">
             <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 w-full no-scrollbar">
@@ -287,26 +270,19 @@ export default function LeagueHub({ userColor, currentUserId, isAdmin, isVip }: 
               <button onClick={openCreateModal} className="flex-1 sm:flex-none px-3 py-1.5 rounded-md text-[10px] font-black uppercase text-black" style={{ backgroundColor: userColor }}>+ Create</button>
             </div>
           </div>
-          
-          {selectedLeague && (
-            <div className="bg-black/40 border border-white/5 rounded-lg p-3 flex justify-between items-center">
-              <div className="flex flex-col">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{selectedLeague.is_private ? '🔒 Private' : '🔓 Public'}</span>
-                  {isOwner && <button onClick={() => openEditModal(selectedLeague)} className="text-gray-500 hover:text-white">⚙️</button>}
-                </div>
-                <span className="text-sm font-black text-white tracking-widest font-mono">{selectedLeague.invite_code}</span>
+          <div className="bg-black/40 border border-white/5 rounded-lg p-3 flex justify-between items-center">
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{selectedLeague.is_private ? '🔒 Private' : '🔓 Public'}</span>
+                {isOwner && <button onClick={() => openEditModal(selectedLeague)} className="text-gray-500 hover:text-white">⚙️</button>}
               </div>
-              <div className="text-right">
-                <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Custom Rules</span>
-                <p className="text-[10px] font-bold text-white uppercase tracking-widest mt-0.5">
-                  {selectedLeague.pts_exact !== null && `EX: ${selectedLeague.pts_exact} `}
-                  {selectedLeague.pts_diff !== null && `| DF: ${selectedLeague.pts_diff} `}
-                  {selectedLeague.pts_winner !== null && `| WN: ${selectedLeague.pts_winner}`}
-                </p>
-              </div>
+              <span className="text-sm font-black text-white tracking-widest font-mono">{selectedLeague.invite_code}</span>
             </div>
-          )}
+            <div className="text-right">
+              <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Players</span>
+              <p className="text-sm font-black text-white">{(leagueMembersMap[activeLeagueId || ''] || []).length} <span className="text-gray-600">/ 10</span></p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -316,7 +292,6 @@ export default function LeagueHub({ userColor, currentUserId, isAdmin, isVip }: 
             const count = leagueMembersMap[league.id]?.length || 0;
             const isMember = myLeagues.some(l => l.id === league.id);
             const ownerName = allUsers.find(u => u.id === league.owner_id)?.nickname || 'Unknown';
-
             return (
               <div key={league.id} className="bg-neutral-900/50 border border-white/5 rounded-xl p-5 flex flex-col justify-between shadow-lg">
                 <div>
@@ -360,20 +335,35 @@ export default function LeagueHub({ userColor, currentUserId, isAdmin, isVip }: 
                     const isExpanded = expandedUserId === user.id;
                     const posColor = index === 0 ? 'text-yellow-500' : index === 1 ? 'text-gray-300' : index === 2 ? 'text-amber-700' : 'text-gray-600';
 
+                    // CÁLCULO DE TÍTULOS DESTA LIGA ESPECÍFICA
+                    const globalWins = user.global_titles || 0;
+                    const leagueWinsCount = championships.filter(c => c.league_id === activeLeagueId && c.winner_id === user.id).length;
+
                     return (
                       <React.Fragment key={user.id}>
                         <tr onClick={() => !isCurrentUser && setExpandedUserId(isExpanded ? null : user.id)} className={`transition-colors ${!isCurrentUser ? 'cursor-pointer hover:bg-white/[0.05]' : ''} ${isCurrentUser ? 'bg-white/5' : ''}`}>
                           <td className="px-4 py-4 text-center"><span className={`text-sm font-black ${posColor}`}>{index + 1}</span></td>
                           <td className="px-4 py-4">
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
                               {user.teams?.logo_url ? <img src={user.teams.logo_url} className="w-6 h-6 object-contain" alt="" /> : <div className="w-6 h-6" />}
                               <span className={`font-bold text-sm ${isCurrentUser ? 'text-white' : 'text-gray-300'}`}>{user.nickname}</span>
+                              
+                              {/* AS DUAS ESTRELINHAS LADO A LADO! */}
+                              <div className="flex gap-1 ml-1 items-center shrink-0">
+                                {globalWins > 0 && (
+                                  <span className="text-[8px] uppercase font-black px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 rounded border border-yellow-500/30 tracking-widest">🌟 x{globalWins}</span>
+                                )}
+                                {leagueWinsCount > 0 && (
+                                  <span className="text-[8px] uppercase font-black px-1.5 py-0.5 bg-slate-500/20 text-slate-300 rounded border border-slate-400/30 tracking-widest">⭐ x{leagueWinsCount}</span>
+                                )}
+                              </div>
+
                               {selectedLeague?.owner_id === user.id && <span className="text-[8px] uppercase font-black px-1.5 py-0.5 bg-amber-500/20 text-amber-400 rounded border border-amber-500/30 ml-2">👑</span>}
                             </div>
                           </td>
                           <td className="px-4 py-4 text-center">
                             <div className="flex flex-col items-center">
-                              <span className={`font-black text-base ${user.projectedPoints > 0 ? 'text-green-400 animate-pulse' : 'text-white'}`}>{user.totalScore}</span>
+                              <span className="font-black text-base text-white">{user.totalScore}</span>
                             </div>
                           </td>
                           <td className="px-4 py-4">
@@ -383,8 +373,6 @@ export default function LeagueHub({ userColor, currentUserId, isAdmin, isVip }: 
                             </div>
                           </td>
                         </tr>
-                        
-                        {/* A CHAMADA DO COMPONENTE LIMPO COM AS REGRAS APLICADAS! */}
                         {isExpanded && (
                           <SpyLockerRoom 
                             targetUserId={user.id} targetNickname={user.nickname} userColor={userColor} 
@@ -401,88 +389,6 @@ export default function LeagueHub({ userColor, currentUserId, isAdmin, isVip }: 
           )}
         </div>
       )}
-
-      {/* MODAL: CREATE / EDIT LEAGUE */}
-      {(showCreateModal || showEditModal) && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-neutral-950 border border-white/10 p-6 rounded-2xl w-full max-w-md shadow-2xl animate-fadeIn my-auto">
-            {!deleteConfirm ? (
-              <>
-                <h2 className="text-2xl font-black italic uppercase tracking-wider text-white mb-2">{showEditModal ? 'Edit League' : 'Create League'}</h2>
-                <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-6">Customize your rules.</p>
-                
-                <input type="text" maxLength={20} placeholder="League Name" value={modalInput} onChange={(e) => setModalInput(e.target.value)} className="w-full bg-black border border-white/10 rounded-lg px-4 py-3 text-white font-bold placeholder-gray-600 focus:outline-none focus:border-white/30 mb-4" />
-                
-                {/* TOGGLES PARA REMOVER REGRAS */}
-                <div className="mb-4">
-                  <span className="text-[11px] font-black uppercase text-gray-500 tracking-widest block mb-2">Custom Points System</span>
-                  <span className="text-[8px] font-black uppercase text-green-500 tracking-widest block mb-2">Exact: exact winner and score</span>
-                  <span className="text-[8px] font-black uppercase text-blue-500 tracking-widest block mb-2">Diff: correct winner, different score but correct score difference</span>
-                  <span className="text-[8px] font-black uppercase text-amber-500 tracking-widest block mb-2">Win: correct winner, different score and score difference</span>
-                  <div className="grid grid-cols-3 gap-2">
-                    
-                    <div className={`border rounded-lg p-2 flex flex-col items-center transition-all ${useExact ? 'bg-black/60 border-white/10' : 'bg-black/20 border-transparent opacity-40 grayscale'}`}>
-                      <div className="flex justify-between items-center w-full mb-1">
-                        <span className="text-[8px] font-black uppercase text-green-500">Exact</span>
-                        <button onClick={() => setUseExact(!useExact)} className="text-[10px] hover:scale-110">{useExact ? '❌' : '➕'}</button>
-                      </div>
-                      <input type="number" min="1" max="99" disabled={!useExact} value={ptsExact} onChange={e => handleNumberChange(setPtsExact, e.target.value)} className="w-full bg-transparent text-center text-lg font-black text-white focus:outline-none disabled:cursor-not-allowed" />
-                    </div>
-
-                    <div className={`border rounded-lg p-2 flex flex-col items-center transition-all ${useDiff ? 'bg-black/60 border-white/10' : 'bg-black/20 border-transparent opacity-40 grayscale'}`}>
-                      <div className="flex justify-between items-center w-full mb-1">
-                        <span className="text-[8px] font-black uppercase text-blue-500">Diff</span>
-                        <button onClick={() => setUseDiff(!useDiff)} className="text-[10px] hover:scale-110">{useDiff ? '❌' : '➕'}</button>
-                      </div>
-                      <input type="number" min="1" max="99" disabled={!useDiff} value={ptsDiff} onChange={e => handleNumberChange(setPtsDiff, e.target.value)} className="w-full bg-transparent text-center text-lg font-black text-white focus:outline-none disabled:cursor-not-allowed" />
-                    </div>
-
-                    <div className={`border rounded-lg p-2 flex flex-col items-center transition-all ${useWinner ? 'bg-black/60 border-white/10' : 'bg-black/20 border-transparent opacity-40 grayscale'}`}>
-                      <div className="flex justify-between items-center w-full mb-1">
-                        <span className="text-[8px] font-black uppercase text-amber-500">Win</span>
-                        <button onClick={() => setUseWinner(!useWinner)} className="text-[10px] hover:scale-110">{useWinner ? '❌' : '➕'}</button>
-                      </div>
-                      <input type="number" min="1" max="99" disabled={!useWinner} value={ptsWinner} onChange={e => handleNumberChange(setPtsWinner, e.target.value)} className="w-full bg-transparent text-center text-lg font-black text-white focus:outline-none disabled:cursor-not-allowed" />
-                    </div>
-
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 mb-6 bg-black/40 border border-white/5 p-3 rounded-lg cursor-pointer transition-all hover:border-white/10" onClick={() => setIsPrivateLeague(!isPrivateLeague)}>
-                  <div className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${isPrivateLeague ? 'bg-amber-500/20 border-amber-500/50' : 'bg-white/5 border-white/10'}`}>
-                    {isPrivateLeague ? <span className="text-amber-500 text-xs">🔒</span> : <span className="text-green-500 text-xs">🔓</span>}
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-xs font-black uppercase tracking-widest text-white">{isPrivateLeague ? 'Private League' : 'Public League'}</span>
-                    <span className="text-[9px] font-bold text-gray-500 uppercase">{isPrivateLeague ? 'Requires invite code to join' : 'Anyone can join directly'}</span>
-                  </div>
-                </div>
-
-                {modalError && <p className="text-red-500 text-[10px] font-black uppercase tracking-widest mb-4">{modalError}</p>}
-                
-                <div className="flex gap-3 mt-2">
-                  <button disabled={isProcessing} onClick={() => { setShowCreateModal(false); setShowEditModal(false); }} className="flex-1 py-3 bg-white/5 rounded-lg text-xs font-black uppercase text-white">Cancel</button>
-                  <button disabled={isProcessing} onClick={showEditModal ? handleEditLeague : handleCreateLeague} className="flex-1 py-3 rounded-lg text-xs font-black uppercase text-black" style={{ backgroundColor: userColor }}>{isProcessing ? 'Saving...' : 'Save'}</button>
-                </div>
-
-                {showEditModal && (
-                  <button onClick={() => setDeleteConfirm(true)} className="w-full mt-6 text-red-500 text-[10px] font-black uppercase tracking-widest hover:text-red-400">Delete League</button>
-                )}
-              </>
-            ) : (
-              <div className="text-center animate-fadeIn">
-                <h2 className="text-xl font-black italic uppercase tracking-wider mb-4 text-white">Are you sure?</h2>
-                <p className="text-xs font-bold text-gray-400 mb-8 uppercase tracking-widest">This will delete the league and remove all members permanently.</p>
-                <div className="flex gap-3">
-                  <button onClick={() => setDeleteConfirm(false)} className="flex-1 py-3 bg-gray-600 rounded-lg text-xs font-black uppercase text-white">No, Keep It</button>
-                  <button onClick={handleDeleteLeague} disabled={isProcessing} className="flex-1 py-3 bg-red-600 rounded-lg text-xs font-black uppercase text-white">Yes, Delete</button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       {showJoinModal && targetJoinLeague && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-neutral-950 border border-white/10 p-6 rounded-2xl w-full max-w-md shadow-2xl animate-fadeIn">
