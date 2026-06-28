@@ -88,9 +88,9 @@ export default function SeasonsPortal() {
       <div className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-12 sm:py-20 flex flex-col justify-center z-10">
         
         <div className="text-center mb-12 sm:mb-16 animate-fadeIn">
-          <h1 className="text-4xl sm:text-6xl font-black italic uppercase tracking-tighter text-white drop-shadow-lg">
-            Select <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-amber-500">Season</span>
-          </h1>
+          <h1 className="text-4xl sm:text-6xl font-black italic uppercase tracking-tighter text-white drop-shadow-lg leading-tight w-full max-w-2xl mx-auto break-words pr-2">
+  Select <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-amber-500 inline-block pr-3">Season</span>
+</h1>
           <p className="text-gray-400 mt-3 font-medium text-xs sm:text-sm uppercase tracking-widest max-w-xl mx-auto">
             Travel through time. View past leaderboards, brackets, and your historical locker room stats.
           </p>
