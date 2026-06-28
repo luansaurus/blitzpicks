@@ -34,6 +34,7 @@ export default function BracketPage() {
   const [isCapturing, setIsCapturing] = useState(false); 
   const [isSaving, setIsSaving] = useState(false);
 
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' } | null>(null);
 
   const showToast = (message: string, type: 'success' | 'error' | 'info') => {
@@ -164,14 +165,33 @@ export default function BracketPage() {
     setPicks(prev => ({ ...prev, [nextSlot]: team }));
   };
 
-  const resetBracket = () => {
-    if (window.confirm("Are you sure you want to clear your entire bracket? This will not delete your saved bracket until you click 'Save' again.")) {
+  // CORREÇÃO: AGORA REMOVE DEFINITIVAMENTE DO BANCO DE DADOS TAMBÉM
+  const confirmReset = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        // Deleta a linha correspondente do usuário para a temporada atual
+        const { error } = await supabase.from('user_brackets')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('season', '2026');
+
+        if (error) throw error;
+      }
+
+      // Limpa os estados da tela
       setPicks({});
       setSeeds({
         AFC: { 1: null, 2: null, 3: null, 4: null, 5: null, 6: null, 7: null },
         NFC: { 1: null, 2: null, 3: null, 4: null, 5: null, 6: null, 7: null }
       });
-      showToast("Bracket cleared local memory.", "info");
+      
+      setShowClearConfirm(false);
+      showToast("Bracket completely wiped from cloud and screen.", "info");
+    } catch (err) {
+      console.error("Error deleting bracket row:", err);
+      showToast("Failed to delete bracket from database.", "error");
     }
   };
 
@@ -179,24 +199,17 @@ export default function BracketPage() {
     if (!bracketRef.current) return;
     try {
       setIsCapturing(true); 
-      
-      // Delay extra para dar tempo à UI de se reorganizar
       await new Promise(resolve => setTimeout(resolve, 300));
 
       const htmlToImage = await import('html-to-image');
-      
       const config = { 
         quality: 1, 
         backgroundColor: '#0a0a0a',
         pixelRatio: 2,
-        cacheBust: true, // O SEGREDO 1: Força o navegador a ignorar o cache e puxar as imagens de novo
+        cacheBust: true, 
       };
 
-      // O SEGREDO 2: Tiro "Fantasma". O iOS/Safari muitas vezes engasga no primeiro render do Canvas. 
-      // Fazer uma chamada vazia obriga o navegador a decodificar os logos em memória.
       await htmlToImage.toPng(bracketRef.current, config).catch(() => {});
-      
-      // Tiro Real
       const dataUrl = await htmlToImage.toPng(bracketRef.current, config);
       
       const blob = await (await fetch(dataUrl)).blob();
@@ -343,8 +356,6 @@ export default function BracketPage() {
     );
   };
 
-  if (loading) return <LoadingScreen />;
-
   return (
     <main className="min-h-screen bg-neutral-950 text-white font-sans pb-32 relative">
       
@@ -371,7 +382,10 @@ export default function BracketPage() {
           </div>
           
           <div className="flex items-center gap-2">
-            <button onClick={resetBracket} className="px-3 py-2 rounded-lg font-black uppercase tracking-widest text-xs transition border border-white/10 hover:bg-white/5 text-gray-400">
+            <button 
+              onClick={() => setShowClearConfirm(true)} 
+              className="px-3 py-2 rounded-lg font-black uppercase tracking-widest text-xs transition border border-white/10 hover:bg-white/5 text-gray-400"
+            >
               Clear
             </button>
             <button 
@@ -475,6 +489,7 @@ export default function BracketPage() {
         </div>
       </div>
 
+      {/* MODAL DE SELEÇÃO DE TIMES */}
       {isModalOpen && activeSlot && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
           <div className="bg-neutral-950 border border-white/10 rounded-2xl w-full max-w-md p-6 shadow-2xl flex flex-col max-h-[80vh]">
@@ -521,6 +536,36 @@ export default function BracketPage() {
                     </button>
                   );
               })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMAÇÃO DE LIMPEZA (TEXTO ATUALIZADO) */}
+      {showClearConfirm && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-neutral-950 border border-white/10 rounded-2xl w-full max-w-sm p-6 shadow-2xl flex flex-col items-center text-center">
+            <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mb-4">
+              <span className="text-red-500 text-2xl">⚠️</span>
+            </div>
+            <h3 className="font-black italic uppercase tracking-widest text-lg mb-2 text-white">Reset Bracket?</h3>
+            <p className="text-xs text-gray-400 mb-6 font-medium">
+              Are you sure you want to clear your entire bracket? This action will permanently delete your selections from the database and the screen.
+            </p>
+            
+            <div className="flex items-center gap-3 w-full">
+              <button 
+                onClick={() => setShowClearConfirm(false)}
+                className="flex-1 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition border border-white/10 text-gray-300 hover:bg-white/5"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={confirmReset}
+                className="flex-1 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition bg-red-500/20 text-red-500 hover:bg-red-500/30 border border-red-500/30"
+              >
+                Clear All
+              </button>
             </div>
           </div>
         </div>
