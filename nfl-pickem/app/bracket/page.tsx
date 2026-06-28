@@ -5,7 +5,6 @@ import Header from '../../components/layout/header';
 import { createClient } from '../../utils/supabase/client';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 
-// Objeto de fallback com o SVG oficial da NFL
 const TBD_TEAM = { 
   name: 'To Be Determined', 
   abbr: 'TBD', 
@@ -35,6 +34,13 @@ export default function BracketPage() {
   const [isCapturing, setIsCapturing] = useState(false); 
   const [isSaving, setIsSaving] = useState(false);
 
+  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
+
   const supabase = createClient();
 
   useEffect(() => {
@@ -53,7 +59,7 @@ export default function BracketPage() {
           .select('seeds, picks')
           .eq('user_id', user.id)
           .eq('season', '2026')
-          .single();
+          .maybeSingle();
 
         if (savedBracket) {
           if (savedBracket.seeds && Object.keys(savedBracket.seeds).length > 0) setSeeds(savedBracket.seeds);
@@ -71,7 +77,7 @@ export default function BracketPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        alert("You need to be logged in to save your bracket.");
+        showToast("You need to be logged in to save your bracket.", "error");
         return;
       }
 
@@ -84,10 +90,10 @@ export default function BracketPage() {
       }, { onConflict: 'user_id, season' });
 
       if (error) throw error;
-      alert("Bracket saved successfully!");
+      showToast("Bracket saved successfully!", "success");
     } catch (error) {
       console.error("Error saving bracket:", error);
-      alert("Failed to save bracket.");
+      showToast("Failed to save bracket.", "error");
     } finally {
       setIsSaving(false);
     }
@@ -165,6 +171,7 @@ export default function BracketPage() {
         AFC: { 1: null, 2: null, 3: null, 4: null, 5: null, 6: null, 7: null },
         NFC: { 1: null, 2: null, 3: null, 4: null, 5: null, 6: null, 7: null }
       });
+      showToast("Bracket cleared local memory.", "info");
     }
   };
 
@@ -172,15 +179,25 @@ export default function BracketPage() {
     if (!bracketRef.current) return;
     try {
       setIsCapturing(true); 
-      await new Promise(resolve => setTimeout(resolve, 150));
+      
+      // Delay extra para dar tempo à UI de se reorganizar
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       const htmlToImage = await import('html-to-image');
       
-      const dataUrl = await htmlToImage.toPng(bracketRef.current, { 
+      const config = { 
         quality: 1, 
         backgroundColor: '#0a0a0a',
-        pixelRatio: 2
-      });
+        pixelRatio: 2,
+        cacheBust: true, // O SEGREDO 1: Força o navegador a ignorar o cache e puxar as imagens de novo
+      };
+
+      // O SEGREDO 2: Tiro "Fantasma". O iOS/Safari muitas vezes engasga no primeiro render do Canvas. 
+      // Fazer uma chamada vazia obriga o navegador a decodificar os logos em memória.
+      await htmlToImage.toPng(bracketRef.current, config).catch(() => {});
+      
+      // Tiro Real
+      const dataUrl = await htmlToImage.toPng(bracketRef.current, config);
       
       const blob = await (await fetch(dataUrl)).blob();
       const file = new File([blob], 'blitzpicks-road-to-sb.png', { type: blob.type });
@@ -198,10 +215,11 @@ export default function BracketPage() {
         link.download = 'blitzpicks-road-to-sb.png';
         link.href = dataUrl;
         link.click();
+        showToast("Image downloaded successfully!", "success");
       }
     } catch (err) {
       console.error('Failed to capture bracket', err);
-      alert('Error sharing the bracket. Try again.');
+      showToast("Error sharing the bracket. Try again.", "error");
     } finally {
       setIsCapturing(false);
     }
@@ -233,7 +251,7 @@ export default function BracketPage() {
           className="flex-1 flex items-center gap-2 p-2"
         >
           <span className="text-[10px] font-bold text-gray-500 w-3 text-center">{team?.seed || team?.seedNum || '-'}</span>
-          <img src={logoToUse} className="w-5 h-5 object-contain opacity-90" alt="Team Logo" />
+          <img src={logoToUse} crossOrigin="anonymous" className="w-5 h-5 object-contain opacity-90" alt="Team Logo" />
           <span className={`text-xs font-black uppercase truncate ${isSelected ? 'text-white drop-shadow-md' : 'text-gray-300'}`}>
             {teamSigla}
           </span>
@@ -306,7 +324,7 @@ export default function BracketPage() {
               className="flex-1 p-2 flex items-center gap-2 hover:bg-white/10 transition"
             >
               <span className="text-[10px] font-bold text-amber-500 w-3 text-center">1</span>
-              <img src={logoToUse} className="w-5 h-5 object-contain opacity-90" alt="Team Logo" />
+              <img src={logoToUse} crossOrigin="anonymous" className="w-5 h-5 object-contain opacity-90" alt="Team Logo" />
               <span className="text-xs font-black uppercase text-white truncate">{teamSigla}</span>
             </button>
             
@@ -328,7 +346,19 @@ export default function BracketPage() {
   if (loading) return <LoadingScreen />;
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-white font-sans pb-32">
+    <main className="min-h-screen bg-neutral-950 text-white font-sans pb-32 relative">
+      
+      {toast && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[100] animate-slideDown">
+          <div className={`px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 backdrop-blur-md border 
+            ${toast.type === 'success' ? 'bg-[#10b981]/20 border-[#10b981]/50 text-[#10b981]' : 
+              toast.type === 'info' ? 'bg-[#3b82f6]/20 border-[#3b82f6]/50 text-[#3b82f6]' : 
+              'bg-[#ef4444]/20 border-[#ef4444]/50 text-[#ef4444]'}`}>
+            <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest">{toast.message}</span>
+          </div>
+        </div>
+      )}
+
       <Header />
       
       <div className="p-4 sm:p-6 space-y-6 mt-4 max-w-7xl mx-auto">
@@ -363,7 +393,6 @@ export default function BracketPage() {
         </div>
 
         <div className="w-full overflow-x-auto pb-8 scrollbar-hide" >
-          {/* CORREÇÃO: min-w expandido para 1600px para garantir respiro real da NFC */}
           <div ref={bracketRef} className="min-w-[1600px] h-[680px] flex items-stretch justify-between relative bg-gradient-to-br from-[#0a0a0a] via-[#111111] to-[#0a0a0a] rounded-2xl border border-white/10 p-6 sm:p-8 shadow-2xl overflow-hidden">
             
             {!isCapturing && (
@@ -373,7 +402,6 @@ export default function BracketPage() {
               </>
             )}
 
-            {/* AFC - COLUNA 1 - SHRINK-0 adicionado */}
             <div className="flex flex-col justify-between z-10 py-4 shrink-0">
               <Seed1Box conf="AFC" />
               <div className="space-y-4">
@@ -383,21 +411,19 @@ export default function BracketPage() {
               </div>
             </div>
 
-            {/* AFC - COLUNA 2 - SHRINK-0 adicionado */}
             <div className="flex flex-col justify-around z-10 pl-6 border-l border-dashed border-white/10 shrink-0">
               <MatchupBox label="AFC Divisional" teamA={afcDiv.m1.teamA} teamB={afcDiv.m1.teamB} nextSlotId="afc_div_1" conf="AFC" />
               <MatchupBox label="AFC Divisional" teamA={afcDiv.m2.teamA} teamB={afcDiv.m2.teamB} nextSlotId="afc_div_2" conf="AFC" />
             </div>
 
-            {/* AFC - COLUNA 3 - SHRINK-0 adicionado */}
             <div className="flex flex-col justify-center z-10 pl-6 border-l border-dashed border-white/10 shrink-0">
               <MatchupBox label="AFC Championship" teamA={picks.afc_div_1} teamB={picks.afc_div_2} nextSlotId="sb_teamA" conf="AFC" />
             </div>
 
-            {/* CENTRO: SUPER BOWL LXI - SHRINK-0 adicionado */}
             <div className="flex flex-col justify-center items-center z-10 px-8 mx-4 pb-8 shrink-0 min-w-[260px]">
               <div className="text-center mb-6 relative w-full flex flex-col items-center">
                 <img 
+                  crossOrigin="anonymous"
                   src="https://upload.wikimedia.org/wikipedia/fr/7/74/Super_Bowl_LXI_Logo.png" 
                   alt="Super Bowl LXI Logo" 
                   className={`h-32 mx-auto object-contain ${isCapturing ? 'drop-shadow-none' : 'drop-shadow-[0_0_25px_rgba(255,255,255,0.15)]'}`}
@@ -411,7 +437,7 @@ export default function BracketPage() {
                     <div className="bg-black rounded-[14px] px-8 py-4 flex flex-col items-center">
                       <span className="text-[10px] font-black uppercase text-amber-500 tracking-widest mb-1">Super Bowl Champion</span>
                       <div className="flex items-center gap-3 mt-1">
-                          {picks.sb_winner.logo_url && <img src={picks.sb_winner.logo_url} className="w-10 h-10 object-contain drop-shadow-md" alt="" />}
+                          {picks.sb_winner.logo_url && <img src={picks.sb_winner.logo_url} crossOrigin="anonymous" className="w-10 h-10 object-contain drop-shadow-md" alt="" />}
                           <span className="font-black text-2xl text-white drop-shadow-md">{picks.sb_winner.abbreviation || picks.sb_winner.abbr}</span>
                         </div>
                     </div>
@@ -420,18 +446,15 @@ export default function BracketPage() {
               </div>
             </div>
 
-            {/* NFC - COLUNA 3 - SHRINK-0 adicionado */}
             <div className="flex flex-col justify-center z-10 pr-6 border-r border-dashed border-white/10 shrink-0">
               <MatchupBox label="NFC Championship" teamA={picks.nfc_div_1} teamB={picks.nfc_div_2} nextSlotId="sb_teamB" conf="NFC" />
             </div>
 
-            {/* NFC - COLUNA 2 - SHRINK-0 adicionado */}
             <div className="flex flex-col justify-around z-10 pr-6 border-r border-dashed border-white/10 shrink-0">
               <MatchupBox label="NFC Divisional" teamA={nfcDiv.m1.teamA} teamB={nfcDiv.m1.teamB} nextSlotId="nfc_div_1" conf="NFC" />
               <MatchupBox label="NFC Divisional" teamA={nfcDiv.m2.teamA} teamB={nfcDiv.m2.teamB} nextSlotId="nfc_div_2" conf="NFC" />
             </div>
 
-            {/* NFC - COLUNA 1 - SHRINK-0 adicionado */}
             <div className="flex flex-col justify-between z-10 py-4 shrink-0">
               <Seed1Box conf="NFC" />
               <div className="space-y-4">
