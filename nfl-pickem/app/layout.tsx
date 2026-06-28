@@ -9,7 +9,7 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "BlitzPicks - NFL Prediction League",
-  description: "Faça seus palpites, gerencie suas táticas e espione seus rivais.",
+  description: "Make your picks, manage your game and spy on your rivals.",
 };
 
 export default function RootLayout({
