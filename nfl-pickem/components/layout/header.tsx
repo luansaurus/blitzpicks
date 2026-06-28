@@ -136,7 +136,7 @@ const navLinks = [
             {(isAdmin || isVip) && (
               <Link href="/vip" className="text-red-400 hover:text-yellow-300 transition-colors drop-shadow-[0_0_8px_rgba(168,85,247,0.5)]">
                 <span className="hidden sm:inline text-[10px] font-black uppercase tracking-widest">VIP Area</span>
-                <span className="sm:hidden text-lg">💎</span>
+                <span className="sm:hidden text-lg">🕵️</span>
               </Link>
             )}
             {isAdmin && (
