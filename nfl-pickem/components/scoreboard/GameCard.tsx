@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import BroadcastBadge from '../ui/BroadcastBadge';
 import { getPickResult } from '@/utils/scoring';
 
@@ -44,6 +44,12 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
 
   const [awayPredict, setAwayPredict] = useState(existingPick?.away_guess?.toString() || "");
   const [homePredict, setHomePredict] = useState(existingPick?.home_guess?.toString() || "");
+  
+  // REFS: Previnem o bug de apagar dois campos rápido e o estado antigo sobrescrever o novo
+  const awayRef = useRef(existingPick?.away_guess?.toString() || "");
+  const homeRef = useRef(existingPick?.home_guess?.toString() || "");
+
+  const [scoreError, setScoreError] = useState(false);
   const [isTimeBlocked, setIsTimeBlocked] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   
@@ -56,8 +62,12 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
 
   useEffect(() => {
     if (!isUnsaved) {
-      setAwayPredict(existingPick?.away_guess?.toString() || "");
-      setHomePredict(existingPick?.home_guess?.toString() || "");
+      const newAway = existingPick?.away_guess?.toString() || "";
+      const newHome = existingPick?.home_guess?.toString() || "";
+      setAwayPredict(newAway);
+      setHomePredict(newHome);
+      awayRef.current = newAway;
+      homeRef.current = newHome;
     }
   }, [existingPick, isUnsaved]);
 
@@ -72,6 +82,34 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
     const interval = setInterval(checkTime, 60000);
     return () => clearInterval(interval);
   }, [gameDate]);
+
+  // VALIDAÇÃO SCORIGAMI (Regra do 1 Ponto)
+  const handleScoreBlur = () => {
+    const h = parseInt(homeRef.current);
+    const a = parseInt(awayRef.current);
+    
+    let isInvalid = false;
+    let newHome = homeRef.current;
+    let newAway = awayRef.current;
+
+    if (!isNaN(h) && !isNaN(a)) {
+      if (h === 1 && (a < 6 || a === 7)) { isInvalid = true; newHome = ""; }
+      if (a === 1 && (h < 6 || h === 7)) { isInvalid = true; newAway = ""; }
+    }
+
+    if (isInvalid) {
+      setScoreError(true);
+      setHomePredict(newHome);
+      setAwayPredict(newAway);
+      homeRef.current = newHome;
+      awayRef.current = newAway;
+      
+      if (onPickChange) onPickChange(game.id, newHome, newAway);
+      
+      // Remove o aviso da tela após 3 segundos
+      setTimeout(() => setScoreError(false), 3000);
+    }
+  };
 
   let pointsEarned = 0;
   let resultColorClass = '';
@@ -179,7 +217,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
           )}
         </div>
 
-        <div className="flex flex-col gap-3 w-full">
+        <div className="flex flex-col gap-3 w-full relative">
           {!hidePicks && (
             <div className="flex justify-end mb-[-4px]">
               <div className="flex items-center gap-2">
@@ -225,14 +263,19 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                       {game.away_score}
                     </span>
                   )}
+                  {/* O CSS abaixo [appearance:textfield]... garante que as setinhas desapareçam no PC */}
                   <input
-                    type="number" min="0" onKeyDown={blockNegativeKeys} disabled={isInputDisabled} value={awayPredict} 
+                    type="number" min="0" onKeyDown={blockNegativeKeys} onBlur={handleScoreBlur} disabled={isInputDisabled} value={awayPredict} 
                     onChange={(e) => {
                       const val = e.target.value;
-                      if (val === "" || parseInt(val) >= 0) { setAwayPredict(val); if (onPickChange) onPickChange(game.id, homePredict, val); }
+                      if (val === "" || parseInt(val) >= 0) { 
+                        setAwayPredict(val); 
+                        awayRef.current = val;
+                        if (onPickChange) onPickChange(game.id, homeRef.current, val); 
+                      }
                     }} 
                     placeholder="-"
-                    className="w-12 h-9 sm:h-10 bg-black/50 border border-white/20 rounded-md text-center text-sm sm:text-base font-black text-white focus:outline-none focus:border-white transition p-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-12 h-9 sm:h-10 bg-black/50 border border-white/20 rounded-md text-center text-sm sm:text-base font-black text-white focus:outline-none focus:border-white transition p-0 disabled:opacity-60 disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 </>
               )}
@@ -273,19 +316,33 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                       {game.home_score}
                     </span>
                   )}
+                  {/* O CSS abaixo [appearance:textfield]... garante que as setinhas desapareçam no PC */}
                   <input
-                    type="number" min="0" onKeyDown={blockNegativeKeys} disabled={isInputDisabled} value={homePredict} 
+                    type="number" min="0" onKeyDown={blockNegativeKeys} onBlur={handleScoreBlur} disabled={isInputDisabled} value={homePredict} 
                     onChange={(e) => {
                       const val = e.target.value;
-                      if (val === "" || parseInt(val) >= 0) { setHomePredict(val); if (onPickChange) onPickChange(game.id, val, awayPredict); }
+                      if (val === "" || parseInt(val) >= 0) { 
+                        setHomePredict(val); 
+                        homeRef.current = val;
+                        if (onPickChange) onPickChange(game.id, val, awayRef.current); 
+                      }
                     }} 
                     placeholder="-"
-                    className="w-12 h-9 sm:h-10 bg-black/50 border border-white/20 rounded-md text-center text-sm sm:text-base font-black text-white focus:outline-none focus:border-white transition p-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-12 h-9 sm:h-10 bg-black/50 border border-white/20 rounded-md text-center text-sm sm:text-base font-black text-white focus:outline-none focus:border-white transition p-0 disabled:opacity-60 disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 </>
               )}
             </div>
           </div>
+          
+          {/* MENSAGEM DE ERRO (SCORIGAMI) */}
+          {scoreError && (
+            <div className="mt-1 w-full flex justify-center animate-fadeIn absolute -bottom-5">
+              <span className="text-[8px] font-black uppercase tracking-widest text-red-400 bg-red-950/80 px-2 py-0.5 rounded border border-red-500/30">
+                Invalid NFL Score (1-Pt Rule)
+              </span>
+            </div>
+          )}
         </div>
 
         {!hidePicks && hasGameStarted && existingPick && (
