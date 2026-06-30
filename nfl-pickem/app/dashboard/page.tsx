@@ -255,39 +255,45 @@ export default function Dashboard() {
           <div className="space-y-8 animate-fadeIn">
             
             {isSeasonOver && leagueWinner && (
-              <div className={`w-full border-2 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl ${isCurrentUserWinner ? 'bg-gradient-to-r from-amber-500/20 via-yellow-600/10 to-amber-500/20 border-yellow-500/30 shadow-[0_0_30px_rgba(245,158,11,0.15)]' : 'bg-gradient-to-r from-neutral-800/40 via-zinc-900/40 to-neutral-800/40 border-slate-400/30'}`}>
-                <div className="flex items-center gap-4 text-center sm:text-left flex-col sm:flex-row">
-                  <span className="text-4xl animate-bounce">{isCurrentUserWinner ? '🌟' : '⭐'}</span>
-                  <div>
-                    <h2 className={`text-xl font-black uppercase tracking-wider ${isCurrentUserWinner ? 'text-yellow-400' : 'text-slate-300'}`}>
-                      {isCurrentUserWinner ? "Congratulations, Champion!" : "Season Finished!"}
-                    </h2>
-                    <p className="text-xs font-medium text-gray-400 uppercase mt-0.5">
-                      {contextLeagueId ? `League "${activeContextLeague?.name}"` : "Official Global Board"}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 bg-black/40 px-5 py-3 border border-white/5 rounded-xl">
-                  {leagueWinner.teams?.logo_url && <img src={leagueWinner.teams.logo_url} className="w-8 h-8 object-contain" alt="" />}
-                  <div className="flex flex-col">
-                    
-                    <span className="text-base font-black text-white flex flex-wrap items-center gap-2">
-                      {leagueWinner.nickname}
-                      <div className="flex items-center gap-1">
-                        {leagueWinner.global_titles > 0 && (
-                          <span className="text-[9px] font-black text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-1.5 py-0.5 rounded">🌟 x{leagueWinner.global_titles}</span>
-                        )}
-                        {contextLeagueId && leagueWinsCount > 0 && (
-                          <span className="text-[9px] font-black text-slate-300 bg-slate-500/10 border border-slate-400/20 px-1.5 py-0.5 rounded">⭐ x{leagueWinsCount}</span>
-                        )}
-                      </div>
-                    </span>
-                    
-                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{leagueWinner.total} TOTAL PTS</span>
-                  </div>
-                </div>
-              </div>
+  <div className={`w-full border-2 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl ${isCurrentUserWinner ? 'bg-gradient-to-r from-amber-500/20 via-yellow-600/10 to-amber-500/20 border-yellow-500/30 shadow-[0_0_30px_rgba(245,158,11,0.15)]' : 'bg-gradient-to-r from-neutral-800/40 via-zinc-900/40 to-neutral-800/40 border-slate-400/30'}`}>
+    <div className="flex items-center gap-4 text-center sm:text-left flex-col sm:flex-row">
+      <span className="text-4xl animate-bounce">{isCurrentUserWinner ? '🌟' : '⭐'}</span>
+      <div>
+        <h2 className={`text-xl font-black uppercase tracking-wider ${isCurrentUserWinner ? 'text-yellow-400' : 'text-slate-300'}`}>
+          {isCurrentUserWinner ? "Congratulations, Champion!" : "Season Finished!"}
+        </h2>
+        <p className="text-xs font-medium text-gray-400 uppercase mt-0.5">
+          {contextLeagueId ? `League "${activeContextLeague?.name}"` : "Official Global Board"}
+        </p>
+      </div>
+    </div>
+    <div className="flex items-center gap-3 bg-black/40 px-5 py-3 border border-white/5 rounded-xl">
+      {leagueWinner.teams?.logo_url && <img src={leagueWinner.teams.logo_url} className="w-8 h-8 object-contain" alt="" />}
+      <div className="flex flex-col">
+        
+        <span className="text-base font-black text-white flex flex-wrap items-center gap-2">
+          {leagueWinner.nickname}
+          <div className="flex items-center gap-1">
+            {/* ESTRELA DOURADA: Quantidade de títulos Globais */}
+            {leagueWinner.global_titles > 0 && (
+              <span className="text-[9px] font-black text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-1.5 py-0.5 rounded">
+                🌟 x{leagueWinner.global_titles}
+              </span>
             )}
+            {/* ESTRELA PRATEADA: Quantidade de títulos DA LIGA ATUAL */}
+            {contextLeagueId && leagueWinsCount > 0 && (
+              <span className="text-[9px] font-black text-slate-300 bg-slate-500/10 border border-slate-400/20 px-1.5 py-0.5 rounded">
+                ⭐ x{leagueWinsCount}
+              </span>
+            )}
+          </div>
+        </span>
+        
+        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{leagueWinner.total} TOTAL PTS</span>
+      </div>
+    </div>
+  </div>
+)}
 
             <UserTeamHero key={dynamicScore} teamId={favoriteTeamId} score={dynamicScore} lastGame={lastGame} nextGame={nextGame} teamsDataMap={teamsDataMap} />
 
@@ -299,19 +305,53 @@ export default function Dashboard() {
                 </div>
                 
                 {myLeagues.length > 0 && (
-                  <div className="flex items-center gap-2 bg-black/40 border border-white/10 rounded-lg p-1.5 w-full sm:w-auto">
-                    <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest pl-2">Point Rules:</span>
-                    <select
-                      className="bg-neutral-900 border border-white/10 rounded px-2 py-1.5 text-xs font-bold text-white focus:outline-none appearance-none pr-8 cursor-pointer shadow-inner"
-                      value={contextLeagueId || 'global'}
-                      onChange={e => setContextLeagueId(e.target.value === 'global' ? null : e.target.value)}
-                      style={{ backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '1em' }}
-                    >
-                      <option value="global">🌎 Global Official (7/5/3)</option>
-                      {myLeagues.map(l => <option key={l.id} value={l.id}>🛡️ {l.name}</option>)}
-                    </select>
-                  </div>
-                )}
+  <div className="flex items-center gap-2 bg-black/40 border border-white/10 rounded-lg p-1.5 w-full sm:w-auto">
+    <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest pl-2">Point Rules:</span>
+    <select
+      className="bg-neutral-900 border border-white/10 rounded px-2 py-1.5 text-xs font-bold text-white focus:outline-none appearance-none pr-8 cursor-pointer shadow-inner"
+      value={contextLeagueId || 'global'}
+      onChange={e => setContextLeagueId(e.target.value === 'global' ? null : e.target.value)}
+      style={{ 
+        backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`, 
+        backgroundRepeat: 'no-repeat', 
+        backgroundPosition: 'right 0.5rem center', 
+        backgroundSize: '1em' 
+      }}
+    >
+      <option value="global">🌎 Global Official (7/5/3)</option>
+      {myLeagues.map(league => {
+        // Lógica de cálculo do rank
+        const membersInLeague = leagueMembersMap[league.id] || [];
+        const usersInLeague = allUsers.filter(u => membersInLeague.includes(u.id));
+        
+        const rules = {
+          exact: league.pts_exact ?? 7,
+          diff: league.pts_diff ?? 5,
+          winner: league.pts_winner ?? 3
+        };
+
+        const sorted = usersInLeague.map(u => {
+          let score = 0;
+          allGuesses.filter(g => g.user_id === u.id).forEach(guess => {
+            const game = games.find(g => g.id === guess.game_id);
+            if (game) score += getPickResult(game, guess, rules).points;
+          });
+          return { id: u.id, score };
+        }).sort((a, b) => b.score - a.score);
+
+        const userIndex = sorted.findIndex(u => u.id === currentUserId);
+        const pos = userIndex + 1;
+        const posSuffix = pos === 1 ? 'st' : pos === 2 ? 'nd' : pos === 3 ? 'rd' : 'th';
+        const rankDisplay = userIndex !== -1 ? ` [${pos}${posSuffix}]` : '';
+        return (
+          <option key={league.id} value={league.id}>
+            🛡️ {league.name}  {rankDisplay}
+          </option>
+        );
+      })}
+    </select>
+  </div>
+)}
               </div>
 
               {currentWeekGames.length === 0 ? (
