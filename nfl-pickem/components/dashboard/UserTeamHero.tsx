@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "../../utils/supabase/client";
+import { Circle } from 'lucide-react';
 
 interface UserTeamHeroProps {
   teamId: string | number | null;
@@ -466,7 +467,7 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
 
           {activeTab === 'nextMatch' && nextGame && (
             <div className="w-full animate-fadeIn">
-              {renderGameDetails(nextGame, isNextLive ? "🔴 Live Match Box Score" : "Upcoming Match Preview")}
+              {renderGameDetails(nextGame, isNextLive ? "Live Match Box Score" : "Upcoming Match Preview")}
             </div>
           )}
 
@@ -498,8 +499,8 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
             disabled={!nextGame}
             className={`p-3 sm:p-4 flex flex-col justify-center items-center text-center transition-colors ${!nextGame ? 'cursor-default' : activeTab === 'nextMatch' ? 'bg-white/5' : 'hover:bg-white/5 cursor-pointer'}`}
           >
-            <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-widest mb-1 ${isNextLive ? 'text-red-500 animate-pulse' : activeTab === 'nextMatch' ? 'text-white' : 'text-gray-400'}`}>
-              {isNextLive ? '🔴 Live Now' : 'Next Kickoff'}
+            <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-widest mb-1 flex items-center justify-center gap-1.5 ${isNextLive ? 'text-red-500 animate-pulse' : activeTab === 'nextMatch' ? 'text-white' : 'text-gray-400'}`}>
+              {isNextLive ? <><Circle size={8} fill="currentColor" /> Live Now</> : 'Next Kickoff'}
             </span>
             {nextGame ? (
               <div className="font-black text-sm sm:text-base text-white">

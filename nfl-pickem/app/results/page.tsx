@@ -9,6 +9,7 @@ import { createClient } from '../../utils/supabase/client';
 import { getThemeColor } from '../../utils/theme';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { getPlayoffSeeds } from '@/utils/playoffs';
+import { Trophy, LayoutGrid } from 'lucide-react';
 
 export default function Results () {
   const [gamesByWeek, setGamesByWeek] = useState<Record<string, any[]>>({});
@@ -143,7 +144,7 @@ export default function Results () {
         <div className="bg-neutral-900/50 rounded-xl border border-white/5 overflow-hidden shadow-lg">
           <button onClick={() => setIsStandingsOpen(!isStandingsOpen)} className="w-full flex justify-between items-center p-5 bg-neutral-900 hover:bg-neutral-800 transition text-left" style={{ borderLeft: `4px solid ${displayColor}` }}>
             <div className="flex items-center gap-3">
-              <span className="text-xl">🏆</span>
+              <Trophy size={20} />
               <span className="font-black text-lg uppercase tracking-widest">NFL Standings</span>
             </div>
             <span className="text-gray-500 text-xs font-bold">{isStandingsOpen ? '▲ Collapse' : '▼ Expand'}</span>
@@ -205,8 +206,8 @@ export default function Results () {
           {seasonPhase === 'playoffs' && (
             <div className="flex justify-end animate-fadeIn">
               <div className="flex bg-neutral-900 border border-white/10 rounded-lg p-1">
-                <button onClick={() => setPlayoffView('cards')} className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md transition-all flex items-center gap-2 ${playoffView === 'cards' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-white'}`}>🗂️ Cards</button>
-                <button onClick={() => setPlayoffView('bracket')} className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md transition-all flex items-center gap-2 ${playoffView === 'bracket' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-white'}`}>🏆 Bracket</button>
+                <button onClick={() => setPlayoffView('cards')} className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md transition-all flex items-center gap-2 ${playoffView === 'cards' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-white'}`}><LayoutGrid size={14} /> Cards</button>
+                <button onClick={() => setPlayoffView('bracket')} className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md transition-all flex items-center gap-2 ${playoffView === 'bracket' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-white'}`}><Trophy size={14} /> Bracket</button>
               </div>
             </div>
           )}
@@ -233,7 +234,7 @@ export default function Results () {
                     <button onClick={() => setExpandedWeek(isWeekOpen ? null : week)} className={`w-full flex justify-between items-center p-4 sm:p-5 transition text-left border-b border-white/5 ${isSuperBowlWeek ? 'bg-gradient-to-r from-purple-900/40 via-black to-amber-900/40 hover:from-purple-900/60' : 'bg-neutral-900/90 hover:bg-neutral-800'}`}>
                       <div className="flex items-center gap-3">
                         {isWeekOpen && !isSuperBowlWeek && <div className="w-1.5 h-6 rounded-full shadow-lg" style={{ backgroundColor: displayColor, boxShadow: `0 0 10px ${displayColor}80` }}></div>}
-                        {isWeekOpen && isSuperBowlWeek && <div className="text-xl animate-pulse">🏆</div>}
+                        {isWeekOpen && isSuperBowlWeek && <Trophy size={20} className="animate-pulse text-amber-400" />}
                         <span className="font-black text-base uppercase tracking-widest" style={{ color: isWeekOpen && !isSuperBowlWeek ? displayColor : '#ffffff', textShadow: isWeekOpen && !isSuperBowlWeek ? `0 0 15px ${displayColor}80` : 'none' }}>{seasonPhase === 'playoffs' ? (playoffNames[week] || week) : `Week ${week}`}</span>
                         {!isSuperBowlWeek && (
                           isCurrentWeek ? <span className="hidden sm:inline-block text-[8px] sm:text-[9px] uppercase font-black px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded border border-red-500/30 tracking-widest animate-pulse ml-2">Current Week</span> : isFinished ? <span className="hidden sm:inline-block text-[8px] sm:text-[9px] uppercase font-black px-1.5 py-0.5 bg-white/10 text-gray-400 rounded tracking-widest ml-2">Finished</span> : <span className="hidden sm:inline-block text-[8px] sm:text-[9px] uppercase font-black px-1.5 py-0.5 bg-white/5 text-gray-500 rounded tracking-widest ml-2">Upcoming</span>

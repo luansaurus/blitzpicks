@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/layout/header';
+import { Lock, Trophy } from 'lucide-react';
 
 const SEASONS_DATA = [
   {
@@ -114,7 +115,7 @@ export default function SeasonsPortal() {
                 {/* Indicadores do Topo */}
                 {isLocked ? (
                   <div className="absolute -top-3 bg-neutral-800 text-gray-400 border border-white/10 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow-lg flex items-center gap-1">
-                    <span>🔒 App Data Unavailable</span>
+                    <span className="inline-flex items-center gap-1"><Lock size={11} /> App Data Unavailable</span>
                   </div>
                 ) : isCurrentSelected && (
                   <div className="absolute -top-3 bg-amber-500 text-black text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow-lg">
@@ -143,7 +144,7 @@ export default function SeasonsPortal() {
                     <div className="bg-black/60 border border-white/5 rounded-xl p-3 flex flex-col items-center relative overflow-hidden">
                       <div className="absolute top-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500/30 to-transparent"></div>
                       
-                      <span className="text-lg mb-1">🏆</span>
+                      <Trophy size={18} className="mb-1 text-amber-500" />
                       <span className="text-[8px] font-black uppercase tracking-widest text-amber-500/80 mb-2">World Champion</span>
                       
                       <div className="flex items-center justify-center gap-4 w-full">

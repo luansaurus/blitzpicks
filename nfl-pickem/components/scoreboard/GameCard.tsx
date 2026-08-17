@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import BroadcastBadge from '../ui/BroadcastBadge';
 import { getPickResult } from '@/utils/scoring';
+import { Circle, MapPin } from 'lucide-react';
 
 interface GameCardProps {
   game: {
@@ -197,7 +198,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
               {isFinished ? (
                 <span className="text-[9px] font-black uppercase tracking-widest text-green-500">Final</span>
               ) : isLive ? (
-                <span className="text-[9px] font-black uppercase tracking-widest text-red-500 animate-pulse">🔴 Live {game.clock ? `- ${game.clock}` : ''}</span>
+                <span className="text-[9px] font-black uppercase tracking-widest text-red-500 animate-pulse flex items-center gap-1"><Circle size={7} fill="currentColor" /> Live {game.clock ? `- ${game.clock}` : ''}</span>
               ) : isPlayoffLocked && !hidePicks ? (
                 <span className="text-[9px] font-black uppercase tracking-widest text-amber-500">Locked</span>
               ) : isTimeBlocked && !hidePicks ? (
@@ -211,8 +212,8 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
           </div>
           
           {game.stadium && (
-            <span className="text-[8px] sm:text-[9px] text-gray-500 font-semibold uppercase tracking-widest truncate leading-none w-full" title={`${game.stadium.name}, ${game.stadium.city}`}>
-              📍 {game.stadium.name}, {game.stadium.city}
+            <span className="text-[8px] sm:text-[9px] text-gray-500 font-semibold uppercase tracking-widest truncate leading-none w-full flex items-center gap-1" title={`${game.stadium.name}, ${game.stadium.city}`}>
+              <MapPin size={10} /> {game.stadium.name}, {game.stadium.city}
             </span>
           )}
         </div>

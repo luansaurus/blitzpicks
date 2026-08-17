@@ -138,7 +138,7 @@ export async function GET(request: Request) {
             // TRAVA DE SEGURANÇA: Se o jogo já estava "finished" no nosso banco de dados,
             // não precisamos atualizar de novo. Pula para o próximo jogo.
             if (gameCheck.status === 'finished') {
-                console.log(`⚠️ Jogo já estava FINALIZADO. Pulando para não duplicar standings.`);
+                console.log(`[WARN] Jogo já estava FINALIZADO. Pulando para não duplicar standings.`);
                 continue;
             }
 
@@ -162,20 +162,20 @@ export async function GET(request: Request) {
               .eq('id', gameCheck.id);
 
             if (error) {
-              console.error(`❌ Erro do Supabase ao atualizar ${awayAbbr} @ ${homeAbbr}:`, error.message);
+              console.error(`[ERROR] Erro do Supabase ao atualizar ${awayAbbr} @ ${homeAbbr}:`, error.message);
             } else {
-              console.log(`✅ Sucesso! Placar: ${awayScore} - ${homeScore} | Status: ${dbStatus}`);
+              console.log(`[OK] Placar atualizado: ${awayScore} - ${homeScore} | Status: ${dbStatus}`);
               updatedCount++;
             }
           } else {
-            console.log(`⚠️ Jogo não encontrado no banco na semana ${espnWeek}.`);
+            console.log(`[WARN] Jogo não encontrado no banco na semana ${espnWeek}.`);
           }
         }
       }
     }
 
     if (hasNewFinishedGame) {
-      console.log(`\n🔄 Jogo recém-finalizado! Recalculando...`);
+      console.log(`\n[INFO] Jogo recém-finalizado! Recalculando...`);
       await recalculateStandings(supabase);
       await recalculateLeaderboard(supabase);
     }

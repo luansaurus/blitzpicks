@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { getPickResult } from '@/utils/scoring';
 import SpyLockerRoom from '../scoreboard/SpyLockerRoom';
+import { Shield, Landmark, Lock, LockOpen, Settings, Crown, Star, X, Eye, ChevronUp } from 'lucide-react';
 
 // Ícones SVG minimalistas para substituir os emojis
 const EyeIcon = () => (
@@ -349,8 +350,8 @@ export default function LeagueHub({ userColor, currentUserId, isAdmin, isVip }: 
       {/* TOP TABS & ACTION BUTTONS */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex bg-neutral-900 border border-white/10 rounded-xl p-1 w-full max-w-sm">
-          <button onClick={() => { setActiveTab('leagues'); setExpandedUserId(null); if (!activeLeagueId && myLeagues.length > 0) setActiveLeagueId(myLeagues[0].id); }} className={`flex-1 px-4 py-2 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all ${activeTab === 'leagues' ? 'bg-white/10 text-white' : 'text-gray-500'}`} style={activeTab === 'leagues' ? { color: userColor } : {}}>🛡️ My Leagues</button>
-          <button onClick={() => { setActiveTab('hub'); setExpandedUserId(null); }} className={`flex-1 px-4 py-2 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all ${activeTab === 'hub' ? 'bg-white/10 text-white' : 'text-gray-500'}`} style={activeTab === 'hub' ? { color: userColor } : {}}>🏟️ League Hub</button>
+          <button onClick={() => { setActiveTab('leagues'); setExpandedUserId(null); if (!activeLeagueId && myLeagues.length > 0) setActiveLeagueId(myLeagues[0].id); }} className={`flex-1 px-4 py-2 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${activeTab === 'leagues' ? 'bg-white/10 text-white' : 'text-gray-500'}`} style={activeTab === 'leagues' ? { color: userColor } : {}}><Shield size={14} /> My Leagues</button>
+          <button onClick={() => { setActiveTab('hub'); setExpandedUserId(null); }} className={`flex-1 px-4 py-2 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${activeTab === 'hub' ? 'bg-white/10 text-white' : 'text-gray-500'}`} style={activeTab === 'hub' ? { color: userColor } : {}}><Landmark size={14} /> League Hub</button>
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
           <button onClick={() => { setTargetJoinLeague(null); setModalInput(''); setModalError(''); setShowJoinModal(true); }} className="flex-1 sm:flex-none px-4 py-2 bg-black/60 border border-white/10 rounded-xl text-[10px] font-black uppercase text-gray-300 transition-colors hover:bg-white/5">Join Code</button>
@@ -414,7 +415,7 @@ export default function LeagueHub({ userColor, currentUserId, isAdmin, isVip }: 
                       <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest">
                         <div className="flex items-center gap-1.5">
                           <span className={league.is_private ? 'text-amber-500/80' : 'text-green-500/80'}>
-                            {league.is_private ? '🔒' : '🔓'}
+                            {league.is_private ? <Lock size={12} /> : <LockOpen size={12} />}
                           </span>
                           <span className={isActive ? 'text-gray-300' : 'text-gray-600'}>
                             {membersCount}/10
@@ -427,7 +428,7 @@ export default function LeagueHub({ userColor, currentUserId, isAdmin, isVip }: 
                             className="text-gray-500 hover:text-white transition-colors"
                             title="Edit League"
                           >
-                            ⚙️
+                            <Settings size={14} />
                           </button>
                         )}
                       </div>
@@ -506,10 +507,10 @@ export default function LeagueHub({ userColor, currentUserId, isAdmin, isVip }: 
                                 <span className={`font-bold text-sm ${isCurrentUser ? 'text-white' : 'text-gray-300'}`}>{user.nickname}</span>
                                 
                                 <div className="flex gap-1 ml-1 items-center shrink-0">
-                                  {globalWins > 0 && <span className="text-[8px] uppercase font-black px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 rounded border border-yellow-500/30 tracking-widest">🌟 x{globalWins}</span>}
-                                  {leagueWinsCount > 0 && <span className="text-[8px] uppercase font-black px-1.5 py-0.5 bg-slate-500/20 text-slate-300 rounded border border-slate-400/30 tracking-widest">⭐ x{leagueWinsCount}</span>}
+                                  {globalWins > 0 && <span className="text-[8px] uppercase font-black px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 rounded border border-yellow-500/30 tracking-widest inline-flex items-center gap-1"><Crown size={9} /> x{globalWins}</span>}
+                                  {leagueWinsCount > 0 && <span className="text-[8px] uppercase font-black px-1.5 py-0.5 bg-slate-500/20 text-slate-300 rounded border border-slate-400/30 tracking-widest inline-flex items-center gap-1"><Star size={9} /> x{leagueWinsCount}</span>}
                                 </div>
-                                {selectedLeague?.owner_id === user.id && <span className="text-[8px] uppercase font-black px-1.5 py-0.5 bg-amber-500/20 text-amber-400 rounded border border-amber-500/30 ml-2">👑</span>}
+                                {selectedLeague?.owner_id === user.id && <span className="text-[8px] uppercase font-black px-1.5 py-0.5 bg-amber-500/20 text-amber-400 rounded border border-amber-500/30 ml-2 inline-flex items-center"><Crown size={10} /></span>}
                               </div>
                             </td>
                             <td className="px-4 py-4 text-center">
@@ -517,8 +518,8 @@ export default function LeagueHub({ userColor, currentUserId, isAdmin, isVip }: 
                             </td>
                             <td className="px-4 py-4">
                               <div className="flex justify-end gap-2">
-                                {isOwnerCurrentLeague && !isCurrentUser && <button onClick={(e) => { e.stopPropagation(); handleKickMember(user.id); }} className="px-2 py-1 rounded text-[8px] font-black uppercase bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20">Kick ❌</button>}
-                                {!isCurrentUser && <button className="flex items-center gap-1 text-[8px] font-black uppercase px-2 py-1 rounded" style={{ backgroundColor: `${userColor}20`, color: userColor }}>{isExpanded ? 'Hide ▲' : 'Spy 👁️'}</button>}
+                                {isOwnerCurrentLeague && !isCurrentUser && <button onClick={(e) => { e.stopPropagation(); handleKickMember(user.id); }} className="px-2 py-1 rounded text-[8px] font-black uppercase bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 inline-flex items-center gap-1">Kick <X size={10} /></button>}
+                                {!isCurrentUser && <button className="flex items-center gap-1 text-[8px] font-black uppercase px-2 py-1 rounded" style={{ backgroundColor: `${userColor}20`, color: userColor }}>{isExpanded ? <>Hide <ChevronUp size={10} /></> : <>Spy <Eye size={10} /></>}</button>}
                               </div>
                             </td>
                           </tr>
@@ -556,11 +557,11 @@ export default function LeagueHub({ userColor, currentUserId, isAdmin, isVip }: 
                     <div className="flex items-center gap-2 overflow-hidden pr-2">
                       <h3 className="text-lg font-black uppercase tracking-wider text-white truncate">{league.name}</h3>
                       {isHubOwner && (
-                        <button onClick={() => openEditModal(league)} className="text-gray-500 hover:text-white transition-colors shrink-0">⚙️</button>
+                        <button onClick={() => openEditModal(league)} className="text-gray-500 hover:text-white transition-colors shrink-0"><Settings size={14} /></button>
                       )}
                     </div>
                     <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-md border shrink-0 ${league.is_private ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-green-500/10 text-green-500 border-green-500/20'}`}>
-                      {league.is_private ? '🔒 Private' : '🔓 Public'}
+                      {league.is_private ? <span className="inline-flex items-center gap-1"><Lock size={10} /> Private</span> : <span className="inline-flex items-center gap-1"><LockOpen size={10} /> Public</span>}
                     </span>
                   </div>
                   <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-4">Owner: {ownerName}</p>
@@ -684,7 +685,7 @@ export default function LeagueHub({ userColor, currentUserId, isAdmin, isVip }: 
             {targetJoinLeague ? (
               <>
                 <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-4">League: <span className="text-white">{targetJoinLeague.name}</span></p>
-                <p className="text-amber-500 text-[10px] font-black uppercase tracking-widest mb-4">🔒 Private League. Enter password.</p>
+                <p className="text-amber-500 text-[10px] font-black uppercase tracking-widest mb-4 flex items-center justify-center gap-2"><Lock size={12} /> Private League. Enter password.</p>
               </>
             ) : (
               <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-6">Enter the 6-character Invite Code.</p>

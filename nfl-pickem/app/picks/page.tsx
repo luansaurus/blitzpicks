@@ -7,6 +7,7 @@ import GameCard from '../../components/scoreboard/GameCard';
 import { createClient } from '../../utils/supabase/client';
 import { getThemeColor } from '../../utils/theme';
 import LoadingScreen from '@/components/ui/LoadingScreen';
+import { Trophy, AlertTriangle } from 'lucide-react';
 
 const TBD_TEAM = { 
   name: 'Free Agent', 
@@ -208,7 +209,7 @@ export default function SchedulePage() {
                   seasonMode === 'playoffs' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'
                 }`}
               >
-                Playoffs 🏆
+                <span className="inline-flex items-center gap-1.5">Playoffs <Trophy size={14} /></span>
               </button>
             </div>
           </div>
@@ -218,8 +219,8 @@ export default function SchedulePage() {
           
           {seasonMode === 'playoffs' && !isWeek18Finished && (
             <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex items-center justify-center text-center animate-fadeIn">
-              <span className="text-amber-500 font-bold text-xs uppercase tracking-widest">
-                ⚠️ Playoff predictions will unlock after Week 18 is officially concluded.
+              <span className="text-amber-500 font-bold text-xs uppercase tracking-widest flex items-center gap-2">
+                <AlertTriangle size={14} /> Playoff predictions will unlock after Week 18 is officially concluded.
               </span>
             </div>
           )}
@@ -252,7 +253,7 @@ export default function SchedulePage() {
                         <div className="w-1.5 h-6 rounded-full shadow-lg" style={{ backgroundColor: userColor, boxShadow: `0 0 10px ${userColor}80` }}></div>
                       )}
                       {isWeekOpen && isSuperBowlWeek && (
-                        <div className="text-xl animate-pulse">🏆</div>
+                        <Trophy size={22} className="animate-pulse text-amber-400" />
                       )}
                       
                       <span className={`font-black text-base uppercase tracking-widest ${isWeekOpen ? 'text-white' : 'text-gray-400'}`}>

@@ -8,6 +8,7 @@ import { getThemeColor } from '../../utils/theme';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { getPickResult } from '@/utils/scoring';
 import SpyLockerRoom from '../../components/scoreboard/SpyLockerRoom';
+import { Calendar, Scale, Trophy, Eye, ChevronUp, Crown, Binoculars } from 'lucide-react';
 
 // Constantes para os Playoffs no Spy Hub
 const PLAYOFF_ORDER = ['WC', 'DR', 'CC', 'SB'];
@@ -153,7 +154,7 @@ export default function RankingPage() {
           style={isOpen ? { borderBottomColor: 'rgba(255,255,255,0.05)' } : {}}
         >
           <div className="flex items-center gap-3">
-            <span className="text-xl">📅</span>
+            <Calendar size={20} />
             <span className={`font-black text-lg uppercase tracking-widest ${isPlayoffWeek ? 'text-amber-500' : 'text-white'}`}>
               {weekTitle}
             </span>
@@ -278,7 +279,7 @@ export default function RankingPage() {
                                     <img src={pickedLogo} className="w-full h-full object-contain" alt="Pick" />
                                   </div>
                                 ) : (
-                                  <div className="bg-[#050505] border border-neutral-700 rounded-full w-8 h-8 flex items-center justify-center text-[10px] shadow-xl">⚖️</div>
+                                  <div className="bg-[#050505] border border-neutral-700 rounded-full w-8 h-8 flex items-center justify-center shadow-xl"><Scale size={14} /></div>
                                 )}
                               </div>
                               <div className={`relative flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${borderColor} ${bgGradient} overflow-hidden w-full shadow-lg`}>
@@ -326,8 +327,8 @@ export default function RankingPage() {
           
           <div className="flex items-center gap-2">
             <div className="flex bg-neutral-900 border border-white/10 rounded-xl p-1 w-full max-w-sm shrink-0">
-              <button onClick={() => setActiveTab('ranking')} className={`flex-1 px-4 py-2 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all ${activeTab === 'ranking' ? 'bg-white/10 text-white' : 'text-gray-500'}`} style={activeTab === 'ranking' ? { color: userColor } : {}}>🏆 Leaderboard</button>
-              <button onClick={() => setActiveTab('spy')} className={`flex-1 px-4 py-2 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all ${activeTab === 'spy' ? 'bg-white/10 text-white' : 'text-gray-500'}`} style={activeTab === 'spy' ? { color: userColor } : {}}>🕵️ Spy Hub</button>
+              <button onClick={() => setActiveTab('ranking')} className={`flex-1 px-4 py-2 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${activeTab === 'ranking' ? 'bg-white/10 text-white' : 'text-gray-500'}`} style={activeTab === 'ranking' ? { color: userColor } : {}}><Trophy size={14} /> Leaderboard</button>
+              <button onClick={() => setActiveTab('spy')} className={`flex-1 px-4 py-2 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${activeTab === 'spy' ? 'bg-white/10 text-white' : 'text-gray-500'}`} style={activeTab === 'spy' ? { color: userColor } : {}}><Binoculars size={14} /> Spy Hub</button>
             </div>
             
             {activeTab === 'ranking' && hasLiveGames && (
@@ -374,7 +375,7 @@ export default function RankingPage() {
 )}
                                 <span className={`font-bold text-sm ${isCurrentUser ? 'text-white' : 'text-gray-300'}`}>{user.nickname}</span>
                                 {user.global_titles > 0 && (
-                                  <span className="text-[8px] uppercase font-black px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 rounded border border-yellow-500/30 tracking-widest ml-1 shrink-0">🌟 x{user.global_titles}</span>
+                                  <span className="text-[8px] uppercase font-black px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 rounded border border-yellow-500/30 tracking-widest ml-1 shrink-0 inline-flex items-center gap-1"><Crown size={9} /> x{user.global_titles}</span>
                                 )}
                               </div>
                             </td>
@@ -388,7 +389,7 @@ export default function RankingPage() {
                                <div className="flex justify-end">
                                  {!isCurrentUser && (
                                     <button className="flex items-center gap-1 text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded transition-all" style={{ backgroundColor: `${userColor}20`, color: userColor }}>
-                                      {isExpanded ? 'Hide' : 'Spy'} {isExpanded ? '▲' : '👁️'}
+                                      {isExpanded ? 'Hide' : 'Spy'} {isExpanded ? <ChevronUp size={12} /> : <Eye size={12} />}
                                     </button>
                                   )}
                                </div>

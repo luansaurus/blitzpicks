@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createClient } from '../../utils/supabase/client';
+import { Shirt, ClipboardList, Trophy, BarChart3, Calendar, Settings, type LucideIcon } from 'lucide-react';
 
 const getSafeColor = (hex: string) => {
   if (!hex) return '#f59e0b';
@@ -102,12 +103,12 @@ export default function Header() {
     }
   };
 
-const navLinks = [
-    { name: 'Locker', path: '/dashboard', icon: '🏈' },
-    { name: 'Picks', path: '/picks', icon: '📝' },
-    { name: 'Bracket', path: '/bracket', icon: '🏆' },
-    { name: 'Ranking', path: '/ranking', icon: '📊' },
-    { name: 'Season', path: '/results', icon: '📅' } //
+const navLinks: { name: string; path: string; icon: LucideIcon }[] = [
+    { name: 'Locker', path: '/dashboard', icon: Shirt },
+    { name: 'Picks', path: '/picks', icon: ClipboardList },
+    { name: 'Bracket', path: '/bracket', icon: Trophy },
+    { name: 'Ranking', path: '/ranking', icon: BarChart3 },
+    { name: 'Season', path: '/results', icon: Calendar }
   ];
 
   return (
@@ -137,7 +138,7 @@ const navLinks = [
             {isAdmin && (
               <Link href="/admin" className="text-red-400 hover:text-yellow-300 transition-colors drop-shadow-[0_0_8px_rgba(168,85,247,0.5)]">
                 <span className="hidden sm:inline text-[10px] font-black uppercase tracking-widest">Admin</span>
-                <span className="sm:hidden text-lg">⚙️</span>
+                <span className="sm:hidden text-lg"><Settings size={18} /></span>
               </Link>
             )}
             
@@ -163,9 +164,10 @@ const navLinks = [
         <div className="flex justify-around items-center h-16">
           {navLinks.map((link) => {
             const isActive = pathname === link.path || (link.path !== '/dashboard' && pathname.startsWith(link.path));
+            const Icon = link.icon;
             return (
               <Link key={link.path} href={link.path} className="flex flex-col items-center justify-center w-full h-full gap-1" style={isActive ? { color: 'var(--team-accent)' } : { color: '#737373' }}>
-                <span className={`text-lg transition-transform ${isActive ? 'scale-110 drop-shadow-md' : 'grayscale opacity-60'}`}>{link.icon}</span>
+                <Icon size={20} className={`transition-transform ${isActive ? 'scale-110 drop-shadow-md' : 'opacity-60'}`} />
                 <span className={`text-[9px] font-black uppercase tracking-widest ${isActive ? 'opacity-100' : 'opacity-60'}`}>{link.name}</span>
               </Link>
             );

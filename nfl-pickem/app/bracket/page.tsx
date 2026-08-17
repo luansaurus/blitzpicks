@@ -4,6 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import Header from '../../components/layout/header';
 import { createClient } from '../../utils/supabase/client';
 import LoadingScreen from '@/components/ui/LoadingScreen';
+import { Repeat, Save, Loader2, Camera, X, AlertTriangle } from 'lucide-react';
 
 const TBD_TEAM = { 
   name: 'To Be Determined', 
@@ -276,7 +277,7 @@ export default function BracketPage() {
             className="px-2 flex items-center justify-center border-l border-white/5 hover:bg-white/20 text-gray-500 hover:text-white transition-colors"
             title="Swap Team"
           >
-            <span className="text-[10px]">🔁</span>
+            <Repeat size={12} />
           </button>
         )}
       </div>
@@ -347,7 +348,7 @@ export default function BracketPage() {
                 className="px-2 flex items-center justify-center border-l border-white/5 hover:bg-white/20 text-gray-500 hover:text-white transition-colors"
                 title="Swap Team"
               >
-                <span className="text-[10px]">🔁</span>
+                <Repeat size={12} />
               </button>
             )}
           </div>
@@ -393,7 +394,7 @@ export default function BracketPage() {
               disabled={isSaving}
               className="px-4 py-2 rounded-lg font-black uppercase tracking-widest text-xs transition border border-green-500/30 text-green-400 hover:bg-green-500/10 disabled:opacity-50"
             >
-              {isSaving ? 'Saving...' : 'Save'} 💾
+              <span className="inline-flex items-center gap-2">{isSaving ? 'Saving...' : 'Save'} <Save size={14} /></span>
             </button>
             <button 
               onClick={handleShare} 
@@ -401,7 +402,7 @@ export default function BracketPage() {
               className="px-4 py-2 rounded-lg font-black uppercase tracking-widest text-xs transition shadow-lg flex items-center gap-2 hover:scale-105 disabled:opacity-70 disabled:cursor-wait" 
               style={{ backgroundColor: userColor, color: '#000' }}
             >
-              <span>{isCapturing ? 'Processing...' : 'Share'}</span> {isCapturing ? '⏳' : '📸'}
+              <span>{isCapturing ? 'Processing...' : 'Share'}</span> {isCapturing ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
             </button>
           </div>
         </div>
@@ -495,7 +496,7 @@ export default function BracketPage() {
           <div className="bg-neutral-950 border border-white/10 rounded-2xl w-full max-w-md p-6 shadow-2xl flex flex-col max-h-[80vh]">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-black italic uppercase tracking-widest text-lg">Select {activeSlot.conf} Seed {activeSlot.seed}</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-500 hover:text-white font-bold">✕</button>
+              <button onClick={() => setIsModalOpen(false)} className="text-gray-500 hover:text-white font-bold"><X size={18} /></button>
             </div>
             
             <div className="overflow-y-auto space-y-2 pr-2 custom-scrollbar">
@@ -546,7 +547,7 @@ export default function BracketPage() {
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
           <div className="bg-neutral-950 border border-white/10 rounded-2xl w-full max-w-sm p-6 shadow-2xl flex flex-col items-center text-center">
             <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mb-4">
-              <span className="text-red-500 text-2xl">⚠️</span>
+              <AlertTriangle size={24} className="text-red-500" />
             </div>
             <h3 className="font-black italic uppercase tracking-widest text-lg mb-2 text-white">Reset Bracket?</h3>
             <p className="text-xs text-gray-400 mb-6 font-medium">

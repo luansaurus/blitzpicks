@@ -46,12 +46,12 @@ export async function getPlayoffSeeds(teams: any[], standings: any[]) {
 
       // Se achou todos os 14 times classificados, retorna os dados da ESPN!
       if (espnTeamsFound === 14) {
-        console.log("🏆 Playoff Seeds carregados com sucesso da ESPN!");
+        console.log("[OK] Playoff Seeds carregados com sucesso da ESPN.");
         return seeds;
       }
     }
   } catch (err) {
-    console.warn("⚠️ ESPN API indisponível. Caindo para o cálculo local de Seeds.");
+    console.warn("[WARN] ESPN API indisponível. Utilizando cálculo local de Seeds.");
   }
 
   // ==========================================
@@ -59,7 +59,7 @@ export async function getPlayoffSeeds(teams: any[], standings: any[]) {
   // (Caso a API falhe ou a temporada ainda não tenha gerado seeds)
   // ==========================================
   
-  console.log("⚙️ Gerando Seeds através do cálculo local (PCT).");
+  console.log("[INFO] Gerando Seeds através do cálculo local (PCT).");
   
   // O 'as const' AQUI É O QUE RESOLVE O ERRO DE TIPAGEM DO TYPESCRIPT
   (['AFC', 'NFC'] as const).forEach(conf => {

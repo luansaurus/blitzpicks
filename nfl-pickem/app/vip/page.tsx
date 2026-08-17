@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Header from '../../components/layout/header';
 import { createClient } from '../../utils/supabase/client';
 import LoadingScreen from '@/components/ui/LoadingScreen';
+import { Calendar, Scale } from 'lucide-react';
 
 // Ordem e Nomes Oficiais dos Playoffs
 const PLAYOFF_ORDER = ['WC', 'DR', 'CC', 'SB'];
@@ -146,7 +147,7 @@ export default function VipArea() {
           style={isOpen ? { borderBottomColor: 'rgba(255,255,255,0.05)' } : {}}
         >
           <div className="flex items-center gap-3">
-            <span className="text-xl">📅</span>
+            <Calendar size={20} />
             <span className={`font-black text-lg uppercase tracking-widest ${isPlayoffWeek ? 'text-amber-500' : 'text-white'}`}>
               {weekTitle}
             </span>
@@ -291,8 +292,8 @@ export default function VipArea() {
                                     <img src={pickedLogo} className="w-full h-full object-contain" alt="Pick" />
                                   </div>
                                 ) : (
-                                  <div className="bg-[#050505] border border-neutral-700 rounded-full w-8 h-8 flex items-center justify-center text-[10px] shadow-xl">
-                                    ⚖️
+                                  <div className="bg-[#050505] border border-neutral-700 rounded-full w-8 h-8 flex items-center justify-center shadow-xl">
+                                    <Scale size={14} />
                                   </div>
                                 )}
                               </div>

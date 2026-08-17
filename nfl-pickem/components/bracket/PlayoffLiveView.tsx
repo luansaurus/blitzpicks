@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import { Check, X } from 'lucide-react';
 
 type Team = { id: string | number; name: string; abbreviation: string; logo_url: string; seed: number; conference: string };
 
@@ -26,7 +27,7 @@ export default function PlayoffLiveView({ userAccentColor, userInitialSeeds, rea
     
     let statusColor = 'text-gray-400';
     let bgColor = 'bg-neutral-950/95';
-    let label = '';
+    let label: 'win' | 'loss' | '' = '';
     
     const winnerReal = realResults[`${conf.toLowerCase()}_${matchupId}`];
     
@@ -34,11 +35,11 @@ export default function PlayoffLiveView({ userAccentColor, userInitialSeeds, rea
       if (team.id === winnerReal.id) {
         statusColor = 'text-green-400 drop-shadow-md';
         bgColor = 'bg-green-500/10';
-        label = '✓';
+        label = 'win';
       } else {
         statusColor = 'text-red-500 line-through opacity-70';
         bgColor = 'bg-red-500/5';
-        label = '✕';
+        label = 'loss';
       }
     } else if (team?.id) {
       statusColor = 'text-white';
@@ -51,7 +52,8 @@ export default function PlayoffLiveView({ userAccentColor, userInitialSeeds, rea
         <span className={`text-sm font-black uppercase truncate flex-1 ${statusColor}`}>
           {teamSigla}
         </span>
-        {label && <span className={`text-xs font-bold ${label === '✓' ? 'text-green-400' : 'text-red-500'}`}>{label}</span>}
+        {label === 'win' && <Check size={14} className="text-green-400" />}
+        {label === 'loss' && <X size={14} className="text-red-500" />}
       </div>
     );
   };

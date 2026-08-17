@@ -6,6 +6,7 @@ import Header from '../../components/layout/header';
 import { createClient } from '../../utils/supabase/client';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import BroadcastBadge from '@/components/ui/BroadcastBadge';
+import { CheckCircle2, XCircle, RefreshCw, Zap } from 'lucide-react';
 
 export default function AdminPage() {
   const [gamesByWeek, setGamesByWeek] = useState<Record<string, any[]>>({});
@@ -179,7 +180,7 @@ export default function AdminPage() {
             'bg-white/10 border-white/20 text-white'
           }`}>
             <span className="text-lg">
-              {toast.type === 'success' ? '✅' : toast.type === 'error' ? '❌' : '🔄'}
+              {toast.type === 'success' ? <CheckCircle2 size={18} /> : toast.type === 'error' ? <XCircle size={18} /> : <RefreshCw size={18} />}
             </span>
             <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest">
               {toast.message}
@@ -202,7 +203,7 @@ export default function AdminPage() {
             style={{ backgroundColor: `${userColor}20`, color: userColor }}
           >
             <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
-            {isSyncing ? 'Syncing...' : '⚡ Force API Sync'}
+            {isSyncing ? 'Syncing...' : <span className="inline-flex items-center gap-2"><Zap size={14} /> Force API Sync</span>}
           </button>
         </div>
 

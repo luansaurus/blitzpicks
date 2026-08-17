@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '../../utils/supabase/client';
+import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 export default function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -99,10 +100,10 @@ useEffect(() => {
         </div>
 
         {message && (
-          <div className={`mb-6 p-4 border rounded-xl text-[10px] font-bold text-center uppercase tracking-wider ${
+          <div className={`mb-6 p-4 border rounded-xl text-[10px] font-bold text-center uppercase tracking-wider flex items-center justify-center gap-2 ${
             message.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-green-500/10 border-green-500/20 text-green-400'
           }`}>
-            {message.type === 'error' ? '⚠️ ' : '✓ '} {message.text}
+            {message.type === 'error' ? <AlertTriangle size={14} /> : <CheckCircle2 size={14} />} {message.text}
           </div>
         )}
 

@@ -9,6 +9,7 @@ import { createClient } from '../../utils/supabase/client';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import LeagueHub from '../../components/leagues/LeagueHub';
 import { getPickResult } from '@/utils/scoring';
+import { Shirt, Shield, Star, Crown } from 'lucide-react';
 
 export default function Dashboard() {
   const supabase = createClient();
@@ -247,8 +248,8 @@ export default function Dashboard() {
       <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-8 mt-4">
         
         <div className="flex bg-neutral-900 border border-white/10 rounded-xl p-1 w-full max-w-sm mx-auto shadow-lg">
-          <button onClick={() => setActiveDashboardTab('locker')} className={`flex-1 px-4 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${activeDashboardTab === 'locker' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-white'}`} style={activeDashboardTab === 'locker' ? { color: userColor } : {}}>🏈 My Locker</button>
-          <button onClick={() => setActiveDashboardTab('leagues')} className={`flex-1 px-4 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${activeDashboardTab === 'leagues' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-white'}`} style={activeDashboardTab === 'leagues' ? { color: userColor } : {}}>🛡️ Leagues</button>
+          <button onClick={() => setActiveDashboardTab('locker')} className={`flex-1 px-4 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${activeDashboardTab === 'locker' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-white'}`} style={activeDashboardTab === 'locker' ? { color: userColor } : {}}><Shirt size={14} /> My Locker</button>
+          <button onClick={() => setActiveDashboardTab('leagues')} className={`flex-1 px-4 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${activeDashboardTab === 'leagues' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-white'}`} style={activeDashboardTab === 'leagues' ? { color: userColor } : {}}><Shield size={14} /> Leagues</button>
         </div>
 
         {activeDashboardTab === 'locker' ? (
@@ -257,7 +258,7 @@ export default function Dashboard() {
             {isSeasonOver && leagueWinner && (
   <div className={`w-full border-2 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl ${isCurrentUserWinner ? 'bg-gradient-to-r from-amber-500/20 via-yellow-600/10 to-amber-500/20 border-yellow-500/30 shadow-[0_0_30px_rgba(245,158,11,0.15)]' : 'bg-gradient-to-r from-neutral-800/40 via-zinc-900/40 to-neutral-800/40 border-slate-400/30'}`}>
     <div className="flex items-center gap-4 text-center sm:text-left flex-col sm:flex-row">
-      <span className="text-4xl animate-bounce">{isCurrentUserWinner ? '🌟' : '⭐'}</span>
+      <span className="text-4xl animate-bounce">{isCurrentUserWinner ? <Crown size={36} className="text-yellow-400" /> : <Star size={36} className="text-slate-300" />}</span>
       <div>
         <h2 className={`text-xl font-black uppercase tracking-wider ${isCurrentUserWinner ? 'text-yellow-400' : 'text-slate-300'}`}>
           {isCurrentUserWinner ? "Congratulations, Champion!" : "Season Finished!"}
@@ -276,14 +277,14 @@ export default function Dashboard() {
           <div className="flex items-center gap-1">
             {/* ESTRELA DOURADA: Quantidade de títulos Globais */}
             {leagueWinner.global_titles > 0 && (
-              <span className="text-[9px] font-black text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-1.5 py-0.5 rounded">
-                🌟 x{leagueWinner.global_titles}
+              <span className="text-[9px] font-black text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-1.5 py-0.5 rounded inline-flex items-center gap-1">
+                <Crown size={10} /> x{leagueWinner.global_titles}
               </span>
             )}
             {/* ESTRELA PRATEADA: Quantidade de títulos DA LIGA ATUAL */}
             {contextLeagueId && leagueWinsCount > 0 && (
-              <span className="text-[9px] font-black text-slate-300 bg-slate-500/10 border border-slate-400/20 px-1.5 py-0.5 rounded">
-                ⭐ x{leagueWinsCount}
+              <span className="text-[9px] font-black text-slate-300 bg-slate-500/10 border border-slate-400/20 px-1.5 py-0.5 rounded inline-flex items-center gap-1">
+                <Star size={10} /> x{leagueWinsCount}
               </span>
             )}
           </div>
@@ -318,7 +319,7 @@ export default function Dashboard() {
         backgroundSize: '1em' 
       }}
     >
-      <option value="global">🌎 Global Official (7/5/3)</option>
+      <option value="global">Global Official (7/5/3)</option>
       {myLeagues.map(league => {
         // Lógica de cálculo do rank
         const membersInLeague = leagueMembersMap[league.id] || [];
@@ -345,7 +346,7 @@ export default function Dashboard() {
         const rankDisplay = userIndex !== -1 ? ` [${pos}${posSuffix}]` : '';
         return (
           <option key={league.id} value={league.id}>
-            🛡️ {league.name}  {rankDisplay}
+            {league.name}  {rankDisplay}
           </option>
         );
       })}
