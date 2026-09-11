@@ -331,12 +331,6 @@ export default function RankingPage() {
               <button onClick={() => setActiveTab('spy')} className={`flex-1 px-4 py-2 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${activeTab === 'spy' ? 'bg-white/10 text-white' : 'text-gray-500'}`} style={activeTab === 'spy' ? { color: userColor } : {}}><Binoculars size={14} /> Spy Hub</button>
             </div>
             
-            {activeTab === 'ranking' && hasLiveGames && (
-              <div className="hidden md:flex items-center gap-2 bg-red-500/10 border border-red-500/30 px-3 py-2 rounded-xl animate-pulse shrink-0">
-                <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-red-500">Live</span>
-              </div>
-            )}
           </div>
         </div>
 

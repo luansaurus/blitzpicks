@@ -35,7 +35,7 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
   const [divisionStandings, setDivisionStandings] = useState<any[]>([]);
   const [loadingStandings, setLoadingStandings] = useState<boolean>(true);
   
-  const [seasonLeaders, setSeasonLeaders] = useState<any[]>([]);
+  const [teamSeasonStats, setTeamSeasonStats] = useState<any>(null);
   const [loadingLeaders, setLoadingLeaders] = useState<boolean>(true);
   
   const [activeTab, setActiveTab] = useState<'profile' | 'lastMatch' | 'nextMatch' | null>(null);
@@ -49,6 +49,7 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
       if (teamData) setTeamInfo(teamData);
 
       if (teamData && teamData.abbreviation !== 'NFL') {
+        // --- BUSCA CLASSIFICAÇÃO ---
         try {
           const { data: divTeams } = await supabase.from('teams').select('id, name, abbreviation, logo_url').eq('conference', teamData.conference).eq('division', teamData.division);
 
@@ -79,35 +80,135 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
           setLoadingStandings(false);
         }
 
+        // --- CÁLCULO DE ESTATÍSTICAS PELO NOSSO PRÓPRIO BANCO ---
         try {
-          const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/${teamData.abbreviation.toLowerCase()}`);
-          if (res.ok) {
-            const espnData = await res.json();
-            const stats = espnData?.team?.record?.items?.[0]?.stats;
-            if (stats && Array.isArray(stats) && stats.length > 0) {
-              const passing = stats.find((s: any) => s.name === 'passingYards');
-              const rushing = stats.find((s: any) => s.name === 'rushingYards');
-              const receiving = stats.find((s: any) => s.name === 'receivingYards');
+          const { data: teamGames } = await supabase
+            .from('games')
+            .select('home_team_id, away_team_id, home_score, away_score, meta_data, status')
+            .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+            .eq('status', 'finished');
 
-              setSeasonLeaders([
-                { category: 'Passing', name: 'Total', stat: `${passing?.value || 0} PASS YDS` },
-                { category: 'Rushing', name: 'Total', stat: `${rushing?.value || 0} RUSH YDS` },
-                { category: 'Receiving', name: 'Total', stat: `${receiving?.value || 0} REC YDS` },
-              ]);
-            } else {
-              setSeasonLeaders([
-                { category: 'Passing', name: 'Preseason', stat: '0 PASS YDS' },
-                { category: 'Rushing', name: 'Preseason', stat: '0 RUSH YDS' },
-                { category: 'Receiving', name: 'Preseason', stat: '0 REC YDS' },
-              ]);
-            }
-          }
+          let ptsScored = 0, ptsAllowed = 0;
+          let passYds = 0, passTds = 0, rushYds = 0, rushTds = 0, recYds = 0;
+          let turnovers = 0, sacks = 0, defInts = 0, defFums = 0, ydsAllowed = 0;
+          
+          // Dicionários aprimorados para guardar YDS, TD e INT por jogador
+          const playersPass: Record<string, { yds: number, td: number, int: number }> = {};
+          const playersRush: Record<string, { yds: number, td: number }> = {};
+          const playersRec: Record<string, { yds: number, td: number }> = {};
+
+          (teamGames || []).forEach(game => {
+            const isHome = game.home_team_id === teamId;
+            ptsScored += (isHome ? game.home_score : game.away_score) || 0;
+            ptsAllowed += (isHome ? game.away_score : game.home_score) || 0;
+
+            const meta = game.meta_data as any;
+            const myLeaders = isHome ? meta?.leaders?.home : meta?.leaders?.away;
+            const oppLeaders = isHome ? meta?.leaders?.away : meta?.leaders?.home;
+
+            (myLeaders || []).forEach((l: any) => {
+                const cat = l.category.toUpperCase();
+                const name = l.name;
+                const statStr = (l.stat || '').toUpperCase();
+                
+                let yds = 0, td = 0, int = 0, sack = 0, fum = 0;
+                
+                const parts = statStr.split(',');
+                parts.forEach((p: string) => {
+                    const clean = p.trim();
+                    if (clean.includes('YDS')) yds += parseFloat(clean) || 0;
+                    if (clean.includes('TD')) td += parseFloat(clean) || 0;
+                    if (clean.includes('INT')) int += parseFloat(clean) || 0;
+                    if (clean.includes('SACK')) sack += parseFloat(clean) || 0;
+                    if (clean.includes('FUM')) fum += parseFloat(clean) || 0;
+                });
+                
+                const rawNum = parseFloat(statStr);
+
+                if (cat.includes('PASS')) {
+                    passYds += yds; passTds += td; turnovers += int;
+                    if (!playersPass[name]) playersPass[name] = { yds: 0, td: 0, int: 0 };
+                    playersPass[name].yds += yds;
+                    playersPass[name].td += td;
+                    playersPass[name].int += int;
+                } else if (cat.includes('RUSH')) {
+                    rushYds += yds; rushTds += td; turnovers += fum;
+                    if (!playersRush[name]) playersRush[name] = { yds: 0, td: 0 };
+                    playersRush[name].yds += yds;
+                    playersRush[name].td += td;
+                } else if (cat.includes('REC')) {
+                    recYds += yds;
+                    if (!playersRec[name]) playersRec[name] = { yds: 0, td: 0 };
+                    playersRec[name].yds += yds;
+                    playersRec[name].td += td;
+                } else if (cat.includes('SACK')) {
+                    sacks += sack || (!isNaN(rawNum) ? rawNum : 0);
+                } else if (cat.includes('INT')) {
+                    defInts += int || (!isNaN(rawNum) ? rawNum : 0);
+                } else if (cat.includes('FUM')) {
+                    defFums += fum || (!isNaN(rawNum) ? rawNum : 0);
+                } else if (cat.includes('DEF') || cat.includes('TACKLE')) {
+                    sacks += sack;
+                    defInts += int;
+                    defFums += fum;
+                }
+            });
+
+            (oppLeaders || []).forEach((l: any) => {
+                const cat = l.category.toUpperCase();
+                const statStr = (l.stat || '').toUpperCase();
+                let yds = 0;
+                const parts = statStr.split(',');
+                parts.forEach((p: string) => {
+                    const clean = p.trim();
+                    if (clean.includes('YDS')) yds += parseFloat(clean) || 0;
+                });
+                if (cat.includes('PASS') || cat.includes('RUSH')) {
+                    ydsAllowed += yds;
+                }
+            });
+          });
+
+          // Funções de formatação elegantes
+          const getTopPasser = (dict: Record<string, { yds: number, td: number, int: number }>) => {
+              const sorted = Object.entries(dict).sort((a,b) => b[1].yds - a[1].yds);
+              if (sorted.length === 0) return '-';
+              return `${sorted[0][0]} (${sorted[0][1].yds} YDS, ${sorted[0][1].td} TD, ${sorted[0][1].int} INT)`;
+          };
+
+          const getTopRunnerOrRec = (dict: Record<string, { yds: number, td: number }>) => {
+              const sorted = Object.entries(dict).sort((a,b) => b[1].yds - a[1].yds);
+              if (sorted.length === 0) return '-';
+              return `${sorted[0][0]} (${sorted[0][1].yds} YDS, ${sorted[0][1].td} TD)`;
+          };
+
+          const ptsDiff = ptsScored - ptsAllowed;
+
+          setTeamSeasonStats({
+              offense: [
+                  { label: 'Passing Leader', value: getTopPasser(playersPass) },
+                  { label: 'Rushing Leader', value: getTopRunnerOrRec(playersRush) },
+                  { label: 'Receiving Leader', value: getTopRunnerOrRec(playersRec) },
+                  { label: 'Total Yards', value: passYds + rushYds },
+                  { label: 'Total Passing TDs', value: passTds },
+                  { label: 'Total Rushing TDs', value: rushTds },
+                  { label: 'Turnovers', value: turnovers },
+              ],
+              defense: [
+                  { label: 'Sacks', value: sacks },
+                  { label: 'Ints', value: defInts },
+                  { label: 'Fumbles', value: defFums },
+                  { label: 'Yards Allowed', value: ydsAllowed },
+              ],
+              game: [
+                  { label: 'Points Scored', value: ptsScored },
+                  { label: 'Points Allowed', value: ptsAllowed },
+                  { label: 'Points Diff', value: ptsDiff > 0 ? `+${ptsDiff}` : ptsDiff },
+              ]
+          });
+
         } catch (error) {
-          setSeasonLeaders([
-            { category: 'Passing', name: 'Offline', stat: '- PASS YDS' },
-            { category: 'Rushing', name: 'Offline', stat: '- RUSH YDS' },
-            { category: 'Receiving', name: 'Offline', stat: '- REC YDS' },
-          ]);
+           console.error("Erro ao compilar estatísticas do time", error);
         } finally {
           setLoadingLeaders(false);
         }
@@ -209,9 +310,39 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
     
     let homeLeaders: any[] = [];
     let awayLeaders: any[] = [];
+    
+    const filterAndFormatLeaders = (leaders: any[]) => {
+      const allowed = ['PASS', 'RUSH', 'REC', 'DEF', 'TACKLES', 'SACKS', 'INT', 'FG', 'KICK'];
+      
+      return leaders.filter(l => {
+        const cat = l.category.toUpperCase();
+        return allowed.some(a => cat.includes(a));
+      }).map(l => {
+        const cat = l.category.toUpperCase();
+        let badge = 'STAT';
+        
+        if (cat.includes('PASS')) badge = 'PASS';
+        else if (cat.includes('RUSH')) badge = 'RUSH';
+        else if (cat.includes('REC')) badge = 'REC';
+        else if (cat.includes('TACKLE') || cat.includes('DEF')) badge = 'TKL';
+        else if (cat.includes('SACK')) badge = 'SACK';
+        else if (cat.includes('INT')) badge = 'INT';
+        else if (cat.includes('FG') || cat.includes('KICK')) badge = 'KICK';
+
+        let formattedStat = l.stat || '-';
+        if (!isNaN(Number(formattedStat))) {
+            formattedStat = `${formattedStat} ${badge}`;
+        } else {
+            formattedStat = formattedStat.replace(/YARDS YDS/gi, 'YDS').replace(/YDS YDS/gi, 'YDS');
+        }
+
+        return { ...l, badge, formattedStat };
+      }).slice(0, 5);
+    };
+
     if (gameToRender.meta_data && gameToRender.meta_data.leaders) {
-      homeLeaders = gameToRender.meta_data.leaders.home || [];
-      awayLeaders = gameToRender.meta_data.leaders.away || [];
+      homeLeaders = filterAndFormatLeaders(gameToRender.meta_data.leaders.home || []);
+      awayLeaders = filterAndFormatLeaders(gameToRender.meta_data.leaders.away || []);
     }
 
     return (
@@ -264,15 +395,15 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
                 {awayAbbr} Leaders
               </span>
               <div className="flex flex-col gap-2">
-                {awayLeaders.map((l: any, i: number) => {
-                  const formattedStat = l.stat ? l.stat.replace('YDS', `${l.category.toUpperCase()} YDS`) : '-';
-                  return (
+                {awayLeaders.map((l: any, i: number) => (
                     <div key={i} className="flex flex-col bg-black/30 border border-white/5 rounded-lg p-2.5">
-                      <span className="text-gray-400 text-[10px] font-bold truncate leading-tight mb-0.5">{l.name}</span>
-                      <span className="text-white font-black text-xs leading-tight">{formattedStat}</span>
+                      <div className="flex justify-between items-start mb-0.5">
+                        <span className="text-gray-400 text-[10px] font-bold truncate leading-tight pr-2">{l.name}</span>
+                        <span className="text-[8px] font-black text-gray-600 uppercase bg-white/5 px-1.5 py-0.5 rounded shrink-0">{l.badge}</span>
+                      </div>
+                      <span className="text-white font-black text-xs leading-tight">{l.formattedStat}</span>
                     </div>
-                  );
-                })}
+                ))}
               </div>
             </div>
 
@@ -281,15 +412,15 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
                 {homeAbbr} Leaders
               </span>
               <div className="flex flex-col gap-2">
-                {homeLeaders.map((l: any, i: number) => {
-                  const formattedStat = l.stat ? l.stat.replace('YDS', `${l.category.toUpperCase()} YDS`) : '-';
-                  return (
+                {homeLeaders.map((l: any, i: number) => (
                     <div key={i} className="flex flex-col bg-black/30 border border-white/5 rounded-lg p-2.5">
-                      <span className="text-gray-400 text-[10px] font-bold truncate leading-tight mb-0.5">{l.name}</span>
-                      <span className="text-white font-black text-xs leading-tight">{formattedStat}</span>
+                      <div className="flex justify-between items-start mb-0.5">
+                        <span className="text-gray-400 text-[10px] font-bold truncate leading-tight pr-2">{l.name}</span>
+                        <span className="text-[8px] font-black text-gray-600 uppercase bg-white/5 px-1.5 py-0.5 rounded shrink-0">{l.badge}</span>
+                      </div>
+                      <span className="text-white font-black text-xs leading-tight">{l.formattedStat}</span>
                     </div>
-                  );
-                })}
+                ))}
               </div>
             </div>
           </div>
@@ -356,7 +487,7 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
             <div className="flex flex-col items-start md:items-end">
                 <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-500">Total Points</span>
                 <span 
-                  key={score} // A MÁGICA VISUAL ACONTECE AQUI (força animação ao atualizar)
+                  key={score}
                   className="text-5xl sm:text-7xl font-black italic tracking-tighter text-white leading-none mt-1 animate-fadeIn" 
                   style={{ textShadow: `0 0 25px ${teamInfo.primary_color}` }}
                 >
@@ -381,38 +512,60 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
         <div className="relative z-10 bg-black/60 border-t border-white/5 animate-fadeIn p-6 sm:p-10 pt-4 sm:pt-6">
           
           {activeTab === 'profile' && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="flex flex-col gap-6">
               
-              <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col">
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4 sm:p-6 flex flex-col">
                 <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/5">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">Season Leaders</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">Season Stats & Leaders</span>
                 </div>
                 
-                {loadingLeaders ? (
+                {loadingLeaders || !teamSeasonStats ? (
                     <div className="animate-pulse space-y-3">
                           <div className="h-4 bg-white/5 rounded w-full"></div>
                           <div className="h-4 bg-white/5 rounded w-full"></div>
                           <div className="h-4 bg-white/5 rounded w-full"></div>
                     </div>
                 ) : (
-                    <div className="flex flex-col gap-2.5">
-                        {seasonLeaders.map((leader, i) => (
-                            <div key={i} className="flex justify-between items-center bg-black/30 p-2 rounded">
-                                <div className="flex flex-col">
-                                  <span className="text-[9px] text-gray-500 uppercase font-black tracking-widest">{leader.category}</span>
-                                  <span className="text-xs text-white font-medium">{leader.name}</span>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        
+                        <div className="flex flex-col gap-2">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 border-b border-white/5 pb-2 mb-1">Offensive Stats</span>
+                            {teamSeasonStats.offense.map((item: any, i: number) => (
+                                <div key={i} className="flex justify-between items-center bg-black/30 p-2.5 rounded border border-white/5">
+                                    <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wide">{item.label}</span>
+                                    <span className="text-[11px] sm:text-xs text-white font-black text-right pl-2">{item.value}</span>
                                 </div>
-                                <span className="text-sm text-white font-black">{leader.stat}</span>
-                            </div>
-                        ))}
+                            ))}
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 border-b border-white/5 pb-2 mb-1">Defensive Stats</span>
+                            {teamSeasonStats.defense.map((item: any, i: number) => (
+                                <div key={i} className="flex justify-between items-center bg-black/30 p-2.5 rounded border border-white/5">
+                                    <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wide">{item.label}</span>
+                                    <span className="text-[11px] sm:text-xs text-white font-black text-right pl-2">{item.value}</span>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 border-b border-white/5 pb-2 mb-1">Game Stats</span>
+                            {teamSeasonStats.game.map((item: any, i: number) => (
+                                <div key={i} className="flex justify-between items-center bg-black/30 p-2.5 rounded border border-white/5">
+                                    <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wide">{item.label}</span>
+                                    <span className="text-[11px] sm:text-xs text-white font-black text-right pl-2">{item.value}</span>
+                                </div>
+                            ))}
+                        </div>
+
                     </div>
                 )}
               </div>
 
-              <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col overflow-x-auto">
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4 sm:p-6 flex flex-col overflow-x-auto">
                 <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/5">
                   <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
-                    {teamInfo.conference} {teamInfo.division}
+                    {teamInfo.conference} {teamInfo.division} Standings
                   </span>
                 </div>
                 

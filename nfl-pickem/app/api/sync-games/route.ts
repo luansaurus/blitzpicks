@@ -2,8 +2,6 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import fs from 'fs';
-import path from 'path';
 
 interface GameRecord {
   id: number;
@@ -51,18 +49,10 @@ export async function GET(request: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    const USE_MOCK = process.env.USE_MOCK_DATA === 'true';
-    let events = [];
-
-    if (USE_MOCK) {
-      const mockPath = path.join(process.cwd(), 'mocks', 'espn_week1.json');
-      const mockData = JSON.parse(fs.readFileSync(mockPath, 'utf-8'));
-      events = mockData.events;
-    } else {
-      const response = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard', { next: { revalidate: 0 } });
-      const data = await response.json();
-      events = data.events;
-    }
+    // Busca apenas da API real da ESPN
+    const response = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard', { next: { revalidate: 0 } });
+    const data = await response.json();
+    const events = data.events;
 
     if (!events || !Array.isArray(events) || events.length === 0) {
       return NextResponse.json({ message: 'Nenhum jogo encontrado' }, { status: 200 });
@@ -93,14 +83,55 @@ export async function GET(request: Request) {
 
       console.log(`\n--- Analisando: ${awayAbbr} @ ${homeAbbr} ---`);
 
-      const extractLeaders = (data: any) => {
-        if (!data?.leaders) return [];
-        return data.leaders.map((l: any) => ({
-          category: l.shortDisplayName,
-          name: l.leaders?.[0]?.athlete?.shortName || 'N/A',
-          stat: l.leaders?.[0]?.displayValue || '0'
-        }));
-      };
+      // ---------------------------------------------------------
+      // MÁGICA DOS LÍDERES (Mergulho Profundo na ESPN)
+      // ---------------------------------------------------------
+      const homeTeamId = homeData?.team?.id;
+      const awayTeamId = awayData?.team?.id;
+
+      let homeLeaders: any[] = [];
+      let awayLeaders: any[] = [];
+
+      if (isInProgress || isFinished) {
+        try {
+          const summaryRes = await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event=${event.id}`, { next: { revalidate: 0 } });
+          
+          if (summaryRes.ok) {
+            const summaryData = await summaryRes.json();
+            
+            if (summaryData.leaders && Array.isArray(summaryData.leaders)) {
+              summaryData.leaders.forEach((teamBlock: any) => {
+                const currentTeamId = teamBlock.team?.id;
+                
+                const parsedLeaders = (teamBlock.leaders || []).map((cat: any) => {
+                  const topPlayer = cat.leaders?.[0];
+                  if (!topPlayer) return null;
+                  
+                  const athlete = topPlayer.athlete || {};
+                  let athleteName = athlete.shortName || athlete.displayName || athlete.fullName || 'N/A';
+                  if (athleteName.toLowerCase() === 'total') athleteName = 'N/A';
+                  
+                  if (athleteName === 'N/A') return null;
+
+                  return {
+                    category: cat.shortDisplayName || cat.displayName || cat.name || '',
+                    name: athleteName,
+                    stat: topPlayer.displayValue || '0'
+                  };
+                }).filter(Boolean);
+
+                if (currentTeamId === homeTeamId) {
+                  homeLeaders = parsedLeaders;
+                } else if (currentTeamId === awayTeamId) {
+                  awayLeaders = parsedLeaders;
+                }
+              });
+            }
+          }
+        } catch (e) {
+          console.error(`Falha ao buscar summary profundo do jogo ${event.id}`, e);
+        }
+      }
 
       const metaData = {
         linescores: {
@@ -108,10 +139,11 @@ export async function GET(request: Request) {
           away: awayData?.linescores?.map((l: any) => l.value) || []
         },
         leaders: {
-          home: extractLeaders(homeData),
-          away: extractLeaders(awayData)
+          home: homeLeaders,
+          away: awayLeaders
         }
       };
+      // ---------------------------------------------------------
 
       let espnWeek = event?.week?.number?.toString() || '1';
       if (event?.season?.type === 3) {
@@ -127,7 +159,7 @@ export async function GET(request: Request) {
 
         if (homeTeam && awayTeam) {
           const { data: gameCheck } = await supabase.from('games')
-            .select('id, status')
+            .select('id, status, meta_data')
             .eq('home_team_id', homeTeam.id)
             .eq('away_team_id', awayTeam.id)
             .eq('week', espnWeek)
@@ -135,10 +167,12 @@ export async function GET(request: Request) {
             
           if (gameCheck) {
             
-            // TRAVA DE SEGURANÇA: Se o jogo já estava "finished" no nosso banco de dados,
-            // não precisamos atualizar de novo. Pula para o próximo jogo.
-            if (gameCheck.status === 'finished') {
-                console.log(`[WARN] Jogo já estava FINALIZADO. Pulando para não duplicar standings.`);
+            // TRAVA DE SEGURANÇA INTELIGENTE
+            const dbMeta = gameCheck.meta_data as any;
+            const hasLeaders = (dbMeta?.leaders?.home?.length > 0) || (dbMeta?.leaders?.away?.length > 0);
+
+            if (gameCheck.status === 'finished' && hasLeaders) {
+                console.log(`[WARN] Jogo já estava FINALIZADO e com estatísticas completas. Pulando.`);
                 continue;
             }
 
@@ -184,7 +218,7 @@ export async function GET(request: Request) {
       success: true, 
       processed: updatedCount,
       recalculated: hasNewFinishedGame,
-      source: USE_MOCK ? 'Mock Local' : 'ESPN API'
+      source: 'ESPN API'
     });
 
   } catch (error) {
