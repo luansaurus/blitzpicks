@@ -16,7 +16,6 @@ export default function Results () {
   const [teamsMap, setTeamsMap] = useState<Record<string, any>>({});
   const [standingsByConfAndDiv, setStandingsByConfAndDiv] = useState<Record<string, Record<string, any[]>>>({});
   
-  // O Estado Mágico que guarda o chaveamento gerado
   const [computedSeeds, setComputedSeeds] = useState<{ AFC: Record<number, any>; NFC: Record<number, any> }>({ AFC: {}, NFC: {} });
   
   const [isStandingsOpen, setIsStandingsOpen] = useState(false);
@@ -55,7 +54,6 @@ export default function Results () {
       const groupedStandings: Record<string, Record<string, any[]>> = { AFC: {}, NFC: {} };
 
       if (teams && standings) {
-        // GERA OS SEEDS AUTOMATICAMENTE AQUI:
         const generatedSeeds = await getPlayoffSeeds(teams, standings);
         setComputedSeeds(generatedSeeds);
       }
@@ -215,8 +213,8 @@ export default function Results () {
           {seasonPhase === 'playoffs' && playoffView === 'bracket' ? (
             <PlayoffLiveView 
               userAccentColor={userColor} 
-              userInitialSeeds={computedSeeds} // <--- SEEDS AUTOMÁTICOS PASSADOS AQUI
-              realResults={{}} // AQUI PODEREMOS PUXAR OS VENCEDORES REAIS DO BANCO NO FUTURO
+              userInitialSeeds={computedSeeds} 
+              realResults={{}} 
             />
           ) : (
             displayWeeks.length === 0 ? (
@@ -247,7 +245,14 @@ export default function Results () {
                       <div className={`p-3 sm:p-4 ${isSuperBowlWeek ? 'bg-black/40' : 'bg-black/30'}`}>
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
                           {weekGames.map(game => (
-                            <GameCard key={game.id} game={game} userTeamColor={userColor} homeTeam={teamsMap[game.home_team_id?.toString()] || { name: 'Home', abbr: 'HOME', color: '#171717' }} awayTeam={teamsMap[game.away_team_id?.toString()] || { name: 'Away', abbr: 'AWAY', color: '#171717' }} hidePicks={true} />
+                            <GameCard 
+                              key={game.id} 
+                              game={game} 
+                              userTeamColor={userColor} 
+                              homeTeam={teamsMap[game.home_team_id?.toString()] || { name: 'Home', abbr: 'HOME', color: '#171717' }} 
+                              awayTeam={teamsMap[game.away_team_id?.toString()] || { name: 'Away', abbr: 'AWAY', color: '#171717' }} 
+                              hidePicks={true} // <-- Aqui está a mágica de volta!
+                            />
                           ))}
                         </div>
                       </div>
