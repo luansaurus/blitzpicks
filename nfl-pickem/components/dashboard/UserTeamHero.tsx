@@ -308,38 +308,68 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
     const wonMatch = (myScore || 0) > (oppScore || 0);
     const isTie = myScore !== null && myScore === oppScore;
     
-    let homeLeaders: any[] = [];
-    let awayLeaders: any[] = [];
-    
+    // --- NOVO FILTRO DE STATS (Igual ao GameCard) ---
     const filterAndFormatLeaders = (leaders: any[]) => {
-      const allowed = ['PASS', 'RUSH', 'REC', 'DEF', 'TACKLES', 'SACKS', 'INT', 'FG', 'KICK'];
+      const result: any[] = [];
       
-      return leaders.filter(l => {
-        const cat = l.category.toUpperCase();
-        return allowed.some(a => cat.includes(a));
+      // 1. Ataque
+      const offensiveCategories = ['PASS', 'RUSH', 'REC'];
+      const offensive = leaders.filter(l => {
+        const cat = l.category?.toUpperCase() || '';
+        return offensiveCategories.some(a => cat.includes(a)) && cat !== 'TEAM_DEF' && cat !== 'TEAM_ST';
       }).map(l => {
-        const cat = l.category.toUpperCase();
         let badge = 'STAT';
-        
+        const cat = l.category?.toUpperCase() || '';
         if (cat.includes('PASS')) badge = 'PASS';
         else if (cat.includes('RUSH')) badge = 'RUSH';
         else if (cat.includes('REC')) badge = 'REC';
-        else if (cat.includes('TACKLE') || cat.includes('DEF')) badge = 'TKL';
-        else if (cat.includes('SACK')) badge = 'SACK';
-        else if (cat.includes('INT')) badge = 'INT';
-        else if (cat.includes('FG') || cat.includes('KICK')) badge = 'KICK';
 
         let formattedStat = l.stat || '-';
-        if (!isNaN(Number(formattedStat))) {
-            formattedStat = `${formattedStat} ${badge}`;
-        } else {
-            formattedStat = formattedStat.replace(/YARDS YDS/gi, 'YDS').replace(/YDS YDS/gi, 'YDS');
-        }
+        if (!isNaN(Number(formattedStat))) formattedStat = `${formattedStat} ${badge}`;
+        else formattedStat = formattedStat.replace(/YARDS YDS/gi, 'YDS').replace(/YDS YDS/gi, 'YDS');
 
         return { ...l, badge, formattedStat };
-      }).slice(0, 5);
+      }).slice(0, 3);
+      result.push(...offensive);
+
+      // 2. Defesa (Se a API enviou agrupado usa, senão calcula)
+      const teamDef = leaders.find(l => l.category === 'TEAM_DEF');
+      if (teamDef) {
+        result.push({ ...teamDef, badge: 'DEF', formattedStat: teamDef.stat });
+      } else {
+        let totalSacks = 0, totalInts = 0, totalFumbles = 0;
+        leaders.forEach(l => {
+          const cat = l.category?.toUpperCase() || '';
+          const statVal = parseFloat(l.stat) || 0;
+          if (cat.includes('SACK')) totalSacks += statVal;
+          if (cat.includes('INT') && !cat.includes('PASS')) totalInts += statVal;
+          if (cat.includes('FUM') || cat.includes('RECOVER')) totalFumbles += statVal;
+        });
+        result.push({ name: 'Team Defense', badge: 'DEF', formattedStat: `${totalSacks} Sacks, ${totalInts} INT, ${totalFumbles} Fum. Rec.` });
+      }
+
+      // 3. Special Teams (Se a API enviou agrupado usa, senão calcula)
+      const teamSt = leaders.find(l => l.category === 'TEAM_ST');
+      if (teamSt) {
+        result.push({ ...teamSt, badge: 'ST', formattedStat: teamSt.stat });
+      } else {
+        let stStats: string[] = [];
+        leaders.forEach(l => {
+          const cat = l.category?.toUpperCase() || '';
+          const stat = l.stat || '';
+          if (cat.includes('FG') || cat.includes('FIELD GOAL') || cat.includes('KICK')) stStats.push(`FG: ${stat}`);
+          else if (cat.includes('XP') || cat.includes('EXTRA POINT')) stStats.push(`XP: ${stat}`);
+          else if (cat.includes('PUNT')) stStats.push(`Punts: ${stat} (${l.name})`);
+        });
+        result.push({ name: 'Special Teams', badge: 'ST', formattedStat: stStats.length > 0 ? stStats.join(' | ') : '0/0 FG | 0/0 XP | 0 Punts' });
+      }
+
+      return result;
     };
 
+    let homeLeaders: any[] = [];
+    let awayLeaders: any[] = [];
+    
     if (gameToRender.meta_data && gameToRender.meta_data.leaders) {
       homeLeaders = filterAndFormatLeaders(gameToRender.meta_data.leaders.home || []);
       awayLeaders = filterAndFormatLeaders(gameToRender.meta_data.leaders.away || []);
@@ -399,7 +429,9 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
                     <div key={i} className="flex flex-col bg-black/30 border border-white/5 rounded-lg p-2.5">
                       <div className="flex justify-between items-start mb-0.5">
                         <span className="text-gray-400 text-[10px] font-bold truncate leading-tight pr-2">{l.name}</span>
-                        <span className="text-[8px] font-black text-gray-600 uppercase bg-white/5 px-1.5 py-0.5 rounded shrink-0">{l.badge}</span>
+                        <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded shrink-0 ${l.badge === 'DEF' || l.badge === 'ST' ? 'bg-transparent text-gray-600' : 'bg-white/5 text-gray-500'}`}>
+                          {l.badge}
+                        </span>
                       </div>
                       <span className="text-white font-black text-xs leading-tight">{l.formattedStat}</span>
                     </div>
@@ -416,7 +448,9 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
                     <div key={i} className="flex flex-col bg-black/30 border border-white/5 rounded-lg p-2.5">
                       <div className="flex justify-between items-start mb-0.5">
                         <span className="text-gray-400 text-[10px] font-bold truncate leading-tight pr-2">{l.name}</span>
-                        <span className="text-[8px] font-black text-gray-600 uppercase bg-white/5 px-1.5 py-0.5 rounded shrink-0">{l.badge}</span>
+                        <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded shrink-0 ${l.badge === 'DEF' || l.badge === 'ST' ? 'bg-transparent text-gray-600' : 'bg-white/5 text-gray-500'}`}>
+                          {l.badge}
+                        </span>
                       </div>
                       <span className="text-white font-black text-xs leading-tight">{l.formattedStat}</span>
                     </div>
