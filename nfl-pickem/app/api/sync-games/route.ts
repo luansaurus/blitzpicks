@@ -33,15 +33,7 @@ export async function GET(request: Request) {
     const secret = searchParams.get('secret');
     
     if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
-      return NextResponse.json({ 
-        error: 'Unauthorized',
-        detetive: {
-          recebeuNaUrl: secret,
-          variavelExisteNaVercel: !!process.env.CRON_SECRET,
-          tamanhoNaVercel: process.env.CRON_SECRET?.length || 0,
-          tamanhoNaUrl: secret?.length || 0
-        }
-      }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const supabase = createClient(
@@ -49,7 +41,6 @@ export async function GET(request: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // Busca apenas da API real da ESPN
     const response = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard', { next: { revalidate: 0 } });
     const data = await response.json();
     const events = data.events;
@@ -83,9 +74,6 @@ export async function GET(request: Request) {
 
       console.log(`\n--- Analisando: ${awayAbbr} @ ${homeAbbr} ---`);
 
-      // ---------------------------------------------------------
-      // MÁGICA DOS LÍDERES (Mergulho Profundo na ESPN)
-      // ---------------------------------------------------------
       const homeTeamId = homeData?.team?.id;
       const awayTeamId = awayData?.team?.id;
 
@@ -99,6 +87,7 @@ export async function GET(request: Request) {
           if (summaryRes.ok) {
             const summaryData = await summaryRes.json();
             
+            // 1. EXTRAIR LÍDERES OFENSIVOS
             if (summaryData.leaders && Array.isArray(summaryData.leaders)) {
               summaryData.leaders.forEach((teamBlock: any) => {
                 const currentTeamId = teamBlock.team?.id;
@@ -110,7 +99,6 @@ export async function GET(request: Request) {
                   const athlete = topPlayer.athlete || {};
                   let athleteName = athlete.shortName || athlete.displayName || athlete.fullName || 'N/A';
                   if (athleteName.toLowerCase() === 'total') athleteName = 'N/A';
-                  
                   if (athleteName === 'N/A') return null;
 
                   return {
@@ -120,13 +108,63 @@ export async function GET(request: Request) {
                   };
                 }).filter(Boolean);
 
-                if (currentTeamId === homeTeamId) {
-                  homeLeaders = parsedLeaders;
-                } else if (currentTeamId === awayTeamId) {
-                  awayLeaders = parsedLeaders;
-                }
+                if (currentTeamId === homeTeamId) homeLeaders = parsedLeaders;
+                else if (currentTeamId === awayTeamId) awayLeaders = parsedLeaders;
               });
             }
+
+            // 2. EXTRAIR ESTATÍSTICAS REAIS DE DEFESA (Pelo Boxscore da Equipe Oponente)
+            const getTeamStat = (teamId: string, statName: string) => {
+                const teamBox = summaryData.boxscore?.teams?.find((t: any) => t.team?.id === teamId);
+                return teamBox?.statistics?.find((s: any) => s.name === statName)?.displayValue || "0";
+            };
+
+            const homeSacks = parseInt(getTeamStat(awayTeamId, "sacksYardsLost").split("-")[0]) || 0;
+            const homeInts = parseInt(getTeamStat(awayTeamId, "interceptions")) || 0;
+            const homeFums = parseInt(getTeamStat(awayTeamId, "fumblesLost")) || 0;
+
+            const awaySacks = parseInt(getTeamStat(homeTeamId, "sacksYardsLost").split("-")[0]) || 0;
+            const awayInts = parseInt(getTeamStat(homeTeamId, "interceptions")) || 0;
+            const awayFums = parseInt(getTeamStat(homeTeamId, "fumblesLost")) || 0;
+
+            // 3. EXTRAIR ESTATÍSTICAS REAIS DE SPECIAL TEAMS (Kickers & Punters)
+            const getKicks = (teamId: string, type: string) => {
+                const players = summaryData.boxscore?.players?.find((p: any) => p.team?.id === teamId);
+                if (!players) return "0/0";
+                const kickStats = players.statistics?.find((s: any) => s.name === "kicking");
+                if (!kickStats) return "0/0";
+                const idx = kickStats.labels?.indexOf(type);
+                if (idx === -1 || idx === undefined) return "0/0";
+                
+                let makes = 0, attempts = 0;
+                kickStats.athletes?.forEach((a: any) => {
+                    const val = a.stats?.[idx] || "";
+                    const parts = val.split(/\/|-/);
+                    if(parts.length === 2) {
+                        makes += parseInt(parts[0]) || 0;
+                        attempts += parseInt(parts[1]) || 0;
+                    }
+                });
+                return `${makes}/${attempts}`;
+            };
+
+            const getPunts = (teamId: string) => {
+                const players = summaryData.boxscore?.players?.find((p: any) => p.team?.id === teamId);
+                if (!players) return 0;
+                const puntStats = players.statistics?.find((s: any) => s.name === "punting");
+                if (!puntStats) return 0;
+                const idx = puntStats.labels?.indexOf("NO");
+                if (idx === -1 || idx === undefined) return 0;
+                return puntStats.athletes?.reduce((acc: number, a: any) => acc + (parseInt(a.stats?.[idx]) || 0), 0) || 0;
+            };
+
+            // Injetamos os cards unificados diretamente na API!
+            homeLeaders.push({ category: 'TEAM_DEF', name: 'Team Defense', stat: `${homeSacks} Sacks, ${homeInts} INT, ${homeFums} Fum. Rec.` });
+            homeLeaders.push({ category: 'TEAM_ST', name: 'Special Teams', stat: `${getKicks(homeTeamId, "FG")} FG | ${getKicks(homeTeamId, "XP")} XP | ${getPunts(homeTeamId)} Punts` });
+
+            awayLeaders.push({ category: 'TEAM_DEF', name: 'Team Defense', stat: `${awaySacks} Sacks, ${awayInts} INT, ${awayFums} Fum. Rec.` });
+            awayLeaders.push({ category: 'TEAM_ST', name: 'Special Teams', stat: `${getKicks(awayTeamId, "FG")} FG | ${getKicks(awayTeamId, "XP")} XP | ${getPunts(awayTeamId)} Punts` });
+
           }
         } catch (e) {
           console.error(`Falha ao buscar summary profundo do jogo ${event.id}`, e);
@@ -138,12 +176,8 @@ export async function GET(request: Request) {
           home: homeData?.linescores?.map((l: any) => l.value) || [],
           away: awayData?.linescores?.map((l: any) => l.value) || []
         },
-        leaders: {
-          home: homeLeaders,
-          away: awayLeaders
-        }
+        leaders: { home: homeLeaders, away: awayLeaders }
       };
-      // ---------------------------------------------------------
 
       let espnWeek = event?.week?.number?.toString() || '1';
       if (event?.season?.type === 3) {
@@ -167,14 +201,11 @@ export async function GET(request: Request) {
             
           if (gameCheck) {
             
-            // TRAVA DE SEGURANÇA INTELIGENTE
-            const dbMeta = gameCheck.meta_data as any;
-            const hasLeaders = (dbMeta?.leaders?.home?.length > 0) || (dbMeta?.leaders?.away?.length > 0);
-
-            if (gameCheck.status === 'finished' && hasLeaders) {
-                console.log(`[WARN] Jogo já estava FINALIZADO e com estatísticas completas. Pulando.`);
-                continue;
-            }
+            // ATENÇÃO: Comentei a trava de segurança temporariamente para FORÇAR 
+            // a API a atualizar todos os jogos do banco com a nova Defesa e ST!
+            // const dbMeta = gameCheck.meta_data as any;
+            // const hasLeaders = (dbMeta?.leaders?.home?.length > 0) || (dbMeta?.leaders?.away?.length > 0);
+            // if (gameCheck.status === 'finished' && hasLeaders) { continue; }
 
             let dbStatus = 'pending';
             if (isFinished) dbStatus = 'finished';
@@ -195,31 +226,18 @@ export async function GET(request: Request) {
               })
               .eq('id', gameCheck.id);
 
-            if (error) {
-              console.error(`[ERROR] Erro do Supabase ao atualizar ${awayAbbr} @ ${homeAbbr}:`, error.message);
-            } else {
-              console.log(`[OK] Placar atualizado: ${awayScore} - ${homeScore} | Status: ${dbStatus}`);
-              updatedCount++;
-            }
-          } else {
-            console.log(`[WARN] Jogo não encontrado no banco na semana ${espnWeek}.`);
+            if (!error) updatedCount++;
           }
         }
       }
     }
 
     if (hasNewFinishedGame) {
-      console.log(`\n[INFO] Jogo recém-finalizado! Recalculando...`);
       await recalculateStandings(supabase);
       await recalculateLeaderboard(supabase);
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      processed: updatedCount,
-      recalculated: hasNewFinishedGame,
-      source: 'ESPN API'
-    });
+    return NextResponse.json({ success: true, processed: updatedCount });
 
   } catch (error) {
     console.error("CRITICAL SYNC ERROR:", error);
@@ -229,67 +247,41 @@ export async function GET(request: Request) {
 
 async function recalculateStandings(supabase: any) {
   const { data: teams } = await supabase.from('teams').select('id, conference, division');
-  const { data: games } = await supabase.from('games')
-    .select('home_team_id, away_team_id, home_score, away_score, status, week')
-    .eq('status', 'finished') as { data: GameRecord[] | null };
-
+  const { data: games } = await supabase.from('games').select('home_team_id, away_team_id, home_score, away_score, status, week').eq('status', 'finished') as { data: GameRecord[] | null };
   if (!teams || !games) return;
-
   const { data: existingStandings } = await supabase.from('standings').select('id, team_id');
   const standingsMap = new Map((existingStandings || []).map((s: any) => [s.team_id, s.id]));
-
   for (const team of teams) {
-    let wins = 0, losses = 0, ties = 0;
-    let divW = 0, divL = 0, divT = 0;
-    let confW = 0, confL = 0, confT = 0;
-    let crossW = 0, crossL = 0, crossT = 0;
-
+    let wins = 0, losses = 0, ties = 0, divW = 0, divL = 0, divT = 0, confW = 0, confL = 0, confT = 0, crossW = 0, crossL = 0, crossT = 0;
     games.forEach((game) => {
       if (['WC', 'DR', 'CC', 'SB', 'AFCC', 'NFCC'].includes(game.week)) return;
-
       const isHome = game.home_team_id === team.id;
       const isAway = game.away_team_id === team.id;
       if (!isHome && !isAway) return;
-
       const opponentId = isHome ? game.away_team_id : game.home_team_id;
       const opponent = teams.find((t: any) => t.id === opponentId);
-      
       const teamScore = isHome ? game.home_score : game.away_score;
       const oppScore = isHome ? game.away_score : game.home_score;
-
       if (teamScore === null || oppScore === null) return;
-
-      const isWin = teamScore > oppScore;
-      const isLoss = teamScore < oppScore;
-      const isTie = teamScore === oppScore;
-
+      const isWin = teamScore > oppScore, isLoss = teamScore < oppScore, isTie = teamScore === oppScore;
       if (isWin) wins++; if (isLoss) losses++; if (isTie) ties++;
-
       if (opponent) {
-        const sameConf = team.conference === opponent.conference;
-        const sameDiv = sameConf && team.division === opponent.division;
-
+        const sameConf = team.conference === opponent.conference, sameDiv = sameConf && team.division === opponent.division;
         if (sameDiv) { if (isWin) divW++; if (isLoss) divL++; if (isTie) divT++; }
         if (sameConf) { if (isWin) confW++; if (isLoss) confL++; if (isTie) confT++; } 
         else { if (isWin) crossW++; if (isLoss) crossL++; if (isTie) crossT++; }
       }
     });
-
     const recordPayload = {
-      team_id: team.id,
-      wins, losses, ties,
+      team_id: team.id, wins, losses, ties,
       division_record: `${divW}-${divL}${divT > 0 ? `-${divT}` : ''}`,
       conference_record: `${confW}-${confL}${confT > 0 ? `-${confT}` : ''}`,
       cross_conference_record: `${crossW}-${crossL}${crossT > 0 ? `-${crossT}` : ''}`,
       updated_at: new Date().toISOString()
     };
-
     const existingId = standingsMap.get(team.id);
-    if (existingId) {
-      await supabase.from('standings').update(recordPayload).eq('id', existingId);
-    } else {
-      await supabase.from('standings').insert(recordPayload);
-    }
+    if (existingId) await supabase.from('standings').update(recordPayload).eq('id', existingId);
+    else await supabase.from('standings').insert(recordPayload);
   }
 }
 
@@ -297,23 +289,18 @@ async function recalculateLeaderboard(supabase: any) {
   const { data: users } = await supabase.from('profiles').select('id');
   const { data: games } = await supabase.from('games').select('id, home_score, away_score').eq('status', 'finished') as { data: GameRecord[] | null };
   const { data: guesses } = await supabase.from('guesses').select('*');
-
   if (!users || !games || !guesses) return;
   const gamesMap = new Map(games.map((g) => [g.id, g]));
-
   const updates = users.map((user: any) => {
     let totalScore = 0;
     const userGuesses = guesses.filter((g: any) => g.user_id === user.id);
-    
     userGuesses.forEach((guess: any) => {
       const game = gamesMap.get(guess.game_id);
       if (game && game.home_score !== null && game.away_score !== null) {
         totalScore += calculatePoints(game.home_score, game.away_score, guess.home_guess, guess.away_guess);
       }
     });
-
     return { id: user.id, score: totalScore };
   });
-
   await supabase.from('profiles').upsert(updates);
 }
