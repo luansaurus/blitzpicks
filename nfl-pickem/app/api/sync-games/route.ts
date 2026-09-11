@@ -11,6 +11,7 @@ interface GameRecord {
   away_score: number | null;
   status: string;
   week: string;
+  game_time: string;
 }
 
 function calculatePoints(homeScore: number, awayScore: number, homeGuess: number, awayGuess: number) {
@@ -72,6 +73,9 @@ export async function GET(request: Request) {
       const homeScore = parseInt(homeData?.score || '0');
       const awayScore = parseInt(awayData?.score || '0');
 
+      // --- EXTRAÇÃO DA EMISSORA (BROADCAST) ---
+      const broadcastStr = competition?.broadcasts?.[0]?.names?.[0] || '';
+
       console.log(`\n--- Analisando: ${awayAbbr} @ ${homeAbbr} ---`);
 
       const homeTeamId = homeData?.team?.id;
@@ -113,7 +117,7 @@ export async function GET(request: Request) {
               });
             }
 
-            // 2. EXTRAIR ESTATÍSTICAS REAIS DE DEFESA (Pelo Boxscore da Equipe Oponente)
+            // 2. EXTRAIR ESTATÍSTICAS REAIS DE DEFESA
             const getTeamStat = (teamId: string, statName: string) => {
                 const teamBox = summaryData.boxscore?.teams?.find((t: any) => t.team?.id === teamId);
                 return teamBox?.statistics?.find((s: any) => s.name === statName)?.displayValue || "0";
@@ -127,7 +131,7 @@ export async function GET(request: Request) {
             const awayInts = parseInt(getTeamStat(homeTeamId, "interceptions")) || 0;
             const awayFums = parseInt(getTeamStat(homeTeamId, "fumblesLost")) || 0;
 
-            // 3. EXTRAIR ESTATÍSTICAS REAIS DE SPECIAL TEAMS (Kickers & Punters)
+            // 3. EXTRAIR ESTATÍSTICAS REAIS DE SPECIAL TEAMS
             const getKicks = (teamId: string, type: string) => {
                 const players = summaryData.boxscore?.players?.find((p: any) => p.team?.id === teamId);
                 if (!players) return "0/0";
@@ -158,7 +162,7 @@ export async function GET(request: Request) {
                 return puntStats.athletes?.reduce((acc: number, a: any) => acc + (parseInt(a.stats?.[idx]) || 0), 0) || 0;
             };
 
-            // Injetamos os cards unificados diretamente na API!
+            // Injetamos os cards unificados diretamente na API
             homeLeaders.push({ category: 'TEAM_DEF', name: 'Team Defense', stat: `${homeSacks} Sacks, ${homeInts} INT, ${homeFums} Fum. Rec.` });
             homeLeaders.push({ category: 'TEAM_ST', name: 'Special Teams', stat: `${getKicks(homeTeamId, "FG")} FG | ${getKicks(homeTeamId, "XP")} XP | ${getPunts(homeTeamId)} Punts` });
 
@@ -176,7 +180,8 @@ export async function GET(request: Request) {
           home: homeData?.linescores?.map((l: any) => l.value) || [],
           away: awayData?.linescores?.map((l: any) => l.value) || []
         },
-        leaders: { home: homeLeaders, away: awayLeaders }
+        leaders: { home: homeLeaders, away: awayLeaders },
+        broadcast: broadcastStr
       };
 
       let espnWeek = event?.week?.number?.toString() || '1';
@@ -201,11 +206,16 @@ export async function GET(request: Request) {
             
           if (gameCheck) {
             
-            // ATENÇÃO: Comentei a trava de segurança temporariamente para FORÇAR 
-            // a API a atualizar todos os jogos do banco com a nova Defesa e ST!
-            // const dbMeta = gameCheck.meta_data as any;
-            // const hasLeaders = (dbMeta?.leaders?.home?.length > 0) || (dbMeta?.leaders?.away?.length > 0);
-            // if (gameCheck.status === 'finished' && hasLeaders) { continue; }
+            // TRAVA DE SEGURANÇA INTELIGENTE DE VOLTA!
+            // Verifica se o banco já possui as estatísticas completas para não gastar fetch à toa.
+            const dbMeta = gameCheck.meta_data as any;
+            const hasLeaders = (dbMeta?.leaders?.home?.length > 0) || (dbMeta?.leaders?.away?.length > 0);
+            
+            // Só pula a atualização se o jogo já acabou E as estatísticas estão preenchidas.
+            if (gameCheck.status === 'finished' && hasLeaders) {
+                console.log(`[WARN] Jogo já estava FINALIZADO com estatísticas prontas. Pulando.`);
+                continue;
+            }
 
             let dbStatus = 'pending';
             if (isFinished) dbStatus = 'finished';
@@ -232,12 +242,12 @@ export async function GET(request: Request) {
       }
     }
 
-    if (hasNewFinishedGame) {
-      await recalculateStandings(supabase);
-      await recalculateLeaderboard(supabase);
-    }
+    // Mesmo sem jogos finalizados hoje, chamamos a reavaliação 
+    // para corrigir as vitórias/derrotas das temporadas passadas (0-124)
+    await recalculateStandings(supabase);
+    await recalculateLeaderboard(supabase);
 
-    return NextResponse.json({ success: true, processed: updatedCount });
+    return NextResponse.json({ success: true, processed: updatedCount, message: "Sync executado com sucesso." });
 
   } catch (error) {
     console.error("CRITICAL SYNC ERROR:", error);
@@ -247,24 +257,50 @@ export async function GET(request: Request) {
 
 async function recalculateStandings(supabase: any) {
   const { data: teams } = await supabase.from('teams').select('id, conference, division');
-  const { data: games } = await supabase.from('games').select('home_team_id, away_team_id, home_score, away_score, status, week').eq('status', 'finished') as { data: GameRecord[] | null };
+  
+  const { data: games } = await supabase.from('games').select('id, home_team_id, away_team_id, home_score, away_score, status, week, game_time').eq('status', 'finished') as { data: GameRecord[] | null };
   if (!teams || !games) return;
+
+  // Filtro poderoso: Agrega somente os jogos da temporada atual
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth();
+  const activeSeasonYear = currentMonth < 3 ? currentYear - 1 : currentYear;
+
+  const uniqueGames = new Map();
+  games.forEach(g => {
+      if (!g.game_time) return;
+      const d = new Date(g.game_time);
+      const gYear = d.getFullYear();
+      const sYear = d.getMonth() < 3 ? gYear - 1 : gYear;
+      
+      if (sYear === activeSeasonYear) {
+          uniqueGames.set(g.id, g); 
+      }
+  });
+  
+  const seasonGames = Array.from(uniqueGames.values());
   const { data: existingStandings } = await supabase.from('standings').select('id, team_id');
   const standingsMap = new Map((existingStandings || []).map((s: any) => [s.team_id, s.id]));
+
   for (const team of teams) {
     let wins = 0, losses = 0, ties = 0, divW = 0, divL = 0, divT = 0, confW = 0, confL = 0, confT = 0, crossW = 0, crossL = 0, crossT = 0;
-    games.forEach((game) => {
+    
+    seasonGames.forEach((game) => {
       if (['WC', 'DR', 'CC', 'SB', 'AFCC', 'NFCC'].includes(game.week)) return;
       const isHome = game.home_team_id === team.id;
       const isAway = game.away_team_id === team.id;
       if (!isHome && !isAway) return;
+      
       const opponentId = isHome ? game.away_team_id : game.home_team_id;
       const opponent = teams.find((t: any) => t.id === opponentId);
       const teamScore = isHome ? game.home_score : game.away_score;
       const oppScore = isHome ? game.away_score : game.home_score;
+      
       if (teamScore === null || oppScore === null) return;
+      
       const isWin = teamScore > oppScore, isLoss = teamScore < oppScore, isTie = teamScore === oppScore;
       if (isWin) wins++; if (isLoss) losses++; if (isTie) ties++;
+      
       if (opponent) {
         const sameConf = team.conference === opponent.conference, sameDiv = sameConf && team.division === opponent.division;
         if (sameDiv) { if (isWin) divW++; if (isLoss) divL++; if (isTie) divT++; }
@@ -272,6 +308,7 @@ async function recalculateStandings(supabase: any) {
         else { if (isWin) crossW++; if (isLoss) crossL++; if (isTie) crossT++; }
       }
     });
+
     const recordPayload = {
       team_id: team.id, wins, losses, ties,
       division_record: `${divW}-${divL}${divT > 0 ? `-${divT}` : ''}`,
@@ -279,6 +316,7 @@ async function recalculateStandings(supabase: any) {
       cross_conference_record: `${crossW}-${crossL}${crossT > 0 ? `-${crossT}` : ''}`,
       updated_at: new Date().toISOString()
     };
+    
     const existingId = standingsMap.get(team.id);
     if (existingId) await supabase.from('standings').update(recordPayload).eq('id', existingId);
     else await supabase.from('standings').insert(recordPayload);
@@ -289,8 +327,10 @@ async function recalculateLeaderboard(supabase: any) {
   const { data: users } = await supabase.from('profiles').select('id');
   const { data: games } = await supabase.from('games').select('id, home_score, away_score').eq('status', 'finished') as { data: GameRecord[] | null };
   const { data: guesses } = await supabase.from('guesses').select('*');
+  
   if (!users || !games || !guesses) return;
   const gamesMap = new Map(games.map((g) => [g.id, g]));
+  
   const updates = users.map((user: any) => {
     let totalScore = 0;
     const userGuesses = guesses.filter((g: any) => g.user_id === user.id);
@@ -302,5 +342,6 @@ async function recalculateLeaderboard(supabase: any) {
     });
     return { id: user.id, score: totalScore };
   });
+  
   await supabase.from('profiles').upsert(updates);
 }
