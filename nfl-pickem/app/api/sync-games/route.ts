@@ -55,12 +55,19 @@ export async function GET(request: Request) {
     
     for (const event of events) {
       const statusName = event?.status?.type?.name || '';
-      const isFinished = statusName === 'STATUS_FINAL';
-      const isInProgress = statusName === 'STATUS_IN_PROGRESS';
+      const statusState = event?.status?.type?.state || ''; // 'pre', 'in', 'post'
+      
+      const isFinished = statusName === 'STATUS_FINAL' || statusState === 'post';
+      const isHalftime = statusName === 'STATUS_HALFTIME';
+      const isInProgress = statusName === 'STATUS_IN_PROGRESS' || isHalftime || statusState === 'in';
       
       const period = event?.status?.period || '';
       const displayClock = event?.status?.displayClock || '';
-      const clockString = isInProgress ? `${period}Q - ${displayClock}` : (isFinished ? 'FINAL' : '');
+      
+      let clockString = '';
+      if (isFinished) clockString = 'FINAL';
+      else if (isHalftime) clockString = 'HALFTIME';
+      else if (isInProgress) clockString = `${period}Q - ${displayClock}`;
 
       const competition = event?.competitions?.[0];
       if (!competition) continue;
@@ -206,8 +213,6 @@ export async function GET(request: Request) {
             
           if (gameCheck) {
             
-            // TRAVA DE SEGURANÇA INTELIGENTE DE VOLTA!
-            // Verifica se o banco já possui as estatísticas completas para não gastar fetch à toa.
             const dbMeta = gameCheck.meta_data as any;
             const hasLeaders = (dbMeta?.leaders?.home?.length > 0) || (dbMeta?.leaders?.away?.length > 0);
             
@@ -242,8 +247,6 @@ export async function GET(request: Request) {
       }
     }
 
-    // Mesmo sem jogos finalizados hoje, chamamos a reavaliação 
-    // para corrigir as vitórias/derrotas das temporadas passadas (0-124)
     await recalculateStandings(supabase);
     await recalculateLeaderboard(supabase);
 
@@ -261,7 +264,6 @@ async function recalculateStandings(supabase: any) {
   const { data: games } = await supabase.from('games').select('id, home_team_id, away_team_id, home_score, away_score, status, week, game_time').eq('status', 'finished') as { data: GameRecord[] | null };
   if (!teams || !games) return;
 
-  // Filtro poderoso: Agrega somente os jogos da temporada atual
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth();
   const activeSeasonYear = currentMonth < 3 ? currentYear - 1 : currentYear;
