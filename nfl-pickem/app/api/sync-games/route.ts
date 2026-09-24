@@ -80,8 +80,13 @@ export async function GET(request: Request) {
       const homeScore = parseInt(homeData?.score || '0');
       const awayScore = parseInt(awayData?.score || '0');
 
-      // --- EXTRAÇÃO DA EMISSORA (BROADCAST) ---
+      // --- EXTRAÇÃO DA EMISSORA (BROADCAST) E ODDS ---
       const broadcastStr = competition?.broadcasts?.[0]?.names?.[0] || '';
+      
+      // Nova extração de Odds (Ex: details: "SF -4.5", overUnder: 46.5)
+      const oddsData = competition?.odds?.[0];
+      const oddsDetails = oddsData?.details || '';
+      const overUnder = oddsData?.overUnder || '';
 
       console.log(`\n--- Analisando: ${awayAbbr} @ ${homeAbbr} ---`);
 
@@ -188,7 +193,11 @@ export async function GET(request: Request) {
           away: awayData?.linescores?.map((l: any) => l.value) || []
         },
         leaders: { home: homeLeaders, away: awayLeaders },
-        broadcast: broadcastStr
+        broadcast: broadcastStr,
+        odds: {
+          details: oddsDetails,
+          overUnder: overUnder
+        }
       };
 
       let espnWeek = event?.week?.number?.toString() || '1';

@@ -112,6 +112,29 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
     }
   };
 
+  // --- NAVEGAÇÃO INTELIGENTE (Pular com o Enter) ---
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Bloqueia caracteres inválidos em campos de número
+    if (e.key === '-' || e.key === 'e' || e.key === '+' || e.key === ',' || e.key === '.') {
+      e.preventDefault();
+    }
+    
+    // Pula para o próximo input ao dar Enter
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      
+      const formInputs = Array.from(document.querySelectorAll('input[type="number"]:not([disabled])')) as HTMLInputElement[];
+      const index = formInputs.indexOf(e.currentTarget);
+      
+      if (index > -1 && index < formInputs.length - 1) {
+        formInputs[index + 1].focus();
+        formInputs[index + 1].select();
+      } else {
+        e.currentTarget.blur();
+      }
+    }
+  };
+
   let pointsEarned = 0;
   let resultColorClass = '';
   
@@ -168,15 +191,14 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
   else innerCardClass += " bg-neutral-950";
   innerCardClass += isInputDisabled && !isLive ? " opacity-90" : " shadow-sm";
 
-  const blockNegativeKeys = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === '-' || e.key === 'e' || e.key === '+' || e.key === ',' || e.key === '.') e.preventDefault();
-  };
-
   const awayWon = hasGameStarted && game.away_score !== undefined && game.home_score !== undefined && game.away_score > game.home_score;
   const homeWon = hasGameStarted && game.away_score !== undefined && game.home_score !== undefined && game.home_score > game.away_score;
   const hasMetaData = game.meta_data && hasGameStarted;
 
-  // --- NOVA LÓGICA DE FILTRAGEM (Ataque, Defesa e Special Teams) ---
+  // VERIFICA AS ODDS DE VEGAS
+  const odds = game.meta_data?.odds;
+  const hasOdds = odds && (odds.details || odds.overUnder);
+
   const filterAndFormatLeaders = (leaders: any[]) => {
     const result: any[] = [];
     
@@ -286,7 +308,24 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
 
         <div className="flex flex-col gap-3 w-full relative">
           {!hidePicks && (
-            <div className="flex justify-end mb-[-4px]">
+            <div className={`flex items-end mb-[-4px] ${hasOdds && !hasGameStarted ? 'justify-between' : 'justify-end'}`}>
+              
+              {/* ÁREA DE ODDS (Só exibe se o jogo não tiver começado) */}
+              {hasOdds && !hasGameStarted && (
+                <div className="flex items-center gap-1.5 pb-0.5">
+                  {odds.details && (
+                    <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20" title="Vegas Spread">
+                      {odds.details}
+                    </span>
+                  )}
+                  {odds.overUnder && (
+                    <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-gray-400 bg-white/5 px-1.5 py-0.5 rounded border border-white/10" title="Vegas Over/Under">
+                      O/U {odds.overUnder}
+                    </span>
+                  )}
+                </div>
+              )}
+
               <div className="flex items-center gap-2">
                 {hasGameStarted && (
                   <span className="w-6 text-center text-[7px] font-black uppercase tracking-widest text-gray-500">{isLive ? 'Live' : 'Real'}</span>
@@ -331,7 +370,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                     </span>
                   )}
                   <input
-                    type="number" min="0" onKeyDown={blockNegativeKeys} onBlur={handleScoreBlur} disabled={isInputDisabled} value={awayPredict} 
+                    type="number" min="0" onKeyDown={handleKeyDown} onBlur={handleScoreBlur} disabled={isInputDisabled} value={awayPredict} 
                     onChange={(e) => {
                       const val = e.target.value;
                       if (val === "" || parseInt(val) >= 0) { 
@@ -383,7 +422,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                     </span>
                   )}
                   <input
-                    type="number" min="0" onKeyDown={blockNegativeKeys} onBlur={handleScoreBlur} disabled={isInputDisabled} value={homePredict} 
+                    type="number" min="0" onKeyDown={handleKeyDown} onBlur={handleScoreBlur} disabled={isInputDisabled} value={homePredict} 
                     onChange={(e) => {
                       const val = e.target.value;
                       if (val === "" || parseInt(val) >= 0) { 
@@ -461,14 +500,14 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                 </div>
 
                 <div className="flex gap-2 text-[9px]">
-                  {/* LÍDERES DO TIME VISITANTE (AWAY) */}
+                  {/* AWAY LEADERS */}
                   <div className="flex-1 bg-black/40 rounded-lg p-2 border border-white/5">
                     <span className="font-black text-gray-500 uppercase tracking-widest block mb-2">{awayTeam?.abbr} Leaders</span>
                     <div className="flex flex-col gap-1.5">
                       {awayLeaders.map((l: any, i: number) => (
-                        <div key={i} className="flex flex-col bg-white/5 rounded p-1.5 gap-0.5">
-                          <div className="flex justify-between items-start">
-                            <span className="text-gray-300 font-bold truncate leading-tight">{l.name}</span>
+                        <div key={i} className="flex flex-col bg-white/5 rounded p-1.5">
+                          <div className="flex justify-between items-start mb-0.5">
+                            <span className="text-gray-300 font-bold truncate leading-tight pr-1">{l.name}</span>
                             <span className={`text-[6px] sm:text-[7px] font-black uppercase px-1 py-0.5 rounded shrink-0 ${l.badge === 'DEF' || l.badge === 'ST' ? 'bg-transparent text-gray-500' : 'bg-white/10 text-gray-400'}`}>
                                {l.badge}
                             </span>
@@ -479,14 +518,14 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                     </div>
                   </div>
                   
-                  {/* LÍDERES DO TIME DA CASA (HOME) */}
+                  {/* HOME LEADERS */}
                   <div className="flex-1 bg-black/40 rounded-lg p-2 border border-white/5">
                     <span className="font-black text-gray-500 uppercase tracking-widest block mb-2">{homeTeam?.abbr} Leaders</span>
                     <div className="flex flex-col gap-1.5">
                       {homeLeaders.map((l: any, i: number) => (
-                        <div key={i} className="flex flex-col bg-white/5 rounded p-1.5 gap-0.5">
-                          <div className="flex justify-between items-start">
-                            <span className="text-gray-300 font-bold truncate leading-tight">{l.name}</span>
+                        <div key={i} className="flex flex-col bg-white/5 rounded p-1.5">
+                          <div className="flex justify-between items-start mb-0.5">
+                            <span className="text-gray-300 font-bold truncate leading-tight pr-1">{l.name}</span>
                             <span className={`text-[6px] sm:text-[7px] font-black uppercase px-1 py-0.5 rounded shrink-0 ${l.badge === 'DEF' || l.badge === 'ST' ? 'bg-transparent text-gray-500' : 'bg-white/10 text-gray-400'}`}>
                                {l.badge}
                             </span>
