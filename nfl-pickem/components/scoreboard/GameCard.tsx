@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import BroadcastBadge from '../ui/BroadcastBadge';
 import { getPickResult } from '@/utils/scoring';
-import { Circle, MapPin } from 'lucide-react';
+import { Circle, MapPin, Activity } from 'lucide-react';
+import { createClient } from '@/utils/supabase/client';
 
 interface GameCardProps {
   game: {
@@ -46,13 +47,15 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
   const [awayPredict, setAwayPredict] = useState(existingPick?.away_guess?.toString() || "");
   const [homePredict, setHomePredict] = useState(existingPick?.home_guess?.toString() || "");
   
-  // REFS: Previnem o bug de apagar dois campos rápido e o estado antigo sobrescrever o novo
   const awayRef = useRef(existingPick?.away_guess?.toString() || "");
   const homeRef = useRef(existingPick?.home_guess?.toString() || "");
 
   const [scoreError, setScoreError] = useState(false);
   const [isTimeBlocked, setIsTimeBlocked] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  
+  const [matchupStats, setMatchupStats] = useState<any>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
   
   const gameDate = new Date(game.game_time);
   const isFinished = game.status === 'finished';
@@ -84,7 +87,99 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
     return () => clearInterval(interval);
   }, [gameDate]);
 
-  // VALIDAÇÃO SCORIGAMI (Regra do 1 Ponto)
+  useEffect(() => {
+    async function fetchMatchupStats() {
+      if (!isExpanded || hasGameStarted || matchupStats) return;
+      
+      setLoadingStats(true);
+      const supabase = createClient();
+      
+      const { data: pastGames } = await supabase.from('games')
+        .select('home_team_id, away_team_id, meta_data')
+        .eq('status', 'finished')
+        .or(`home_team_id.in.(${game.home_team_id},${game.away_team_id}),away_team_id.in.(${game.home_team_id},${game.away_team_id})`);
+
+      const getStatsForTeam = (teamId: number, teamObj: any) => {
+        let passYds=0, rushYds=0, passAlw=0, rushAlw=0;
+        let passTd=0, rushTd=0, defTd=0;
+        let passTdAlw=0, rushTdAlw=0, defTdAlw=0;
+        let gamesCount = 0;
+
+        (pastGames || []).forEach(gm => {
+          const isHome = gm.home_team_id === teamId;
+          const isAway = gm.away_team_id === teamId;
+          if (!isHome && !isAway) return;
+          gamesCount++;
+
+          const raw = gm.meta_data?.raw_boxscore;
+          if (raw && raw.teams && raw.players) {
+            const teamName = teamObj.name.toLowerCase().split(' ').pop();
+            const myTeamBox = raw.teams.find((t:any) => t.team.displayName?.toLowerCase().includes(teamName) || t.team.name?.toLowerCase().includes(teamName));
+            const oppTeamBox = raw.teams.find((t:any) => t.team.id !== myTeamBox?.team?.id);
+
+            const getTeamVal = (box: any, statName: string) => parseFloat(box?.statistics?.find((s: any) => s.name === statName)?.displayValue?.split('-')[0]) || 0;
+
+            if (myTeamBox && oppTeamBox) {
+              passYds += getTeamVal(myTeamBox, 'netPassingYards');
+              rushYds += getTeamVal(myTeamBox, 'rushingYards');
+              passAlw += getTeamVal(oppTeamBox, 'netPassingYards');
+              rushAlw += getTeamVal(oppTeamBox, 'rushingYards');
+              
+              defTd += getTeamVal(myTeamBox, 'defensiveTouchdowns');
+              defTdAlw += getTeamVal(oppTeamBox, 'defensiveTouchdowns');
+
+              const processTds = (teamBox: any) => {
+                 let pTd = 0, rTd = 0;
+                 const playersBlock = raw.players?.find((p: any) => p.team?.id === teamBox.team.id)?.statistics || [];
+                 const pTdsMap: any = {};
+                 
+                 playersBlock.forEach((statBlock: any) => {
+                    const cat = statBlock.name?.toLowerCase();
+                    const labels = statBlock.labels || [];
+                    statBlock.athletes?.forEach((a: any) => {
+                        const name = a.athlete?.displayName;
+                        if (!name) return;
+                        if (!pTdsMap[name]) pTdsMap[name] = { pass: 0, rush: 0 };
+                        if (cat === 'passing') {
+                            const tdIdx = labels.indexOf('TD');
+                            if (tdIdx >= 0) pTdsMap[name].pass = Math.max(pTdsMap[name].pass, parseFloat(a.stats[tdIdx])||0);
+                        } else if (cat === 'rushing') {
+                            const tdIdx = labels.indexOf('TD');
+                            if (tdIdx >= 0) pTdsMap[name].rush = Math.max(pTdsMap[name].rush, parseFloat(a.stats[tdIdx])||0);
+                        }
+                    });
+                 });
+                 Object.values(pTdsMap).forEach((val: any) => { pTd += val.pass; rTd += val.rush; });
+                 return { pTd, rTd };
+              };
+
+              const myTds = processTds(myTeamBox);
+              const oppTds = processTds(oppTeamBox);
+
+              passTd += myTds.pTd; rushTd += myTds.rTd;
+              passTdAlw += oppTds.pTd; rushTdAlw += oppTds.rTd;
+            }
+          }
+        });
+
+        return {
+          games: gamesCount || 1,
+          passYds, rushYds, passAlw, rushAlw,
+          passTd, rushTd, defTd,
+          passTdAlw, rushTdAlw, defTdAlw
+        };
+      };
+
+      setMatchupStats({ 
+          home: getStatsForTeam(game.home_team_id, homeTeam), 
+          away: getStatsForTeam(game.away_team_id, awayTeam) 
+      });
+      setLoadingStats(false);
+    }
+    
+    fetchMatchupStats();
+  }, [isExpanded, hasGameStarted, game.home_team_id, game.away_team_id]);
+
   const handleScoreBlur = () => {
     const h = parseInt(homeRef.current);
     const a = parseInt(awayRef.current);
@@ -106,26 +201,18 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
       awayRef.current = newAway;
       
       if (onPickChange) onPickChange(game.id, newHome, newAway);
-      
-      // Remove o aviso da tela após 3 segundos
       setTimeout(() => setScoreError(false), 3000);
     }
   };
 
-  // --- NAVEGAÇÃO INTELIGENTE (Pular com o Enter) ---
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // Bloqueia caracteres inválidos em campos de número
     if (e.key === '-' || e.key === 'e' || e.key === '+' || e.key === ',' || e.key === '.') {
       e.preventDefault();
     }
-    
-    // Pula para o próximo input ao dar Enter
     if (e.key === 'Enter') {
       e.preventDefault();
-      
       const formInputs = Array.from(document.querySelectorAll('input[type="number"]:not([disabled])')) as HTMLInputElement[];
       const index = formInputs.indexOf(e.currentTarget);
-      
       if (index > -1 && index < formInputs.length - 1) {
         formInputs[index + 1].focus();
         formInputs[index + 1].select();
@@ -195,14 +282,11 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
   const homeWon = hasGameStarted && game.away_score !== undefined && game.home_score !== undefined && game.home_score > game.away_score;
   const hasMetaData = game.meta_data && hasGameStarted;
 
-  // VERIFICA AS ODDS DE VEGAS
   const odds = game.meta_data?.odds;
   const hasOdds = odds && (odds.details || odds.overUnder);
 
   const filterAndFormatLeaders = (leaders: any[]) => {
     const result: any[] = [];
-    
-    // 1. Ataque
     const offensiveCategories = ['PASS', 'RUSH', 'REC'];
     const offensive = leaders.filter(l => {
       const cat = l.category?.toUpperCase() || '';
@@ -222,37 +306,11 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
     }).slice(0, 3);
     result.push(...offensive);
 
-    // 2. Defesa
     const teamDef = leaders.find(l => l.category === 'TEAM_DEF');
-    if (teamDef) {
-      result.push({ ...teamDef, badge: 'DEF', formattedStat: teamDef.stat });
-    } else {
-      let totalSacks = 0, totalInts = 0, totalFumbles = 0;
-      leaders.forEach(l => {
-        const cat = l.category?.toUpperCase() || '';
-        const statVal = parseFloat(l.stat) || 0;
-        if (cat.includes('SACK')) totalSacks += statVal;
-        if (cat.includes('INT') && !cat.includes('PASS')) totalInts += statVal;
-        if (cat.includes('FUM') || cat.includes('RECOVER')) totalFumbles += statVal;
-      });
-      result.push({ name: 'Team Defense', badge: 'DEF', formattedStat: `${totalSacks} Sacks, ${totalInts} INT, ${totalFumbles} Fum. Rec.` });
-    }
-
-    // 3. Special Teams
+    if (teamDef) result.push({ ...teamDef, badge: 'DEF', formattedStat: teamDef.stat });
+    
     const teamSt = leaders.find(l => l.category === 'TEAM_ST');
-    if (teamSt) {
-      result.push({ ...teamSt, badge: 'ST', formattedStat: teamSt.stat });
-    } else {
-      let stStats: string[] = [];
-      leaders.forEach(l => {
-        const cat = l.category?.toUpperCase() || '';
-        const stat = l.stat || '';
-        if (cat.includes('FG') || cat.includes('FIELD GOAL') || cat.includes('KICK')) stStats.push(`FG: ${stat}`);
-        else if (cat.includes('XP') || cat.includes('EXTRA POINT')) stStats.push(`XP: ${stat}`);
-        else if (cat.includes('PUNT')) stStats.push(`Punts: ${stat} (${l.name})`);
-      });
-      result.push({ name: 'Special Teams', badge: 'ST', formattedStat: stStats.length > 0 ? stStats.join(' | ') : '0/0 FG | 0/0 XP | 0 Punts' });
-    }
+    if (teamSt) result.push({ ...teamSt, badge: 'ST', formattedStat: teamSt.stat });
 
     return result;
   };
@@ -263,6 +321,36 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
     homeLeaders = filterAndFormatLeaders(game.meta_data.leaders.home || []);
     awayLeaders = filterAndFormatLeaders(game.meta_data.leaders.away || []);
   }
+
+  // Linha Comparativa (agora suporta inverter a regra se for menor = melhor)
+  const MatchupRow = ({ label, awayVal, homeVal, isFloat = false, isLowerBetter = false }: any) => {
+    const aNum = isFloat ? parseFloat(awayVal).toFixed(1) : awayVal;
+    const hNum = isFloat ? parseFloat(homeVal).toFixed(1) : homeVal;
+    const aVal = parseFloat(awayVal);
+    const hVal = parseFloat(homeVal);
+
+    let aClass = "text-white";
+    let hClass = "text-white";
+
+    if (aVal !== hVal) {
+        const isAwayBetter = isLowerBetter ? aVal < hVal : aVal > hVal;
+        if (isAwayBetter) {
+            aClass = "text-green-400 font-black";
+            hClass = "text-gray-500";
+        } else {
+            aClass = "text-gray-500";
+            hClass = "text-green-400 font-black";
+        }
+    }
+
+    return (
+        <div className="flex justify-between items-center py-1.5 border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors rounded px-1">
+            <span className={`w-1/4 text-left text-[11px] sm:text-xs truncate ${aClass}`}>{aNum}</span>
+            <span className="w-1/2 text-center text-[9px] sm:text-[10px] text-gray-400 font-bold uppercase tracking-widest truncate">{label}</span>
+            <span className={`w-1/4 text-right text-[11px] sm:text-xs truncate ${hClass}`}>{hNum}</span>
+        </div>
+    );
+  };
 
   return (
     <div className={wrapperClass} style={isUnsaved ? { background: userTeamColor, boxShadow: `0 0 15px ${userTeamColor}60` } : {}}>
@@ -310,7 +398,6 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
           {!hidePicks && (
             <div className={`flex items-end mb-[-4px] ${hasOdds && !hasGameStarted ? 'justify-between' : 'justify-end'}`}>
               
-              {/* ÁREA DE ODDS (Só exibe se o jogo não tiver começado) */}
               {hasOdds && !hasGameStarted && (
                 <div className="flex items-center gap-1.5 pb-0.5">
                   {odds.details && (
@@ -345,12 +432,12 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                 </div>
               )}
               
-              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+              <div className="flex flex-col min-w-0 flex-1">
                 <span className="font-black text-xs sm:text-sm text-white uppercase truncate leading-none" style={{ fontSize: (awayTeam?.name?.length || 0) > 10 ? '0.75rem' : '' }}>
                   {awayTeam?.name?.split(' ').pop() || awayTeam?.abbr || 'AWAY'}
                 </span>
                 {awayTeam?.record && (
-                  <span className="text-[9px] text-gray-500 font-bold tracking-widest leading-none shrink-0 whitespace-nowrap mt-0.5">
+                  <span className="text-[9px] text-gray-500 font-bold tracking-widest leading-none mt-0.5 truncate">
                     {formatRecord(awayTeam.record)}
                   </span>
                 )}
@@ -397,12 +484,12 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                 </div>
               )}
               
-              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+              <div className="flex flex-col min-w-0 flex-1">
                 <span className="font-black text-xs sm:text-sm text-white uppercase truncate leading-none" style={{ fontSize: (homeTeam?.name?.length || 0) > 10 ? '0.75rem' : '' }}>
                   {homeTeam?.name?.split(' ').pop() || homeTeam?.abbr || 'HOME'}
                 </span>
                 {homeTeam?.record && (
-                  <span className="text-[9px] text-gray-500 font-bold tracking-widest leading-none shrink-0 whitespace-nowrap mt-0.5">
+                  <span className="text-[9px] text-gray-500 font-bold tracking-widest leading-none mt-0.5 truncate">
                     {formatRecord(homeTeam.record)}
                   </span>
                 )}
@@ -457,90 +544,122 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
           </div>
         )}
 
-        {hasMetaData && (
-          <div className="mt-3">
-            <button 
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="w-full pt-2 pb-1 border-t border-white/5 text-[9px] font-bold text-gray-500 uppercase tracking-widest hover:text-white transition flex justify-center items-center gap-1"
-            >
-              {isExpanded ? 'Hide Game Stats ▲' : 'View Game Stats ▼'}
-            </button>
+        <div className="mt-3">
+          <button 
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="w-full pt-2 pb-1 border-t border-white/5 text-[9px] font-bold text-gray-500 uppercase tracking-widest hover:text-white transition flex justify-center items-center gap-1"
+          >
+            {isExpanded ? (hasGameStarted ? 'Hide Game Stats ▲' : 'Hide Matchup ▲') : (hasGameStarted ? 'View Game Stats ▼' : 'View Matchup ▼')}
+          </button>
 
-            {isExpanded && (
-              <div className="pt-2 flex flex-col gap-3 animate-fadeIn">
-                <div className="bg-black/40 rounded-lg p-2 border border-white/5">
-                  <table className="w-full text-[9px] font-bold text-center">
-                    <thead>
-                      <tr className="text-gray-500 border-b border-white/5">
-                        <th className="text-left pb-1 pl-1">Team</th>
-                        <th className="pb-1 w-6">1</th><th className="pb-1 w-6">2</th>
-                        <th className="pb-1 w-6">3</th><th className="pb-1 w-6">4</th>
-                        <th className="pb-1 w-8 text-white">T</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5">
-                      <tr>
-                        <td className="text-left pt-1 pl-1 text-white">{awayTeam?.abbr}</td>
-                        <td className="pt-1 text-gray-400">{game.meta_data.linescores?.away?.[0] ?? '-'}</td>
-                        <td className="pt-1 text-gray-400">{game.meta_data.linescores?.away?.[1] ?? '-'}</td>
-                        <td className="pt-1 text-gray-400">{game.meta_data.linescores?.away?.[2] ?? '-'}</td>
-                        <td className="pt-1 text-gray-400">{game.meta_data.linescores?.away?.[3] ?? '-'}</td>
-                        <td className="pt-1 text-white">{game.away_score}</td>
-                      </tr>
-                      <tr>
-                        <td className="text-left pt-1 pl-1 text-white">{homeTeam?.abbr}</td>
-                        <td className="pt-1 text-gray-400">{game.meta_data.linescores?.home?.[0] ?? '-'}</td>
-                        <td className="pt-1 text-gray-400">{game.meta_data.linescores?.home?.[1] ?? '-'}</td>
-                        <td className="pt-1 text-gray-400">{game.meta_data.linescores?.home?.[2] ?? '-'}</td>
-                        <td className="pt-1 text-gray-400">{game.meta_data.linescores?.home?.[3] ?? '-'}</td>
-                        <td className="pt-1 text-white">{game.home_score}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+          {isExpanded && hasGameStarted && hasMetaData && (
+            <div className="pt-2 flex flex-col gap-3 animate-fadeIn">
+              <div className="bg-black/40 rounded-lg p-2 border border-white/5 overflow-x-auto">
+                <table className="w-full text-[9px] font-bold text-center">
+                  <thead>
+                    <tr className="text-gray-500 border-b border-white/5">
+                      <th className="text-left pb-1 pl-1">Team</th>
+                      <th className="pb-1 w-6">1</th><th className="pb-1 w-6">2</th>
+                      <th className="pb-1 w-6">3</th><th className="pb-1 w-6">4</th>
+                      <th className="pb-1 w-8 text-white">T</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    <tr>
+                      <td className="text-left pt-1 pl-1 text-white">{awayTeam?.abbr}</td>
+                      <td className="pt-1 text-gray-400">{game.meta_data.linescores?.away?.[0] ?? '-'}</td>
+                      <td className="pt-1 text-gray-400">{game.meta_data.linescores?.away?.[1] ?? '-'}</td>
+                      <td className="pt-1 text-gray-400">{game.meta_data.linescores?.away?.[2] ?? '-'}</td>
+                      <td className="pt-1 text-gray-400">{game.meta_data.linescores?.away?.[3] ?? '-'}</td>
+                      <td className="pt-1 text-white">{game.away_score}</td>
+                    </tr>
+                    <tr>
+                      <td className="text-left pt-1 pl-1 text-white">{homeTeam?.abbr}</td>
+                      <td className="pt-1 text-gray-400">{game.meta_data.linescores?.home?.[0] ?? '-'}</td>
+                      <td className="pt-1 text-gray-400">{game.meta_data.linescores?.home?.[1] ?? '-'}</td>
+                      <td className="pt-1 text-gray-400">{game.meta_data.linescores?.home?.[2] ?? '-'}</td>
+                      <td className="pt-1 text-gray-400">{game.meta_data.linescores?.home?.[3] ?? '-'}</td>
+                      <td className="pt-1 text-white">{game.home_score}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
 
-                <div className="flex gap-2 text-[9px]">
-                  {/* AWAY LEADERS */}
-                  <div className="flex-1 bg-black/40 rounded-lg p-2 border border-white/5">
-                    <span className="font-black text-gray-500 uppercase tracking-widest block mb-2">{awayTeam?.abbr} Leaders</span>
-                    <div className="flex flex-col gap-1.5">
-                      {awayLeaders.map((l: any, i: number) => (
-                        <div key={i} className="flex flex-col bg-white/5 rounded p-1.5">
-                          <div className="flex justify-between items-start mb-0.5">
-                            <span className="text-gray-300 font-bold truncate leading-tight pr-1">{l.name}</span>
-                            <span className={`text-[6px] sm:text-[7px] font-black uppercase px-1 py-0.5 rounded shrink-0 ${l.badge === 'DEF' || l.badge === 'ST' ? 'bg-transparent text-gray-500' : 'bg-white/10 text-gray-400'}`}>
-                               {l.badge}
-                            </span>
-                          </div>
-                          <span className="text-white font-black text-[8px] leading-tight">{l.formattedStat}</span>
+              <div className="flex flex-col md:flex-row gap-2 text-[9px]">
+                <div className="flex-1 min-w-0 bg-black/40 rounded-lg p-2 border border-white/5">
+                  <span className="font-black text-gray-500 uppercase tracking-widest block mb-2">{awayTeam?.abbr} Leaders</span>
+                  <div className="flex flex-col gap-1.5">
+                    {awayLeaders.map((l: any, i: number) => (
+                      <div key={i} className="flex flex-col bg-white/5 rounded p-1.5">
+                        <div className="flex justify-between items-start mb-0.5">
+                          <span className="text-gray-300 font-bold truncate pr-1">{l.name}</span>
+                          <span className={`text-[6px] sm:text-[7px] font-black uppercase px-1 py-0.5 rounded shrink-0 ${l.badge === 'DEF' || l.badge === 'ST' ? 'bg-transparent text-gray-500' : 'bg-white/10 text-gray-400'}`}>
+                             {l.badge}
+                          </span>
                         </div>
-                      ))}
-                    </div>
+                        <span className="text-white font-black text-[8px] leading-tight break-words whitespace-normal">{l.formattedStat}</span>
+                      </div>
+                    ))}
                   </div>
-                  
-                  {/* HOME LEADERS */}
-                  <div className="flex-1 bg-black/40 rounded-lg p-2 border border-white/5">
-                    <span className="font-black text-gray-500 uppercase tracking-widest block mb-2">{homeTeam?.abbr} Leaders</span>
-                    <div className="flex flex-col gap-1.5">
-                      {homeLeaders.map((l: any, i: number) => (
-                        <div key={i} className="flex flex-col bg-white/5 rounded p-1.5">
-                          <div className="flex justify-between items-start mb-0.5">
-                            <span className="text-gray-300 font-bold truncate leading-tight pr-1">{l.name}</span>
-                            <span className={`text-[6px] sm:text-[7px] font-black uppercase px-1 py-0.5 rounded shrink-0 ${l.badge === 'DEF' || l.badge === 'ST' ? 'bg-transparent text-gray-500' : 'bg-white/10 text-gray-400'}`}>
-                               {l.badge}
-                            </span>
-                          </div>
-                          <span className="text-white font-black text-[8px] leading-tight">{l.formattedStat}</span>
+                </div>
+                
+                <div className="flex-1 min-w-0 bg-black/40 rounded-lg p-2 border border-white/5">
+                  <span className="font-black text-gray-500 uppercase tracking-widest block mb-2">{homeTeam?.abbr} Leaders</span>
+                  <div className="flex flex-col gap-1.5">
+                    {homeLeaders.map((l: any, i: number) => (
+                      <div key={i} className="flex flex-col bg-white/5 rounded p-1.5">
+                        <div className="flex justify-between items-start mb-0.5">
+                          <span className="text-gray-300 font-bold truncate pr-1">{l.name}</span>
+                          <span className={`text-[6px] sm:text-[7px] font-black uppercase px-1 py-0.5 rounded shrink-0 ${l.badge === 'DEF' || l.badge === 'ST' ? 'bg-transparent text-gray-500' : 'bg-white/10 text-gray-400'}`}>
+                             {l.badge}
+                          </span>
                         </div>
-                      ))}
-                    </div>
+                        <span className="text-white font-black text-[8px] leading-tight break-words whitespace-normal">{l.formattedStat}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
 
+          {isExpanded && !hasGameStarted && (
+            <div className="pt-2 flex flex-col gap-3 animate-fadeIn">
+              <div className="bg-black/40 rounded-lg p-3 border border-white/5">
+                <div className="flex items-center justify-center gap-2 mb-3">
+                   <Activity size={12} className="text-gray-500" />
+                   <span className="font-black text-gray-500 uppercase tracking-widest">Season Matchup</span>
+                </div>
+
+                {loadingStats || !matchupStats ? (
+                   <div className="flex justify-center py-4">
+                     <div className="w-5 h-5 border-2 border-gray-600 border-t-white rounded-full animate-spin"></div>
+                   </div>
+                ) : (
+                   <div className="flex flex-col gap-1">
+                      <div className="flex justify-between items-center text-[9px] text-gray-500 font-bold mb-1 border-b border-white/10 pb-1.5 px-1">
+                         <span className="w-1/4 text-left truncate uppercase" style={{color: awayTeam.color}}>{awayTeam.abbr}</span>
+                         <span className="w-1/2 text-center uppercase tracking-widest">Metric</span>
+                         <span className="w-1/4 text-right truncate uppercase" style={{color: homeTeam.color}}>{homeTeam.abbr}</span>
+                      </div>
+                      
+                      <MatchupRow label="Off YDS/G" awayVal={((matchupStats.away.passYds + matchupStats.away.rushYds)/matchupStats.away.games)} homeVal={((matchupStats.home.passYds + matchupStats.home.rushYds)/matchupStats.home.games)} isFloat />
+                      <MatchupRow label="Pass YDS/G" awayVal={(matchupStats.away.passYds/matchupStats.away.games)} homeVal={(matchupStats.home.passYds/matchupStats.home.games)} isFloat />
+                      <MatchupRow label="Rush YDS/G" awayVal={(matchupStats.away.rushYds/matchupStats.away.games)} homeVal={(matchupStats.home.rushYds/matchupStats.home.games)} isFloat />
+                      <MatchupRow label="Off TDs" awayVal={matchupStats.away.passTd + matchupStats.away.rushTd} homeVal={matchupStats.home.passTd + matchupStats.home.rushTd} />
+                      
+                      <div className="my-1 border-t border-white/5"></div>
+                      
+                      {/* JARDAS DEFENSIVAS: Menos é melhor (isLowerBetter = true) */}
+                      <MatchupRow label="Def YDS/G" awayVal={((matchupStats.away.passAlw + matchupStats.away.rushAlw)/matchupStats.away.games)} homeVal={((matchupStats.home.passAlw + matchupStats.home.rushAlw)/matchupStats.home.games)} isFloat isLowerBetter />
+                      <MatchupRow label="Def/ST TDs" awayVal={matchupStats.away.defTd} homeVal={matchupStats.home.defTd} />
+                   </div>
+                )}
+              </div>
+            </div>
+          )}
+
+        </div>
       </div>
     </div>
   );
