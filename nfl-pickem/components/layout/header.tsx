@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createClient } from '../../utils/supabase/client';
-import { Shirt, ClipboardList, Trophy, BarChart3, Calendar, Settings, type LucideIcon } from 'lucide-react';
+import { Shirt, ClipboardList, Trophy, BarChart3, Calendar, Settings, HelpCircle, type LucideIcon } from 'lucide-react';
+import HelpModal from '../ui/HelpModal'; // Ajuste o caminho se necessário dependendo de onde salvou o HelpModal
 
 const getSafeColor = (hex: string) => {
   if (!hex) return '#f59e0b';
@@ -51,6 +52,7 @@ export default function Header() {
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [isVip, setIsVip] = useState<boolean>(false);
   const [loadingLogout, setLoadingLogout] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState<boolean>(false);
   const supabase = createClient();
 
   useEffect(() => {
@@ -58,7 +60,6 @@ export default function Header() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
       
-      // Adicionado 'is_vip' na busca
       const { data: profile } = await supabase
         .from('profiles')
         .select('favorite_team_id, is_admin, is_vip')
@@ -103,7 +104,7 @@ export default function Header() {
     }
   };
 
-const navLinks: { name: string; path: string; icon: LucideIcon }[] = [
+  const navLinks: { name: string; path: string; icon: LucideIcon }[] = [
     { name: 'Locker', path: '/dashboard', icon: Shirt },
     { name: 'Picks', path: '/picks', icon: ClipboardList },
     { name: 'Bracket', path: '/bracket', icon: Trophy },
@@ -133,8 +134,17 @@ const navLinks: { name: string; path: string; icon: LucideIcon }[] = [
           </nav>
 
           <div className="flex items-center gap-3 sm:gap-6">
-            {/* Botões de Acesso Especial com ícones para mobile */}
             
+            {/* BOTÃO DE HELP */}
+            <button 
+              onClick={() => setIsHelpOpen(true)}
+              title="Help & Rules"
+              className="text-gray-400 hover:text-white transition-colors flex items-center gap-1"
+            >
+              <HelpCircle size={20} />
+              <span className="hidden md:inline text-[10px] font-black uppercase tracking-widest">Help</span>
+            </button>
+
             {isAdmin && (
               <Link href="/admin" className="text-red-400 hover:text-yellow-300 transition-colors drop-shadow-[0_0_8px_rgba(168,85,247,0.5)]">
                 <span className="hidden sm:inline text-[10px] font-black uppercase tracking-widest">Admin</span>
@@ -174,6 +184,13 @@ const navLinks: { name: string; path: string; icon: LucideIcon }[] = [
           })}
         </div>
       </nav>
+
+      {/* MODAL DE AJUDA / REGRAS */}
+      <HelpModal 
+        isOpen={isHelpOpen} 
+        onClose={() => setIsHelpOpen(false)} 
+        accentColor="var(--team-accent)" 
+      />
     </>
   );
 }
