@@ -11,6 +11,43 @@ interface TeamStatsViewerProps {
 
 type FullViewCategory = 'pass' | 'rush' | 'rec' | 'sack' | 'kick' | null;
 
+const getSafeColor = (hex: string) => {
+  if (!hex) return '#f59e0b';
+  let r = parseInt(hex.substring(1, 3), 16) / 255;
+  let g = parseInt(hex.substring(3, 5), 16) / 255;
+  let b = parseInt(hex.substring(5, 7), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h = 0, s = 0, l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+  if (l < 0.45) { l = 0.55; s = Math.max(s, 0.90); }
+  const hue2rgb = (p: number, q: number, t: number) => {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1/6) return p + (q - p) * 6 * t;
+    if (t < 1/2) return q;
+    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+    return p;
+  };
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  r = hue2rgb(p, q, h + 1/3); g = hue2rgb(p, q, h); b = hue2rgb(p, q, h - 1/3);
+  const toHex = (x: number) => {
+    const hexStr = Math.round(x * 255).toString(16);
+    return hexStr.length === 1 ? '0' + hexStr : hexStr;
+  };
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+};
+
 export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerProps) {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<any>(null);
@@ -31,11 +68,9 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
 
       const players = { pass: {}, rush: {}, rec: {}, def: {}, kick: {} } as any;
 
-      // Métricas de Comparação: Nosso Time vs Adversários
       const tStats = { games: 0, pts: 0, passYds: 0, rushYds: 0, passTds: 0, rushTds: 0, defTds: 0, sacks: 0, turnovers: 0 };
       const oStats = { pts: 0, passYds: 0, rushYds: 0, passTds: 0, rushTds: 0, defTds: 0, sacks: 0, turnovers: 0 };
 
-      // Totais da Defesa para os Cartões Estáticos
       let totalDefSacks = 0;
       let totalDefInts = 0;
       let totalDefFums = 0;
@@ -81,7 +116,6 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
             tStats.sacks += getTeamVal(oppTeamBox, 'sacksYardsLost'); 
             oStats.sacks += getTeamVal(myTeamBox, 'sacksYardsLost');
 
-            // --- TDs Defensivos / Special Teams direto da ESPN ---
             tStats.defTds += getTeamVal(myTeamBox, 'defensiveTouchdowns');
             oStats.defTds += getTeamVal(oppTeamBox, 'defensiveTouchdowns');
 
@@ -208,12 +242,9 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
   }
 
   const { tStats, oStats, fullPlayers, teamDefTotals } = stats;
-  const tColor = teamInfo?.primary_color || 'var(--team-accent)';
+  const tColor = getSafeColor(teamInfo?.primary_color);
   const G = tStats.games || 1;
 
-  // ==========================================
-  // VISÃO EXPANDIDA (TABELA COMPLETA)
-  // ==========================================
   if (fullViewCategory) {
     const isOffense = ['pass', 'rush', 'rec'].includes(fullViewCategory);
     const dataList = fullPlayers[fullViewCategory] || [];
@@ -295,11 +326,6 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
     );
   }
 
-  // ==========================================
-  // COMPONENTES DE CARTÕES
-  // ==========================================
-  
-  // 1. Cartão Padrão (Jogadores)
   const PlayerMiniCard = ({ title, data, viewCategory, statKey, statLabel }: any) => {
     const topPlayer = data[0];
     const renderSubText = (cat: string, p: any) => {
@@ -343,7 +369,6 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
     );
   };
 
-  // 2. Cartão Híbrido (Equipa Total + View All - Ex: Sacks)
   const TeamStatMiniCard = ({ title, totalVal, statLabel, viewCategory }: any) => (
     <div className="bg-black/30 border border-white/5 rounded-xl overflow-hidden flex flex-col hover:border-white/10 transition-colors shadow-lg h-full">
       <div className="px-3 py-2 bg-black/40 border-b border-white/5 flex justify-between items-center">
@@ -364,7 +389,6 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
     </div>
   );
 
-  // 3. Cartão Estático (A caixinha fantasma está aqui!)
   const StaticStatMiniCard = ({ title, totalVal, statLabel }: any) => (
     <div className="bg-black/30 border border-white/5 rounded-xl overflow-hidden flex flex-col shadow-lg h-full">
       <div className="px-3 py-2 bg-black/40 border-b border-white/5 flex justify-between items-center">
@@ -376,7 +400,6 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
           <span className="text-[10px] text-gray-500 font-bold uppercase">{statLabel}</span>
         </div>
       </div>
-      {/* Caixinha fantasma para manter a altura alinhada no Grid sem ser clicável */}
       <div className="w-full py-2 bg-white/[0.02] border-t border-white/5 mt-auto">
         <span className="text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1 opacity-0 pointer-events-none">
           View All <ChevronRight size={10} />
@@ -385,9 +408,6 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
     </div>
   );
 
-  // ==========================================
-  // LINHA DO COMPARADOR (NÓS VS ELES)
-  // ==========================================
   const CompareRow = ({ label, teamVal, oppVal, isGoodIfHigher = true }: any) => {
       const tNum = parseFloat(teamVal);
       const oNum = parseFloat(oppVal);
@@ -423,7 +443,6 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
         {teamInfo?.logo_url && <img src={teamInfo.logo_url} className="w-48 h-48 object-contain" alt="" />}
       </div>
       
-      {/* CABEÇALHO DO MÓDULO (ABAS) */}
       <div className="flex border-b border-white/5 bg-black/40 relative z-10">
         <button 
           onClick={() => setActiveTab('players')} 
@@ -443,7 +462,6 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
 
       <div className="p-4 sm:p-5 relative z-10">
         
-        {/* CONTEÚDO DA ABA: PLAYER STATS */}
         {activeTab === 'players' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 animate-fadeIn">
             <PlayerMiniCard title="Passing" data={fullPlayers.pass} viewCategory="pass" statKey="yds" statLabel="YDS" />
@@ -457,7 +475,6 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
           </div>
         )}
 
-        {/* CONTEÚDO DA ABA: TEAM MATCHUP (NOSSO TIME VS ADVERSÁRIOS) */}
         {activeTab === 'team' && (
           <div className="bg-black/30 border border-white/5 rounded-xl p-4 sm:p-6 flex flex-col animate-fadeIn shadow-inner">
             
@@ -469,7 +486,7 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
                   <span className="w-12 text-right text-gray-400">OPP</span>
                </div>
             </div>
-
+            <CompareRow label="Total YDS/G" teamVal={(tStats.passYds + tStats.rushYds).toFixed(1) / G} oppVal={(oStats.passYds + oStats.rushYds).toFixed(1) / G} />
             <CompareRow label="Pass YDS/G" teamVal={(tStats.passYds / G).toFixed(1)} oppVal={(oStats.passYds / G).toFixed(1)} />
             <CompareRow label="Rush YDS/G" teamVal={(tStats.rushYds / G).toFixed(1)} oppVal={(oStats.rushYds / G).toFixed(1)} />
             
@@ -478,7 +495,7 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
             <CompareRow label="Defensive/ST TDs" teamVal={tStats.defTds} oppVal={oStats.defTds} />
             
             <CompareRow label="Takeaways (Def)" teamVal={oStats.turnovers} oppVal={tStats.turnovers} />
-            <CompareRow label="Giveaways (Off)" teamVal={tStats.turnovers} oppVal={oStats.turnovers} isGoodIfHigher={false} />
+            <CompareRow label="Giveaways (Off)" teamVal={tStats.turnovers} oppVal={tStats.turnovers} isGoodIfHigher={false} />
             
             <CompareRow label="Sacks" teamVal={tStats.sacks} oppVal={oStats.sacks} />
 
