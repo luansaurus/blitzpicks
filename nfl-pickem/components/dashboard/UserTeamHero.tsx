@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "../../utils/supabase/client";
 import { Circle } from 'lucide-react';
+import TeamStatsViewer from '@/components/scoreboard/TeamStatsViewer';
 
 interface UserTeamHeroProps {
   teamId: string | number | null;
@@ -35,9 +36,6 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
   const [divisionStandings, setDivisionStandings] = useState<any[]>([]);
   const [loadingStandings, setLoadingStandings] = useState<boolean>(true);
   
-  const [teamSeasonStats, setTeamSeasonStats] = useState<any>(null);
-  const [loadingLeaders, setLoadingLeaders] = useState<boolean>(true);
-  
   const [activeTab, setActiveTab] = useState<'profile' | 'lastMatch' | 'nextMatch' | null>(null);
 
   useEffect(() => {
@@ -49,7 +47,7 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
       if (teamData) setTeamInfo(teamData);
 
       if (teamData && teamData.abbreviation !== 'NFL') {
-        // --- BUSCA CLASSIFICAÇÃO ---
+        // --- BUSCA CLASSIFICAÇÃO (STANDINGS) ---
         try {
           const { data: divTeams } = await supabase.from('teams').select('id, name, abbreviation, logo_url').eq('conference', teamData.conference).eq('division', teamData.division);
 
@@ -80,140 +78,7 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
           setLoadingStandings(false);
         }
 
-        // --- CÁLCULO DE ESTATÍSTICAS PELO NOSSO PRÓPRIO BANCO ---
-        try {
-          const { data: teamGames } = await supabase
-            .from('games')
-            .select('home_team_id, away_team_id, home_score, away_score, meta_data, status')
-            .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
-            .eq('status', 'finished');
-
-          let ptsScored = 0, ptsAllowed = 0;
-          let passYds = 0, passTds = 0, rushYds = 0, rushTds = 0, recYds = 0;
-          let turnovers = 0, sacks = 0, defInts = 0, defFums = 0, ydsAllowed = 0;
-          
-          // Dicionários aprimorados para guardar YDS, TD e INT por jogador
-          const playersPass: Record<string, { yds: number, td: number, int: number }> = {};
-          const playersRush: Record<string, { yds: number, td: number }> = {};
-          const playersRec: Record<string, { yds: number, td: number }> = {};
-
-          (teamGames || []).forEach(game => {
-            const isHome = game.home_team_id === teamId;
-            ptsScored += (isHome ? game.home_score : game.away_score) || 0;
-            ptsAllowed += (isHome ? game.away_score : game.home_score) || 0;
-
-            const meta = game.meta_data as any;
-            const myLeaders = isHome ? meta?.leaders?.home : meta?.leaders?.away;
-            const oppLeaders = isHome ? meta?.leaders?.away : meta?.leaders?.home;
-
-            (myLeaders || []).forEach((l: any) => {
-                const cat = l.category.toUpperCase();
-                const name = l.name;
-                const statStr = (l.stat || '').toUpperCase();
-                
-                let yds = 0, td = 0, int = 0, sack = 0, fum = 0;
-                
-                const parts = statStr.split(',');
-                parts.forEach((p: string) => {
-                    const clean = p.trim();
-                    if (clean.includes('YDS')) yds += parseFloat(clean) || 0;
-                    if (clean.includes('TD')) td += parseFloat(clean) || 0;
-                    if (clean.includes('INT')) int += parseFloat(clean) || 0;
-                    if (clean.includes('SACK')) sack += parseFloat(clean) || 0;
-                    if (clean.includes('FUM')) fum += parseFloat(clean) || 0;
-                });
-                
-                const rawNum = parseFloat(statStr);
-
-                if (cat.includes('PASS')) {
-                    passYds += yds; passTds += td; turnovers += int;
-                    if (!playersPass[name]) playersPass[name] = { yds: 0, td: 0, int: 0 };
-                    playersPass[name].yds += yds;
-                    playersPass[name].td += td;
-                    playersPass[name].int += int;
-                } else if (cat.includes('RUSH')) {
-                    rushYds += yds; rushTds += td; turnovers += fum;
-                    if (!playersRush[name]) playersRush[name] = { yds: 0, td: 0 };
-                    playersRush[name].yds += yds;
-                    playersRush[name].td += td;
-                } else if (cat.includes('REC')) {
-                    recYds += yds;
-                    if (!playersRec[name]) playersRec[name] = { yds: 0, td: 0 };
-                    playersRec[name].yds += yds;
-                    playersRec[name].td += td;
-                } else if (cat.includes('SACK')) {
-                    sacks += sack || (!isNaN(rawNum) ? rawNum : 0);
-                } else if (cat.includes('INT')) {
-                    defInts += int || (!isNaN(rawNum) ? rawNum : 0);
-                } else if (cat.includes('FUM')) {
-                    defFums += fum || (!isNaN(rawNum) ? rawNum : 0);
-                } else if (cat.includes('DEF') || cat.includes('TACKLE')) {
-                    sacks += sack;
-                    defInts += int;
-                    defFums += fum;
-                }
-            });
-
-            (oppLeaders || []).forEach((l: any) => {
-                const cat = l.category.toUpperCase();
-                const statStr = (l.stat || '').toUpperCase();
-                let yds = 0;
-                const parts = statStr.split(',');
-                parts.forEach((p: string) => {
-                    const clean = p.trim();
-                    if (clean.includes('YDS')) yds += parseFloat(clean) || 0;
-                });
-                if (cat.includes('PASS') || cat.includes('RUSH')) {
-                    ydsAllowed += yds;
-                }
-            });
-          });
-
-          // Funções de formatação elegantes
-          const getTopPasser = (dict: Record<string, { yds: number, td: number, int: number }>) => {
-              const sorted = Object.entries(dict).sort((a,b) => b[1].yds - a[1].yds);
-              if (sorted.length === 0) return '-';
-              return `${sorted[0][0]} (${sorted[0][1].yds} YDS, ${sorted[0][1].td} TD, ${sorted[0][1].int} INT)`;
-          };
-
-          const getTopRunnerOrRec = (dict: Record<string, { yds: number, td: number }>) => {
-              const sorted = Object.entries(dict).sort((a,b) => b[1].yds - a[1].yds);
-              if (sorted.length === 0) return '-';
-              return `${sorted[0][0]} (${sorted[0][1].yds} YDS, ${sorted[0][1].td} TD)`;
-          };
-
-          const ptsDiff = ptsScored - ptsAllowed;
-
-          setTeamSeasonStats({
-              offense: [
-                  { label: 'Passing Leader', value: getTopPasser(playersPass) },
-                  { label: 'Rushing Leader', value: getTopRunnerOrRec(playersRush) },
-                  { label: 'Receiving Leader', value: getTopRunnerOrRec(playersRec) },
-                  { label: 'Total Yards', value: passYds + rushYds },
-                  { label: 'Total Passing TDs', value: passTds },
-                  { label: 'Total Rushing TDs', value: rushTds },
-                  { label: 'Turnovers', value: turnovers },
-              ],
-              defense: [
-                  { label: 'Sacks', value: sacks },
-                  { label: 'Ints', value: defInts },
-                  { label: 'Fumbles', value: defFums },
-                  { label: 'Yards Allowed', value: ydsAllowed },
-              ],
-              game: [
-                  { label: 'Points Scored', value: ptsScored },
-                  { label: 'Points Allowed', value: ptsAllowed },
-                  { label: 'Points Diff', value: ptsDiff > 0 ? `+${ptsDiff}` : ptsDiff },
-              ]
-          });
-
-        } catch (error) {
-           console.error("Erro ao compilar estatísticas do time", error);
-        } finally {
-          setLoadingLeaders(false);
-        }
       } else {
-          setLoadingLeaders(false);
           setLoadingStandings(false);
       }
     }
@@ -308,11 +173,8 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
     const wonMatch = (myScore || 0) > (oppScore || 0);
     const isTie = myScore !== null && myScore === oppScore;
     
-    // --- NOVO FILTRO DE STATS (Igual ao GameCard) ---
     const filterAndFormatLeaders = (leaders: any[]) => {
       const result: any[] = [];
-      
-      // 1. Ataque
       const offensiveCategories = ['PASS', 'RUSH', 'REC'];
       const offensive = leaders.filter(l => {
         const cat = l.category?.toUpperCase() || '';
@@ -332,7 +194,6 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
       }).slice(0, 3);
       result.push(...offensive);
 
-      // 2. Defesa (Se a API enviou agrupado usa, senão calcula)
       const teamDef = leaders.find(l => l.category === 'TEAM_DEF');
       if (teamDef) {
         result.push({ ...teamDef, badge: 'DEF', formattedStat: teamDef.stat });
@@ -348,7 +209,6 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
         result.push({ name: 'Team Defense', badge: 'DEF', formattedStat: `${totalSacks} Sacks, ${totalInts} INT, ${totalFumbles} Fum. Rec.` });
       }
 
-      // 3. Special Teams (Se a API enviou agrupado usa, senão calcula)
       const teamSt = leaders.find(l => l.category === 'TEAM_ST');
       if (teamSt) {
         result.push({ ...teamSt, badge: 'ST', formattedStat: teamSt.stat });
@@ -548,54 +408,10 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
           {activeTab === 'profile' && (
             <div className="flex flex-col gap-6">
               
-              <div className="bg-white/5 border border-white/10 rounded-xl p-4 sm:p-6 flex flex-col">
-                <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/5">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">Season Stats & Leaders</span>
-                </div>
-                
-                {loadingLeaders || !teamSeasonStats ? (
-                    <div className="animate-pulse space-y-3">
-                          <div className="h-4 bg-white/5 rounded w-full"></div>
-                          <div className="h-4 bg-white/5 rounded w-full"></div>
-                          <div className="h-4 bg-white/5 rounded w-full"></div>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        
-                        <div className="flex flex-col gap-2">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 border-b border-white/5 pb-2 mb-1">Offensive Stats</span>
-                            {teamSeasonStats.offense.map((item: any, i: number) => (
-                                <div key={i} className="flex justify-between items-center bg-black/30 p-2.5 rounded border border-white/5">
-                                    <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wide">{item.label}</span>
-                                    <span className="text-[11px] sm:text-xs text-white font-black text-right pl-2">{item.value}</span>
-                                </div>
-                            ))}
-                        </div>
+              {/* O NOVO MÓDULO DE ESTATÍSTICAS ENTRA AQUI! */}
+              {teamId && <TeamStatsViewer teamId={teamId.toString()} teamInfo={teamInfo} />}
 
-                        <div className="flex flex-col gap-2">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 border-b border-white/5 pb-2 mb-1">Defensive Stats</span>
-                            {teamSeasonStats.defense.map((item: any, i: number) => (
-                                <div key={i} className="flex justify-between items-center bg-black/30 p-2.5 rounded border border-white/5">
-                                    <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wide">{item.label}</span>
-                                    <span className="text-[11px] sm:text-xs text-white font-black text-right pl-2">{item.value}</span>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div className="flex flex-col gap-2">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 border-b border-white/5 pb-2 mb-1">Game Stats</span>
-                            {teamSeasonStats.game.map((item: any, i: number) => (
-                                <div key={i} className="flex justify-between items-center bg-black/30 p-2.5 rounded border border-white/5">
-                                    <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wide">{item.label}</span>
-                                    <span className="text-[11px] sm:text-xs text-white font-black text-right pl-2">{item.value}</span>
-                                </div>
-                            ))}
-                        </div>
-
-                    </div>
-                )}
-              </div>
-
+              {/* Tabela de Classificação da Divisão */}
               <div className="bg-white/5 border border-white/10 rounded-xl p-4 sm:p-6 flex flex-col overflow-x-auto">
                 <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/5">
                   <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
