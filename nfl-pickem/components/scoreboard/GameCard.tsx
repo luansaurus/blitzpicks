@@ -649,8 +649,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                       <MatchupRow label="Off TDs" awayVal={matchupStats.away.passTd + matchupStats.away.rushTd} homeVal={matchupStats.home.passTd + matchupStats.home.rushTd} />
                       
                       <div className="my-1 border-t border-white/5"></div>
-                      
-                      {/* JARDAS DEFENSIVAS: Menos é melhor (isLowerBetter = true) */}
+            
                       <MatchupRow label="Def YDS/G" awayVal={((matchupStats.away.passAlw + matchupStats.away.rushAlw)/matchupStats.away.games)} homeVal={((matchupStats.home.passAlw + matchupStats.home.rushAlw)/matchupStats.home.games)} isFloat isLowerBetter />
                       <MatchupRow label="Def/ST TDs" awayVal={matchupStats.away.defTd} homeVal={matchupStats.home.defTd} />
                    </div>
