@@ -486,7 +486,7 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
                   <span className="w-12 text-right text-gray-400">OPP</span>
                </div>
             </div>
-            <CompareRow label="Total YDS/G" teamVal={(tStats.passYds + tStats.rushYds).toFixed(1) / G} oppVal={(oStats.passYds + oStats.rushYds).toFixed(1) / G} />
+            <CompareRow label="Total YDS/G" teamVal={((tStats.passYds + tStats.rushYds)/G).toFixed(1)} oppVal={((oStats.passYds + oStats.rushYds)/G).toFixed(1)} />
             <CompareRow label="Pass YDS/G" teamVal={(tStats.passYds / G).toFixed(1)} oppVal={(oStats.passYds / G).toFixed(1)} />
             <CompareRow label="Rush YDS/G" teamVal={(tStats.rushYds / G).toFixed(1)} oppVal={(oStats.rushYds / G).toFixed(1)} />
             
@@ -495,7 +495,7 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
             <CompareRow label="Defensive/ST TDs" teamVal={tStats.defTds} oppVal={oStats.defTds} />
             
             <CompareRow label="Takeaways (Def)" teamVal={oStats.turnovers} oppVal={tStats.turnovers} />
-            <CompareRow label="Giveaways (Off)" teamVal={tStats.turnovers} oppVal={tStats.turnovers} isGoodIfHigher={false} />
+            <CompareRow label="Giveaways (Off)" teamVal={tStats.turnovers} oppVal={oStats.turnovers} isGoodIfHigher={false} />
             
             <CompareRow label="Sacks" teamVal={tStats.sacks} oppVal={oStats.sacks} />
 
