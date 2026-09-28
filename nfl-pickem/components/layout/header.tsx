@@ -113,7 +113,29 @@ export default function Header() {
       }
     }
     fetchUserData();
+    const handleTeamSaved = () => fetchUserData();
+    
+    const handleTeamPreview = (e: any) => {
+      const detail = e.detail;
+      if (detail?.primary_color) {
+        setHeaderBg(detail.primary_color);
+        setIsLightBg(getIsLight(detail.primary_color));
+      } else {
+        setHeaderBg('#0a0a0a');
+      }
+      setHeaderSec(detail?.secondary_color || '#ff2a2a');
+    };
+
+    window.addEventListener('team-updated', handleTeamSaved);
+    window.addEventListener('preview-team', handleTeamPreview);
+    
+    return () => {
+      window.removeEventListener('team-updated', handleTeamSaved);
+      window.removeEventListener('preview-team', handleTeamPreview);
+    };
   }, [supabase]);
+
+  
 
   const handleLogout = async () => {
     if (loadingLogout) return;
