@@ -11,6 +11,22 @@ import LeagueHub from '../../components/leagues/LeagueHub';
 import { getPickResult } from '@/utils/scoring';
 import { Shirt, Shield, Star, Crown } from 'lucide-react';
 
+const getLuminance = (hex: string) => {
+  if (!hex) return 0;
+  let cleanHex = hex.replace('#', '');
+  if (cleanHex.length === 3) cleanHex = cleanHex.split('').map(x => x + x).join('');
+  const r = parseInt(cleanHex.substring(0, 2), 16) || 0;
+  const g = parseInt(cleanHex.substring(2, 4), 16) || 0;
+  const b = parseInt(cleanHex.substring(4, 6), 16) || 0;
+  return ((r * 299) + (g * 587) + (b * 114)) / 1000;
+};
+
+const getBestColor = (pri: string, sec: string) => {
+  const p = pri || '#111111';
+  const s = sec || '#ff2a2a';
+  return getLuminance(p) > getLuminance(s) ? p : s;
+};
+
 export default function Dashboard() {
   const supabase = createClient();
   const router = useRouter();
@@ -28,7 +44,12 @@ export default function Dashboard() {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'error'>('idle');
 
   const [favoriteTeamId, setFavoriteTeamId] = useState<number | string>('');
+  
+  // Cores dinâmicas
   const [userColor, setUserColor] = useState('#E31837');
+  const [ambientPrimary, setAmbientPrimary] = useState('#013369');
+  const [ambientSecondary, setAmbientSecondary] = useState('#E31837');
+
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isVip, setIsVip] = useState(false);
@@ -63,7 +84,10 @@ export default function Dashboard() {
 
       setIsAdmin(profile.is_admin);
       setIsVip(profile.is_vip);
-      if (profile.favorite_team_id) setFavoriteTeamId(profile.favorite_team_id);
+      
+      if (profile.favorite_team_id) {
+        setFavoriteTeamId(profile.favorite_team_id);
+      }
 
       const [resTeams, resStandings, resGames, resGuesses, resMembers, resUsers, resChamps] = await Promise.all([
         supabase.from('teams').select('*'),
@@ -81,14 +105,20 @@ export default function Dashboard() {
       resTeams.data?.forEach(t => { 
         const record = resStandings.data?.find(s => s.team_id?.toString() === t.id.toString());
         tMap[t.id.toString()] = { 
-          name: t.name, abbr: t.abbreviation, color: t.primary_color, logo: t.logo_url,
+          name: t.name, abbr: t.abbreviation, color: getBestColor(t.primary_color, t.secondary_color), logo: t.logo_url,
           record: record ? `${record.wins}-${record.losses}${record.ties > 0 ? `-${record.ties}` : ''}` : '0-0' 
         }; 
+        
+        if (profile.favorite_team_id && t.id.toString() === profile.favorite_team_id.toString()) {
+          setUserColor(getBestColor(t.primary_color, t.secondary_color));
+          setAmbientPrimary(t.primary_color || '#013369');
+          setAmbientSecondary(t.secondary_color || '#E31837');
+        }
       });
       setTeamsDataMap(tMap);
 
       const savedAccent = localStorage.getItem('blitz_accent');
-      if (savedAccent) setUserColor(savedAccent);
+      if (savedAccent && !profile.favorite_team_id) setUserColor(savedAccent);
 
       if (resGames.data && resGames.data.length > 0) {
         setGames(resGames.data);
@@ -206,12 +236,10 @@ export default function Dashboard() {
     return total;
   }, [games, myGuesses, currentRules]);
 
-  // MOTOR SILENCIOSO: Atualiza o banco e o estado local imediatamente
   useEffect(() => {
     async function recordChampionship() {
       if (!isSeasonOver || !leagueWinner) return;
       
-      // CORREÇÃO DO ANO DA TEMPORADA: Pegar o primeiro jogo da matriz (ex: Setembro) em vez do último (Fevereiro do ano seguinte)
       const firstGameTime = games[0]?.game_time;
       const seasonYear = firstGameTime ? new Date(firstGameTime).getFullYear() : new Date().getFullYear();
 
@@ -237,166 +265,220 @@ export default function Dashboard() {
   const currentWeekGames = games.filter(game => game.week?.toString() === currentWeek.toString());
   
   const isCurrentUserWinner = leagueWinner?.id === currentUserId;
-  const showGoldTheme = !contextLeagueId || isCurrentUserWinner;
 
   const leagueWinsCount = contextLeagueId ? championships.filter(c => c.league_id === contextLeagueId && c.winner_id === leagueWinner?.id).length : 0;
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-white font-sans pb-32 relative">
-      <Header />
+    // Retirei o overflow-hidden principal para que o botão flutuante possa escapar de qualquer limite
+    <main className="min-h-screen bg-[#050505] text-white font-sans pb-40 sm:pb-48 lg:pb-56 relative">
       
-      <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-8 mt-4">
-        
-        <div className="flex bg-neutral-900 border border-white/10 rounded-xl p-1 w-full max-w-sm mx-auto shadow-lg">
-          <button onClick={() => setActiveDashboardTab('locker')} className={`flex-1 px-4 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${activeDashboardTab === 'locker' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-white'}`} style={activeDashboardTab === 'locker' ? { color: userColor } : {}}><Shirt size={14} /> My Locker</button>
-          <button onClick={() => setActiveDashboardTab('leagues')} className={`flex-1 px-4 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${activeDashboardTab === 'leagues' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-white'}`} style={activeDashboardTab === 'leagues' ? { color: userColor } : {}}><Shield size={14} /> Leagues</button>
-        </div>
-
-        {activeDashboardTab === 'locker' ? (
-          <div className="space-y-8 animate-fadeIn">
-            
-            {isSeasonOver && leagueWinner && (
-  <div className={`w-full border-2 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl ${isCurrentUserWinner ? 'bg-gradient-to-r from-amber-500/20 via-yellow-600/10 to-amber-500/20 border-yellow-500/30 shadow-[0_0_30px_rgba(245,158,11,0.15)]' : 'bg-gradient-to-r from-neutral-800/40 via-zinc-900/40 to-neutral-800/40 border-slate-400/30'}`}>
-    <div className="flex items-center gap-4 text-center sm:text-left flex-col sm:flex-row">
-      <span className="text-4xl animate-bounce">{isCurrentUserWinner ? <Crown size={36} className="text-yellow-400" /> : <Star size={36} className="text-slate-300" />}</span>
-      <div>
-        <h2 className={`text-xl font-black uppercase tracking-wider ${isCurrentUserWinner ? 'text-yellow-400' : 'text-slate-300'}`}>
-          {isCurrentUserWinner ? "Congratulations, Champion!" : "Season Finished!"}
-        </h2>
-        <p className="text-xs font-medium text-gray-400 uppercase mt-0.5">
-          {contextLeagueId ? `League "${activeContextLeague?.name}"` : "Official Global Board"}
-        </p>
+      {/* Container exclusivo para o fundo com overflow-hidden, garantindo que as luzes não criem barra de rolagem */}
+      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+        <div 
+          className="absolute -top-32 -left-32 w-[600px] h-[600px] rounded-full blur-[150px] opacity-30 transition-colors duration-1000"
+          style={{ backgroundColor: ambientPrimary }}
+        />
+        <div 
+          className="absolute -bottom-32 -right-32 w-[600px] h-[600px] rounded-full blur-[150px] opacity-20 transition-colors duration-1000"
+          style={{ backgroundColor: ambientSecondary }}
+        />
+        <div 
+          className="absolute inset-0 opacity-20 mix-blend-overlay"
+          style={{ backgroundImage: 'repeating-linear-gradient(-45deg, transparent, transparent 4px, rgba(255,255,255,0.05) 4px, rgba(255,255,255,0.05) 8px)' }}
+        />
       </div>
-    </div>
-    <div className="flex items-center gap-3 bg-black/40 px-5 py-3 border border-white/5 rounded-xl">
-      {leagueWinner.teams?.logo_url && <img src={leagueWinner.teams.logo_url} className="w-8 h-8 object-contain" alt="" />}
-      <div className="flex flex-col">
+
+      <div className="relative z-10">
+        <Header />
         
-        <span className="text-base font-black text-white flex flex-wrap items-center gap-2">
-          {leagueWinner.nickname}
-          <div className="flex items-center gap-1">
-            {/* ESTRELA DOURADA: Quantidade de títulos Globais */}
-            {leagueWinner.global_titles > 0 && (
-              <span className="text-[9px] font-black text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-1.5 py-0.5 rounded inline-flex items-center gap-1">
-                <Crown size={10} /> x{leagueWinner.global_titles}
-              </span>
-            )}
-            {/* ESTRELA PRATEADA: Quantidade de títulos DA LIGA ATUAL */}
-            {contextLeagueId && leagueWinsCount > 0 && (
-              <span className="text-[9px] font-black text-slate-300 bg-slate-500/10 border border-slate-400/20 px-1.5 py-0.5 rounded inline-flex items-center gap-1">
-                <Star size={10} /> x{leagueWinsCount}
-              </span>
-            )}
+        <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-8 mt-4">
+          
+          <div className="flex bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl p-1.5 w-full max-w-sm mx-auto shadow-xl">
+            <button 
+              onClick={() => setActiveDashboardTab('locker')} 
+              className={`flex-1 px-4 py-3 font-sans text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${activeDashboardTab === 'locker' ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.02]'}`} 
+              style={activeDashboardTab === 'locker' ? { color: userColor, boxShadow: `inset 0 -4px 0 ${userColor}` } : {}}
+            >
+              <Shirt size={16} /> My Locker
+            </button>
+            <button 
+              onClick={() => setActiveDashboardTab('leagues')} 
+              className={`flex-1 px-4 py-3 font-sans text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${activeDashboardTab === 'leagues' ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.02]'}`} 
+              style={activeDashboardTab === 'leagues' ? { color: userColor, boxShadow: `inset 0 -4px 0 ${userColor}` } : {}}
+            >
+              <Shield size={16} /> Leagues
+            </button>
           </div>
-        </span>
-        
-        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{leagueWinner.total} TOTAL PTS</span>
-      </div>
-    </div>
-  </div>
-)}
 
-            <UserTeamHero key={dynamicScore} teamId={favoriteTeamId} score={dynamicScore} lastGame={lastGame} nextGame={nextGame} teamsDataMap={teamsDataMap} />
-
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-white/5 pb-3 gap-3">
-                <div>
-                  <h2 className="text-xl sm:text-2xl font-black italic uppercase tracking-wider">Week {currentWeek}</h2>
-                  <p className="text-gray-500 text-xs font-medium mt-0.5">Current active week board inside your locker room.</p>
-                </div>
-                
-                {myLeagues.length > 0 && (
-  <div className="flex items-center gap-2 bg-black/40 border border-white/10 rounded-lg p-1.5 w-full sm:w-auto">
-    <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest pl-2">Point Rules:</span>
-    <select
-      className="bg-neutral-900 border border-white/10 rounded px-2 py-1.5 text-xs font-bold text-white focus:outline-none appearance-none pr-8 cursor-pointer shadow-inner"
-      value={contextLeagueId || 'global'}
-      onChange={e => setContextLeagueId(e.target.value === 'global' ? null : e.target.value)}
-      style={{ 
-        backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`, 
-        backgroundRepeat: 'no-repeat', 
-        backgroundPosition: 'right 0.5rem center', 
-        backgroundSize: '1em' 
-      }}
-    >
-      <option value="global">Global Official (7/5/3)</option>
-      {myLeagues.map(league => {
-        // Lógica de cálculo do rank
-        const membersInLeague = leagueMembersMap[league.id] || [];
-        const usersInLeague = allUsers.filter(u => membersInLeague.includes(u.id));
-        
-        const rules = {
-          exact: league.pts_exact ?? 7,
-          diff: league.pts_diff ?? 5,
-          winner: league.pts_winner ?? 3
-        };
-
-        const sorted = usersInLeague.map(u => {
-          let score = 0;
-          allGuesses.filter(g => g.user_id === u.id).forEach(guess => {
-            const game = games.find(g => g.id === guess.game_id);
-            if (game) score += getPickResult(game, guess, rules).points;
-          });
-          return { id: u.id, score };
-        }).sort((a, b) => b.score - a.score);
-
-        const userIndex = sorted.findIndex(u => u.id === currentUserId);
-        const pos = userIndex + 1;
-        const posSuffix = pos === 1 ? 'st' : pos === 2 ? 'nd' : pos === 3 ? 'rd' : 'th';
-        const rankDisplay = userIndex !== -1 ? ` [${pos}${posSuffix}]` : '';
-        return (
-          <option key={league.id} value={league.id}>
-            {league.name}  {rankDisplay}
-          </option>
-        );
-      })}
-    </select>
-  </div>
-)}
-              </div>
-
-              {currentWeekGames.length === 0 ? (
-                <div className="bg-neutral-900 border border-white/5 rounded-xl p-8 text-center text-gray-500 font-bold uppercase tracking-widest text-xs">No matchups scheduled.</div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                  {currentWeekGames.map((game) => {
-                    const existingPick = myGuesses.find(g => g.game_id?.toString() === game.id?.toString());
-                    return (
-                      <GameCard 
-                        key={game.id} game={game} userTeamColor={userColor} 
-                        homeTeam={teamsDataMap[game.home_team_id?.toString()] || { name: 'Home', abbr: 'HOME', color: '#171717' }}
-                        awayTeam={teamsDataMap[game.away_team_id?.toString()] || { name: 'Away', abbr: 'AWAY', color: '#171717' }}
-                        existingPick={existingPick} onPickChange={handlePickChange} isUnsaved={!!draftPicks[game.id.toString()]}
-                        customRules={currentRules}
-                      />
-                    );
-                  })}
+          {activeDashboardTab === 'locker' ? (
+            <div className="space-y-8 animate-fadeIn">
+              
+              {isSeasonOver && leagueWinner && (
+                <div className={`w-full backdrop-blur-2xl border-2 rounded-3xl p-6 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-2xl ${isCurrentUserWinner ? 'bg-gradient-to-br from-amber-500/20 via-yellow-600/10 to-amber-500/20 border-yellow-500/30 shadow-[0_0_40px_rgba(245,158,11,0.2)]' : 'bg-black/60 border-white/10'}`}>
+                  <div className="flex items-center gap-4 text-center sm:text-left flex-col sm:flex-row">
+                    <span className="text-2xl animate-bounce drop-shadow-md">
+                      {isCurrentUserWinner ? <Crown size={42} className="text-yellow-400" /> : <Star size={42} className="text-slate-400" />}
+                    </span>
+                    <div>
+                      <h2 className={`font-jersey text-2xl sm:text-2xl uppercase tracking-wider leading-none mb-1 ${isCurrentUserWinner ? 'text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.6)]' : 'text-slate-300'}`}>
+                        {isCurrentUserWinner ? "Congratulations, Champion!" : "Season Finished!"}
+                      </h2>
+                      <p className="font-sans text-[10px] sm:text-xs font-black text-gray-400 uppercase tracking-widest">
+                        {contextLeagueId ? `League "${activeContextLeague?.name}"` : "Official Global Board"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 bg-black/60 px-5 py-3 border border-white/10 rounded-2xl shadow-inner">
+                    {leagueWinner.teams?.logo_url && <img src={leagueWinner.teams.logo_url} className="w-10 h-10 object-contain drop-shadow-lg" alt="" />}
+                    <div className="flex flex-col">
+                      
+                      <span className="font-sport text-lg sm:text-xl font-bold uppercase tracking-wider text-white flex flex-wrap items-center gap-2 leading-none pb-1">
+                        {leagueWinner.nickname}
+                        <div className="flex items-center gap-1">
+                          {leagueWinner.global_titles > 0 && (
+                            <span className="font-sans text-[8px] font-black text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-1.5 py-0.5 rounded inline-flex items-center gap-1 shadow-sm">
+                              <Crown size={10} /> x{leagueWinner.global_titles}
+                            </span>
+                          )}
+                          {contextLeagueId && leagueWinsCount > 0 && (
+                            <span className="font-sans text-[8px] font-black text-slate-300 bg-slate-500/10 border border-slate-400/20 px-1.5 py-0.5 rounded inline-flex items-center gap-1 shadow-sm">
+                              <Star size={10} /> x{leagueWinsCount}
+                            </span>
+                          )}
+                        </div>
+                      </span>
+                      
+                      <span className="font-sans text-[9px] font-black text-gray-500 uppercase tracking-widest">{leagueWinner.total} TOTAL PTS</span>
+                    </div>
+                  </div>
                 </div>
               )}
+
+              <UserTeamHero key={dynamicScore} teamId={favoriteTeamId} score={dynamicScore} lastGame={lastGame} nextGame={nextGame} teamsDataMap={teamsDataMap} />
+
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-white/10 pb-4 gap-4">
+                  <div>
+                    <h2 className="font-jersey text-2xl sm:text-5xl uppercase tracking-widest text-white drop-shadow-md">
+                      WEEK <span style={{ color: userColor }}>{currentWeek}</span>
+                    </h2>
+                    <p className="font-sans text-[10px] sm:text-xs font-black text-gray-500 uppercase tracking-widest mt-1">
+                      Current active week board inside your locker room.
+                    </p>
+                  </div>
+                  
+                  {myLeagues.length > 0 && (
+                    <div className="flex items-center gap-3 bg-black/60 backdrop-blur-md border border-white/10 rounded-xl p-2 w-full sm:w-auto shadow-inner">
+                      <span className="font-sans text-[9px] font-black text-gray-500 uppercase tracking-widest pl-2">Rules:</span>
+                      <select
+                        className="bg-transparent font-sport font-bold text-sm sm:text-base uppercase tracking-wider text-white focus:outline-none appearance-none pr-8 cursor-pointer drop-shadow-md"
+                        value={contextLeagueId || 'global'}
+                        onChange={e => setContextLeagueId(e.target.value === 'global' ? null : e.target.value)}
+                        style={{ 
+                          backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`, 
+                          backgroundRepeat: 'no-repeat', 
+                          backgroundPosition: 'right center', 
+                          backgroundSize: '1em' 
+                        }}
+                      >
+                        <option className="bg-[#111111]" value="global">GLOBAL (7/5/3)</option>
+                        {myLeagues.map(league => {
+                          const membersInLeague = leagueMembersMap[league.id] || [];
+                          const usersInLeague = allUsers.filter(u => membersInLeague.includes(u.id));
+                          
+                          const rules = {
+                            exact: league.pts_exact ?? 7,
+                            diff: league.pts_diff ?? 5,
+                            winner: league.pts_winner ?? 3
+                          };
+
+                          const sorted = usersInLeague.map(u => {
+                            let score = 0;
+                            allGuesses.filter(g => g.user_id === u.id).forEach(guess => {
+                              const game = games.find(g => g.id === guess.game_id);
+                              if (game) score += getPickResult(game, guess, rules).points;
+                            });
+                            return { id: u.id, score };
+                          }).sort((a, b) => b.score - a.score);
+
+                          const userIndex = sorted.findIndex(u => u.id === currentUserId);
+                          const pos = userIndex + 1;
+                          const posSuffix = pos === 1 ? 'ST' : pos === 2 ? 'ND' : pos === 3 ? 'RD' : 'TH';
+                          const rankDisplay = userIndex !== -1 ? ` [${pos}${posSuffix}]` : '';
+                          return (
+                            <option className="bg-[#111111]" key={league.id} value={league.id}>
+                              {league.name}  {rankDisplay}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                {currentWeekGames.length === 0 ? (
+                  <div className="bg-black/60 border border-white/5 rounded-2xl p-10 text-center font-sans text-[10px] sm:text-xs text-gray-500 font-black uppercase tracking-widest shadow-inner">
+                    No matchups scheduled.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                    {currentWeekGames.map((game) => {
+                      const existingPick = myGuesses.find(g => g.game_id?.toString() === game.id?.toString());
+                      return (
+                        <GameCard 
+                          key={game.id} game={game} userTeamColor={userColor} 
+                          homeTeam={teamsDataMap[game.home_team_id?.toString()] || { name: 'Home', abbr: 'HOME', color: '#171717' }}
+                          awayTeam={teamsDataMap[game.away_team_id?.toString()] || { name: 'Away', abbr: 'AWAY', color: '#171717' }}
+                          existingPick={existingPick} onPickChange={handlePickChange} isUnsaved={!!draftPicks[game.id.toString()]}
+                          customRules={currentRules}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="animate-fadeIn">
-            <LeagueHub userColor={userColor} currentUserId={currentUserId} isAdmin={isAdmin} isVip={isVip} />
-          </div>
-        )}
+          ) : (
+            <div className="animate-fadeIn">
+              <LeagueHub userColor={userColor} currentUserId={currentUserId} isAdmin={isAdmin} isVip={isVip} />
+            </div>
+          )}
+        </div>
       </div>
 
+      {/* Flutuante - Lock Picks: MOVIDO PARA FORA DO Z-10, E COM Z-INDEX MÁXIMO E POSIÇÃO ELEVADA NO DESKTOP */}
       {Object.keys(draftPicks).length > 0 && activeDashboardTab === 'locker' && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-md animate-slideUp">
-          <div className="bg-neutral-900 border-2 rounded-2xl p-4 flex items-center justify-between gap-4 transition-all duration-300" style={{ borderColor: saveStatus === 'error' ? '#ef4444' : userColor, boxShadow: `0 10px 40px ${saveStatus === 'error' ? '#ef444450' : userColor + '50'}` }}>
-            <div className="flex flex-col">
-              <span className="text-[10px] font-black uppercase tracking-widest transition-colors duration-300" style={{ color: saveStatus === 'error' ? '#ef4444' : userColor, textShadow: saveStatus !== 'error' ? `0 0 10px ${userColor}80` : 'none' }}>
+        <div 
+          className="fixed bottom-6 sm:bottom-10 lg:bottom-12 left-1/2 -translate-x-1/2 w-[90%] max-w-md animate-slideUp"
+          style={{ zIndex: 999999 }}
+        >
+          <div 
+            className="bg-black/95 backdrop-blur-3xl border-t-4 rounded-3xl p-4 sm:p-5 flex items-center justify-between gap-4 transition-all duration-300 shadow-[0_25px_60px_rgba(0,0,0,0.9)]" 
+            style={{ borderTopColor: saveStatus === 'error' ? '#ef4444' : userColor }}
+          >
+            <div className="flex flex-col gap-1 pl-2">
+              <span 
+                className="font-sans text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-colors duration-300" 
+                style={{ color: saveStatus === 'error' ? '#ef4444' : userColor, textShadow: saveStatus !== 'error' ? `0 0 10px ${userColor}80` : 'none' }}
+              >
                 {saveStatus === 'error' ? 'Sync Failed' : 'Unsaved Changes'}
               </span>
-              <span className="text-sm font-bold text-white">{Object.keys(draftPicks).length} Pick(s) pending</span>
+              <span className="font-sport font-bold text-base sm:text-xl text-white uppercase tracking-wider drop-shadow-md">
+                {Object.keys(draftPicks).length} Pick(s) pending
+              </span>
             </div>
-            <button onClick={handleSaveAll} disabled={saveStatus === 'saving'} className="px-6 py-3 rounded-xl font-black uppercase tracking-widest transition-all shadow-md disabled:opacity-50 text-xs sm:text-sm text-black" style={{ backgroundColor: saveStatus === 'error' ? '#ef4444' : userColor }}>
-              {saveStatus === 'saving' ? 'Locking...' : saveStatus === 'error' ? 'Try Again' : 'Lock All'}
+            <button 
+              onClick={handleSaveAll} 
+              disabled={saveStatus === 'saving'} 
+              className="px-5 sm:px-6 py-3 sm:py-3.5 rounded-xl font-sport font-bold text-base sm:text-lg uppercase tracking-wider transition-all shadow-xl hover:scale-105 disabled:opacity-50 text-black flex items-center justify-center min-w-[110px] sm:min-w-[120px]" 
+              style={{ backgroundColor: saveStatus === 'error' ? '#ef4444' : userColor, boxShadow: `0 0 20px ${saveStatus === 'error' ? '#ef444450' : userColor + '50'}` }}
+            >
+              {saveStatus === 'saving' ? 'LOCKING...' : saveStatus === 'error' ? 'TRY AGAIN' : 'LOCK ALL'}
             </button>
           </div>
         </div>
       )}
+
     </main>
   );
 }

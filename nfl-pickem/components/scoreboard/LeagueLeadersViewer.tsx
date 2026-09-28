@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "../../utils/supabase/client";
+import { ArrowLeft } from "lucide-react";
 
 interface LeagueLeadersViewerProps {
   teamsDataMap: Record<string, any>;
@@ -12,8 +13,6 @@ type FullViewCategory = 'pass' | 'rush' | 'rec' | 'sack' | 'int' | 'teamOffense'
 export default function LeagueLeadersViewer({ teamsDataMap }: LeagueLeadersViewerProps) {
   const [loading, setLoading] = useState(true);
   const [leaders, setLeaders] = useState<any>(null);
-  
-  // Estado para controlar a visão expandida ("Complete Leaders")
   const [fullViewCategory, setFullViewCategory] = useState<FullViewCategory>(null);
 
   useEffect(() => {
@@ -86,12 +85,10 @@ export default function LeagueLeadersViewer({ teamsDataMap }: LeagueLeadersViewe
               players.rec[l.name].yds += yds;
               players.rec[l.name].td += td;
             } else {
-              // Defesa: Captura Sacks
               if (cat.includes('SACK') || stat.includes('SACK')) {
                 if (!players.sack[l.name]) players.sack[l.name] = { teamId, val: 0 };
                 players.sack[l.name].val += sacks || (!isNaN(rawNum) ? rawNum : 0);
               }
-              // Defesa: Captura Interceptações
               if (cat === 'INTERCEPTIONS' || cat === 'INT' || stat.includes('INT')) {
                 if (!players.int[l.name]) players.int[l.name] = { teamId, val: 0 };
                 players.int[l.name].val += ints || (!isNaN(rawNum) ? rawNum : 0);
@@ -108,7 +105,6 @@ export default function LeagueLeadersViewer({ teamsDataMap }: LeagueLeadersViewe
         processLeaders(g.meta_data?.leaders?.away || [], awayId, homeId);
       });
 
-      // Ordenação das Listas Completas
       const sortPlayers = (dict: Record<string, any>, key: string) => {
         return Object.entries(dict)
           .map(([name, data]) => ({ name, ...data }))
@@ -164,87 +160,95 @@ export default function LeagueLeadersViewer({ teamsDataMap }: LeagueLeadersViewe
 
   if (loading || !leaders) {
     return (
-      <div className="bg-white/5 border border-white/10 rounded-xl p-6 flex items-center justify-center animate-pulse h-64 mt-6">
-         <span className="text-gray-500 font-bold uppercase tracking-widest text-xs">Compiling NFL Data...</span>
+      <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl p-8 flex items-center justify-center animate-pulse h-64 mt-6 shadow-2xl">
+         <span className="font-sans text-gray-500 font-black uppercase tracking-widest text-xs">Compiling NFL Data...</span>
       </div>
     );
   }
 
   // ==========================================
-  // COMPONENTE: VISÃO EXPANDIDA (COMPLETE LEADERS)
+  // VISÃO EXPANDIDA (COMPLETE LEADERS)
   // ==========================================
   if (fullViewCategory) {
     const isPlayer = ['pass', 'rush', 'rec', 'sack', 'int'].includes(fullViewCategory);
     const isOffense = ['pass', 'rush', 'rec'].includes(fullViewCategory);
     const dataList = isPlayer ? leaders.fullPlayers[fullViewCategory] : leaders.fullTeams[fullViewCategory];
 
+    const categoryTitles: Record<string, string> = {
+      pass: 'Passing Leaders', rush: 'Rushing Leaders', rec: 'Receiving Leaders',
+      sack: 'Sack Leaders', int: 'Interception Leaders', teamOffense: 'Team Offense Leaders',
+      teamDefense: 'Team Defense Leaders', teamSacks: 'Team Sacks Leaders', teamTurnovers: 'Turnover Differential Leaders'
+    };
+
     return (
-      <div className="space-y-6 mt-6 animate-fadeIn bg-neutral-900 border border-white/10 rounded-xl p-4 sm:p-8">
+      <div className="space-y-6 mt-6 animate-fadeIn bg-black/80 backdrop-blur-2xl border border-white/10 rounded-3xl p-6 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
         
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/10 pb-4">
-          <h2 className="text-2xl font-black italic uppercase tracking-wider text-white">Complete Leaders</h2>
+        <div className="absolute inset-0 z-0 pointer-events-none opacity-20 mix-blend-overlay" style={{ backgroundImage: 'repeating-linear-gradient(-45deg, transparent, transparent 4px, rgba(255,255,255,0.05) 4px, rgba(255,255,255,0.05) 8px)' }} />
+
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/10 pb-5 relative z-10">
+          <h2 className="font-jersey text-3xl sm:text-4xl uppercase tracking-widest text-white drop-shadow-md">{categoryTitles[fullViewCategory]}</h2>
           <button 
             onClick={() => setFullViewCategory(null)}
-            className="text-[10px] font-black uppercase tracking-widest text-gray-400 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-lg transition-colors border border-white/10"
+            className="font-sans text-[10px] font-black uppercase tracking-widest text-gray-400 bg-white/5 hover:bg-white/10 px-4 py-2.5 rounded-xl transition-all border border-white/10 flex items-center gap-2 hover:scale-105 shadow-md"
           >
-            ← Back to Overview
+            <ArrowLeft size={16} /> Back to Overview
           </button>
         </div>
 
-        {/* SUB-NAVEGAÇÃO COM ABAS */}
-        <div className="flex flex-col sm:flex-row flex-wrap gap-4 sm:gap-8 border-b border-white/5 pb-4">
+        {/* SUB-NAVEGAÇÃO POR ABAS */}
+        <div className="flex flex-col xl:flex-row gap-4 xl:gap-8 border-b border-white/5 pb-5 relative z-10">
           <div className="flex flex-col gap-2">
-            <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">Player Offense</span>
-            <div className="flex bg-black/40 rounded-lg p-1 border border-white/5 w-fit">
-              <button onClick={() => setFullViewCategory('pass')} className={`px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-md transition-all ${fullViewCategory === 'pass' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-white'}`}>Passing</button>
-              <button onClick={() => setFullViewCategory('rush')} className={`px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-md transition-all ${fullViewCategory === 'rush' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-white'}`}>Rushing</button>
-              <button onClick={() => setFullViewCategory('rec')} className={`px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-md transition-all ${fullViewCategory === 'rec' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-white'}`}>Receiving</button>
+            <span className="font-sans text-[9px] font-black uppercase tracking-widest text-gray-500">Player Offense</span>
+            <div className="flex bg-black/60 rounded-xl p-1 border border-white/10 shadow-inner w-fit">
+              <button onClick={() => setFullViewCategory('pass')} className={`px-4 py-2 font-sans text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'pass' ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-white'}`}>Passing</button>
+              <button onClick={() => setFullViewCategory('rush')} className={`px-4 py-2 font-sans text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'rush' ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-white'}`}>Rushing</button>
+              <button onClick={() => setFullViewCategory('rec')} className={`px-4 py-2 font-sans text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'rec' ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-white'}`}>Receiving</button>
             </div>
           </div>
 
           <div className="flex flex-col gap-2">
-            <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">Player Defense</span>
-            <div className="flex bg-black/40 rounded-lg p-1 border border-white/5 w-fit">
-              <button onClick={() => setFullViewCategory('sack')} className={`px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-md transition-all ${fullViewCategory === 'sack' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-white'}`}>Sacks</button>
-              <button onClick={() => setFullViewCategory('int')} className={`px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-md transition-all ${fullViewCategory === 'int' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-white'}`}>Interceptions</button>
+            <span className="font-sans text-[9px] font-black uppercase tracking-widest text-gray-500">Player Defense</span>
+            <div className="flex bg-black/60 rounded-xl p-1 border border-white/10 shadow-inner w-fit">
+              <button onClick={() => setFullViewCategory('sack')} className={`px-4 py-2 font-sans text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'sack' ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-white'}`}>Sacks</button>
+              <button onClick={() => setFullViewCategory('int')} className={`px-4 py-2 font-sans text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'int' ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-white'}`}>Interceptions</button>
             </div>
           </div>
 
           <div className="flex flex-col gap-2">
-            <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">Team Statistics</span>
-            <div className="flex bg-black/40 rounded-lg p-1 border border-white/5 w-fit">
-              <button onClick={() => setFullViewCategory('teamOffense')} className={`px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-md transition-all ${fullViewCategory === 'teamOffense' ? 'bg-amber-500/20 text-amber-500' : 'text-gray-500 hover:text-white'}`}>Offense</button>
-              <button onClick={() => setFullViewCategory('teamDefense')} className={`px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-md transition-all ${fullViewCategory === 'teamDefense' ? 'bg-amber-500/20 text-amber-500' : 'text-gray-500 hover:text-white'}`}>Defense</button>
-              <button onClick={() => setFullViewCategory('teamSacks')} className={`px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-md transition-all ${fullViewCategory === 'teamSacks' ? 'bg-amber-500/20 text-amber-500' : 'text-gray-500 hover:text-white'}`}>Sacks</button>
-              <button onClick={() => setFullViewCategory('teamTurnovers')} className={`px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-md transition-all ${fullViewCategory === 'teamTurnovers' ? 'bg-amber-500/20 text-amber-500' : 'text-gray-500 hover:text-white'}`}>Turnovers</button>
+            <span className="font-sans text-[9px] font-black uppercase tracking-widest text-gray-500">Team Statistics</span>
+            <div className="flex bg-black/60 rounded-xl p-1 border border-white/10 shadow-inner w-fit flex-wrap">
+              <button onClick={() => setFullViewCategory('teamOffense')} className={`px-3 py-2 font-sans text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'teamOffense' ? 'bg-amber-500/20 text-amber-400 shadow-inner' : 'text-gray-500 hover:text-white'}`}>Offense</button>
+              <button onClick={() => setFullViewCategory('teamDefense')} className={`px-3 py-2 font-sans text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'teamDefense' ? 'bg-amber-500/20 text-amber-400 shadow-inner' : 'text-gray-500 hover:text-white'}`}>Defense</button>
+              <button onClick={() => setFullViewCategory('teamSacks')} className={`px-3 py-2 font-sans text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'teamSacks' ? 'bg-amber-500/20 text-amber-400 shadow-inner' : 'text-gray-500 hover:text-white'}`}>Sacks</button>
+              <button onClick={() => setFullViewCategory('teamTurnovers')} className={`px-3 py-2 font-sans text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'teamTurnovers' ? 'bg-amber-500/20 text-amber-400 shadow-inner' : 'text-gray-500 hover:text-white'}`}>Turnovers</button>
             </div>
           </div>
         </div>
 
-        {/* TABELA COMPLETA (DINÂMICA PARA JOGADOR OU TIME) */}
-        <div className="bg-black/20 border border-white/5 rounded-xl overflow-x-auto">
-          <table className="w-full text-left text-xs sm:text-sm whitespace-nowrap min-w-[500px]">
+        {/* TABELA COMPLETA */}
+        <div className="bg-black/60 border border-white/10 rounded-2xl overflow-x-auto relative z-10 shadow-inner">
+          <table className="w-full text-left whitespace-nowrap min-w-[550px]">
             <thead>
-              <tr className="text-[10px] text-gray-500 uppercase tracking-widest border-b border-white/10 bg-black/40">
-                <th className="px-4 py-3 font-black w-12 text-center">RK</th>
+              <tr className="font-sans text-[9px] text-gray-500 uppercase tracking-widest border-b border-white/10 bg-black/80">
+                <th className="px-5 py-3 font-black w-14 text-center">RK</th>
                 {isPlayer ? (
                   <>
-                    <th className="px-4 py-3 font-black">Name</th>
-                    <th className="px-4 py-3 font-black text-center">Team</th>
+                    <th className="px-5 py-3 font-black">Name</th>
+                    <th className="px-5 py-3 font-black text-center">Team</th>
                     {isOffense ? (
                       <>
-                        <th className="px-4 py-3 font-black text-right">YDS</th>
-                        <th className="px-4 py-3 font-black text-center">TD</th>
-                        {fullViewCategory === 'pass' && <th className="px-4 py-3 font-black text-center">INT</th>}
+                        <th className="px-5 py-3 font-black text-right">YDS</th>
+                        <th className="px-5 py-3 font-black text-center">TD</th>
+                        {fullViewCategory === 'pass' && <th className="px-5 py-3 font-black text-center">INT</th>}
                       </>
                     ) : (
-                      <th className="px-4 py-3 font-black text-right">{fullViewCategory === 'sack' ? 'SACKS' : 'INTS'}</th>
+                      <th className="px-5 py-3 font-black text-right">{fullViewCategory === 'sack' ? 'SACKS' : 'INTS'}</th>
                     )}
                   </>
                 ) : (
                   <>
-                    <th className="px-4 py-3 font-black">Team</th>
-                    <th className="px-4 py-3 font-black text-right">
+                    <th className="px-5 py-3 font-black">Team</th>
+                    <th className="px-5 py-3 font-black text-right">
                       {fullViewCategory === 'teamOffense' ? 'YDS/G' : 
                        fullViewCategory === 'teamDefense' ? 'YDS ALW/G' : 
                        fullViewCategory === 'teamSacks' ? 'SACKS' : 'DIFF'}
@@ -255,35 +259,30 @@ export default function LeagueLeadersViewer({ teamsDataMap }: LeagueLeadersViewe
             </thead>
             <tbody className="divide-y divide-white/5">
               {dataList.map((row: any, i: number) => {
-                
-                // Renderização para a tabela de JOGADOR
                 if (isPlayer) {
                   const team = teamsDataMap[row.teamId] || {};
                   return (
-                    <tr key={i} className="hover:bg-white/[0.02] transition">
-                      <td className="px-4 py-3 text-center text-gray-600 font-black">{i + 1}</td>
-                      <td className="px-4 py-3 text-white font-bold">{row.name}</td>
-                      <td className="px-4 py-3">
+                    <tr key={i} className="hover:bg-white/[0.04] transition-colors group">
+                      <td className="px-5 py-4 text-center font-jersey text-gray-500 text-base group-hover:text-white transition-colors">{i + 1}</td>
+                      <td className="px-5 py-4 text-white font-bold font-sport uppercase tracking-wider">{row.name}</td>
+                      <td className="px-5 py-4">
                         <div className="flex items-center justify-center gap-2">
-                          {team.logo && <img src={team.logo} alt={team.abbr} className="w-5 h-5 object-contain" />}
-                          <span className="text-[10px] font-black text-gray-400 uppercase">{team.abbr}</span>
+                          {team.logo && <img src={team.logo} alt={team.abbr} className="w-6 h-6 object-contain drop-shadow-md" />}
+                          <span className="font-sport font-bold text-[10px] text-gray-400 uppercase tracking-wider">{team.abbr}</span>
                         </div>
                       </td>
                       {isOffense ? (
                         <>
-                          <td className="px-4 py-3 text-right font-black text-amber-500">{row.yds}</td>
-                          <td className="px-4 py-3 text-center font-bold text-gray-300">{row.td}</td>
-                          {fullViewCategory === 'pass' && <td className="px-4 py-3 text-center font-bold text-gray-500">{row.int}</td>}
+                          <td className="px-5 py-4 text-right font-jersey text-2xl text-amber-500 drop-shadow-[0_0_8px_rgba(245,158,11,0.4)]">{row.yds}</td>
+                          <td className="px-5 py-4 text-center font-jersey text-xl text-gray-300">{row.td}</td>
+                          {fullViewCategory === 'pass' && <td className="px-5 py-4 text-center font-jersey text-xl text-gray-500">{row.int}</td>}
                         </>
                       ) : (
-                        <td className="px-4 py-3 text-right font-black text-amber-500">{row.val}</td>
+                        <td className="px-5 py-4 text-right font-jersey text-2xl text-amber-500 drop-shadow-[0_0_8px_rgba(245,158,11,0.4)]">{row.val}</td>
                       )}
                     </tr>
                   );
-                } 
-                
-                // Renderização para a tabela de TIME
-                else {
+                } else {
                   const team = teamsDataMap[row.id] || {};
                   let val = 0;
                   if (fullViewCategory === 'teamOffense') val = row.totalYds;
@@ -295,15 +294,15 @@ export default function LeagueLeadersViewer({ teamsDataMap }: LeagueLeadersViewe
                   const displayVal = isDecimal ? val.toFixed(1) : val;
 
                   return (
-                    <tr key={i} className="hover:bg-white/[0.02] transition">
-                      <td className="px-4 py-3 text-center text-gray-600 font-black">{i + 1}</td>
-                      <td className="px-4 py-3">
+                    <tr key={i} className="hover:bg-white/[0.04] transition-colors group">
+                      <td className="px-5 py-4 text-center font-jersey text-gray-500 text-base group-hover:text-white transition-colors">{i + 1}</td>
+                      <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
-                          {team.logo && <img src={team.logo} alt={team.abbr} className="w-6 h-6 object-contain" />}
-                          <span className="text-white font-bold uppercase">{team.name}</span>
+                          {team.logo && <img src={team.logo} alt={team.abbr} className="w-7 h-7 object-contain drop-shadow-md" />}
+                          <span className="text-white font-sport font-bold text-sm uppercase tracking-wider">{team.name}</span>
                         </div>
                       </td>
-                      <td className={`px-4 py-3 text-right font-black ${fullViewCategory === 'teamTurnovers' ? (val > 0 ? 'text-green-400' : val < 0 ? 'text-red-400' : 'text-gray-400') : 'text-amber-500'}`}>
+                      <td className={`px-5 py-4 text-right font-jersey text-2xl leading-none pt-2 ${fullViewCategory === 'teamTurnovers' ? (val > 0 ? 'text-green-400 drop-shadow-[0_0_8px_rgba(74,222,128,0.5)]' : val < 0 ? 'text-red-400 drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]' : 'text-gray-400') : 'text-amber-500 drop-shadow-[0_0_8px_rgba(245,158,11,0.4)]'}`}>
                         {fullViewCategory === 'teamTurnovers' && val > 0 ? '+' : ''}{displayVal}
                       </td>
                     </tr>
@@ -318,39 +317,39 @@ export default function LeagueLeadersViewer({ teamsDataMap }: LeagueLeadersViewe
   }
 
   // ==========================================
-  // COMPONENTES: MINI-TABELAS (OVERVIEW)
+  // MINI-TABELAS (OVERVIEW)
   // ==========================================
   const PlayerTable = ({ title, statLabel, data, viewCategory }: any) => (
-    <div className="bg-neutral-900 border border-white/5 rounded-xl overflow-hidden shadow-sm flex flex-col h-full">
-      <div className="flex justify-between items-center px-4 py-3 bg-black/40 border-b border-white/5">
-        <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">{title}</span>
-        <span className="text-[9px] font-black uppercase tracking-widest text-gray-600">{statLabel}</span>
+    <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-xl flex flex-col h-full group hover:border-white/20 transition-all">
+      <div className="flex justify-between items-center px-4 py-3 bg-black/80 border-b border-white/5">
+        <span className="font-sans text-[9px] font-black uppercase tracking-widest text-gray-400">{title}</span>
+        <span className="font-sans text-[9px] font-black uppercase tracking-widest text-gray-600">{statLabel}</span>
       </div>
-      <div className="flex flex-col p-2 gap-1 grow">
+      <div className="flex flex-col p-3 gap-1.5 grow">
         {data.map((p: any, i: number) => {
           const team = teamsDataMap[p.teamId] || {};
           const val = p.yds !== undefined ? p.yds : p.val;
           return (
-            <div key={i} className="flex items-center justify-between p-2 rounded hover:bg-white/5 transition group">
+            <div key={i} className="flex items-center justify-between p-2 rounded-xl hover:bg-white/[0.04] transition-colors">
               <div className="flex items-center gap-3 min-w-0">
-                <span className="text-gray-600 font-bold text-xs w-3 text-center shrink-0">{i + 1}</span>
+                <span className="font-jersey text-gray-500 text-sm w-4 text-center shrink-0">{i + 1}</span>
                 {team.logo ? (
                   <img src={team.logo} alt={team.abbr} className="w-6 h-6 object-contain drop-shadow-md shrink-0" />
                 ) : (
-                  <div className="w-6 h-6 bg-white/10 rounded-full shrink-0" />
+                  <div className="w-6 h-6 bg-white/5 rounded-full shrink-0" />
                 )}
                 <div className="flex flex-col truncate">
-                  <span className="text-white font-bold text-xs truncate">{p.name} <span className="text-gray-500 text-[9px] font-medium ml-1">{team.abbr}</span></span>
+                  <span className="text-white font-sport font-bold text-xs uppercase tracking-wider truncate">{p.name} <span className="text-gray-500 text-[9px] font-normal ml-1">{team.abbr}</span></span>
                 </div>
               </div>
-              <span className="text-white font-black text-xs shrink-0 pl-2">{val}</span>
+              <span className="font-jersey text-lg text-white shrink-0 pl-2 leading-none pt-1">{val}</span>
             </div>
           );
         })}
       </div>
       <button 
         onClick={() => setFullViewCategory(viewCategory)}
-        className="w-full py-2.5 bg-black/30 border-t border-white/5 text-[9px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+        className="w-full py-3 bg-white/[0.02] hover:bg-white/10 border-t border-white/5 font-sans text-[9px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors flex items-center justify-center gap-1"
       >
         Complete Leaders
       </button>
@@ -358,27 +357,27 @@ export default function LeagueLeadersViewer({ teamsDataMap }: LeagueLeadersViewe
   );
 
   const TeamTable = ({ title, statLabel, data, statKey, isDecimal, viewCategory }: any) => (
-    <div className="bg-neutral-900 border border-white/5 rounded-xl overflow-hidden shadow-sm flex flex-col h-full">
-      <div className="flex justify-between items-center px-4 py-3 bg-black/40 border-b border-white/5">
-        <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">{title}</span>
-        <span className="text-[9px] font-black uppercase tracking-widest text-gray-600">{statLabel}</span>
+    <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-xl flex flex-col h-full group hover:border-white/20 transition-all">
+      <div className="flex justify-between items-center px-4 py-3 bg-black/80 border-b border-white/5">
+        <span className="font-sans text-[9px] font-black uppercase tracking-widest text-gray-400">{title}</span>
+        <span className="font-sans text-[9px] font-black uppercase tracking-widest text-gray-600">{statLabel}</span>
       </div>
-      <div className="flex flex-col p-2 gap-1 grow">
+      <div className="flex flex-col p-3 gap-1.5 grow">
         {data.map((t: any, i: number) => {
           const team = teamsDataMap[t.id] || {};
           const val = t[statKey];
           return (
-            <div key={i} className="flex items-center justify-between p-2 rounded hover:bg-white/5 transition group">
-              <div className="flex items-center gap-3">
-                <span className="text-gray-600 font-bold text-xs w-3 text-center shrink-0">{i + 1}</span>
+            <div key={i} className="flex items-center justify-between p-2 rounded-xl hover:bg-white/[0.04] transition-colors">
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="font-jersey text-gray-500 text-sm w-4 text-center shrink-0">{i + 1}</span>
                 {team.logo ? (
                   <img src={team.logo} alt={team.abbr} className="w-6 h-6 object-contain drop-shadow-md shrink-0" />
                 ) : (
-                  <div className="w-6 h-6 bg-white/10 rounded-full shrink-0" />
+                  <div className="w-6 h-6 bg-white/5 rounded-full shrink-0" />
                 )}
-                <span className="text-white font-bold text-xs leading-none truncate">{team.name}</span>
+                <span className="text-white font-sport font-bold text-xs uppercase tracking-wider leading-none truncate">{team.name}</span>
               </div>
-              <span className={`font-black text-xs shrink-0 pl-2 ${statKey === 'diff' ? (val > 0 ? 'text-green-400' : val < 0 ? 'text-red-400' : 'text-gray-400') : 'text-white'}`}>
+              <span className={`font-jersey text-lg shrink-0 pl-2 leading-none pt-1 ${statKey === 'diff' ? (val > 0 ? 'text-green-400 drop-shadow-[0_0_5px_rgba(74,222,128,0.4)]' : val < 0 ? 'text-red-400 drop-shadow-[0_0_5px_rgba(239,68,68,0.4)]' : 'text-gray-400') : 'text-white'}`}>
                 {statKey === 'diff' && val > 0 ? '+' : ''}{isDecimal ? val.toFixed(1) : val}
               </span>
             </div>
@@ -387,7 +386,7 @@ export default function LeagueLeadersViewer({ teamsDataMap }: LeagueLeadersViewe
       </div>
       <button 
         onClick={() => setFullViewCategory(viewCategory)}
-        className="w-full py-2.5 bg-black/30 border-t border-white/5 text-[9px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+        className="w-full py-3 bg-white/[0.02] hover:bg-white/10 border-t border-white/5 font-sans text-[9px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors flex items-center justify-center gap-1"
       >
         Complete Leaders
       </button>
@@ -395,12 +394,12 @@ export default function LeagueLeadersViewer({ teamsDataMap }: LeagueLeadersViewe
   );
 
   return (
-    <div className="space-y-8 mt-6 animate-fadeIn">
+    <div className="space-y-10 mt-6 animate-fadeIn">
       
       {/* SEÇÃO JOGADORES (OVERVIEW) */}
       <div className="space-y-4">
-        <h2 className="text-xl font-black italic uppercase tracking-wider text-white border-b border-white/10 pb-2">Player Leaders</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
+        <h2 className="font-jersey text-3xl sm:text-4xl uppercase tracking-widest text-white border-b border-white/10 pb-3 drop-shadow-md">PLAYER LEADERS</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 items-stretch">
           <PlayerTable title="Passing" statLabel="YDS" data={leaders.players.pass} viewCategory="pass" />
           <PlayerTable title="Rushing" statLabel="YDS" data={leaders.players.rush} viewCategory="rush" />
           <PlayerTable title="Receiving" statLabel="YDS" data={leaders.players.rec} viewCategory="rec" />
@@ -410,9 +409,9 @@ export default function LeagueLeadersViewer({ teamsDataMap }: LeagueLeadersViewe
       </div>
 
       {/* SEÇÃO TIMES (OVERVIEW) */}
-      <div className="space-y-4">
-        <h2 className="text-xl font-black italic uppercase tracking-wider text-white border-b border-white/10 pb-2">Team Statistics</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-stretch">
+      <div className="space-y-4 pt-2">
+        <h2 className="font-jersey text-3xl sm:text-4xl uppercase tracking-widest text-white border-b border-white/10 pb-3 drop-shadow-md">TEAM STATISTICS</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 items-stretch">
           <TeamTable title="Total Offense" statLabel="YDS/G" data={leaders.teams.teamOffense} statKey="totalYds" isDecimal={true} viewCategory="teamOffense" />
           <TeamTable title="Total Defense" statLabel="YDS ALW/G" data={leaders.teams.teamDefense} statKey="ydsAllowed" isDecimal={true} viewCategory="teamDefense" />
           <TeamTable title="Team Sacks" statLabel="SACKS" data={leaders.teams.teamSacks} statKey="sacks" isDecimal={false} viewCategory="teamSacks" />

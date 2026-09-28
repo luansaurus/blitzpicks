@@ -100,7 +100,7 @@ export default function Footer() {
         />
         <div className="max-w-7xl mx-auto px-4 py-8 relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex flex-col items-center md:items-start gap-1">
-            <span className={`text-2xl font-black italic uppercase tracking-tighter ${textMain}`}>
+            <span className={`text-xl font-black italic uppercase tracking-tighter ${textMain}`}>
               BLITZ<span style={{ color: footerSec, textShadow: isLightBg ? 'none' : '0 2px 4px rgba(0,0,0,0.6)' }}>PICKS</span>
             </span>
             <span className={`text-xs font-bold uppercase tracking-widest ${textMuted}`}>© 2026 BLITZPICKS. NOT AFFILIATED WITH THE NFL.</span>

@@ -85,7 +85,6 @@ export default function Header() {
         setIsAdmin(!!profile.is_admin);
         
         if (profile.favorite_team_id) {
-          // Buscamos agora a primary_color e a secondary_color
           const { data: team } = await supabase.from('teams').select('logo_url, primary_color, secondary_color').eq('id', profile.favorite_team_id).single();
           if (team) {
             if (team.logo_url) setLogoUrl(team.logo_url);
@@ -100,7 +99,6 @@ export default function Header() {
             }
             
             if (team.secondary_color) {
-              // Aplica a cor secundária nos detalhes da UI
               setHeaderSec(team.secondary_color);
               document.documentElement.style.setProperty('--team-secondary', team.secondary_color);
             }
@@ -135,8 +133,6 @@ export default function Header() {
     };
   }, [supabase]);
 
-  
-
   const handleLogout = async () => {
     if (loadingLogout) return;
     setLoadingLogout(true);
@@ -168,7 +164,6 @@ export default function Header() {
 
   return (
     <>
-      {/* HEADER DINÂMICO COM A COR PRIMÁRIA DO TIME */}
       <header className="border-b-4 relative z-40 transition-colors duration-500" style={{ backgroundColor: headerBg, borderBottomColor: headerSec }}>
         
         <div 
@@ -180,18 +175,20 @@ export default function Header() {
 
         <div className="max-w-7xl mx-auto px-4 h-16 sm:h-20 flex items-center justify-between relative z-10">
           
-          <Link href="/dashboard" className="flex items-center gap-1 hover:opacity-80 transition-opacity">
-            <span className={`text-2xl sm:text-3xl font-black italic uppercase tracking-tighter ${textMain}`}>
+          {/* Logo atualizado para usar font-jersey e cor secundária */}
+          <Link href="/dashboard" className="flex items-center gap-1 hover:opacity-90 transition-opacity">
+            <b><i><span className={`font-jersey text-3xl sm:text-4xl uppercase tracking-widest pt-1 ${textMain}`}>
               BLITZ
               <span 
                 style={{ 
                   color: headerSec, 
-                  textShadow: isLightBg ? 'none' : '0 2px 4px rgba(0,0,0,0.6)' 
+                  textShadow: isLightBg ? 'none' : `0 0 15px ${headerSec}80` 
                 }}
               >
                 PICKS
               </span>
             </span>
+           </i> </b>
           </Link>
 
           <nav className="hidden sm:flex items-center h-full">
@@ -207,7 +204,6 @@ export default function Header() {
                     {link.name}
                   </span>
                   
-                  {/* Linha Ativa no Desktop - Usando Cor Secundária */}
                   {isActive && (
                     <span 
                       className="absolute bottom-0 left-0 w-full h-[5px] origin-bottom-left -skew-x-12 z-20"
@@ -274,7 +270,6 @@ export default function Header() {
                 className="relative flex flex-col items-center justify-center w-full h-full gap-1 pt-1" 
                 style={isActive ? { color: 'white' } : { color: '#666' }}
               >
-                {/* Linha indicadora usando a cor Secundária do time */}
                 {isActive && (
                   <div 
                     className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-[3px] rounded-b-sm" 

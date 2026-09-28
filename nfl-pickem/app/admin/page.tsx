@@ -8,6 +8,22 @@ import LoadingScreen from '@/components/ui/LoadingScreen';
 import BroadcastBadge from '@/components/ui/BroadcastBadge';
 import { CheckCircle2, XCircle, RefreshCw, Zap } from 'lucide-react';
 
+const getLuminance = (hex: string) => {
+  if (!hex) return 0;
+  let cleanHex = hex.replace('#', '');
+  if (cleanHex.length === 3) cleanHex = cleanHex.split('').map(x => x + x).join('');
+  const r = parseInt(cleanHex.substring(0, 2), 16) || 0;
+  const g = parseInt(cleanHex.substring(2, 4), 16) || 0;
+  const b = parseInt(cleanHex.substring(4, 6), 16) || 0;
+  return ((r * 299) + (g * 587) + (b * 114)) / 1000;
+};
+
+const getBestColor = (pri: string, sec: string) => {
+  const p = pri || '#111111';
+  const s = sec || '#ff2a2a';
+  return getLuminance(p) > getLuminance(s) ? p : s;
+};
+
 export default function AdminPage() {
   const [gamesByWeek, setGamesByWeek] = useState<Record<string, any[]>>({});
   const [teamsDataMap, setTeamsDataMap] = useState<Record<string, any>>({});
@@ -18,7 +34,9 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' } | null>(null);
-  const [userColor, setUserColor] = useState('#f59e0b');
+  const [userColor, setUserColor] = useState('#E31837');
+  const [ambientPrimary, setAmbientPrimary] = useState('#013369');
+  const [ambientSecondary, setAmbientSecondary] = useState('#E31837');
   
   const router = useRouter();
   const supabase = createClient();
@@ -33,18 +51,32 @@ export default function AdminPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push('/login'); return; }
 
-      const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', session.user.id).single();
+      const { data: profile } = await supabase.from('profiles').select('is_admin, favorite_team_id').eq('id', session.user.id).single();
       if (!profile?.is_admin) { router.push('/dashboard'); return; }
-
-      if (typeof window !== "undefined") {
-         const savedAccent = localStorage.getItem('blitz_accent');
-         if (savedAccent) setUserColor(savedAccent);
-      }
 
       const { data: teams } = await supabase.from('teams').select('*');
       const tMap: Record<string, any> = {};
-      teams?.forEach(t => { tMap[t.id] = { name: t.name, abbr: t.abbreviation, logo: t.logo_url }; });
+      teams?.forEach(t => { 
+        tMap[t.id] = { 
+          name: t.name, 
+          abbr: t.abbreviation, 
+          logo: t.logo_url,
+          color: getBestColor(t.primary_color, t.secondary_color)
+        }; 
+      });
       setTeamsDataMap(tMap);
+
+      if (profile.favorite_team_id && teams) {
+        const tInfo = teams.find(t => t.id === profile.favorite_team_id);
+        if (tInfo) {
+          setUserColor(getBestColor(tInfo.primary_color, tInfo.secondary_color));
+          setAmbientPrimary(tInfo.primary_color || '#013369');
+          setAmbientSecondary(tInfo.secondary_color || '#E31837');
+        }
+      } else if (typeof window !== "undefined") {
+         const savedAccent = localStorage.getItem('blitz_accent');
+         if (savedAccent) setUserColor(savedAccent);
+      }
 
       const { data: allGames } = await supabase.from('games').select('*').order('game_time', { ascending: true });
       if (allGames) {
@@ -111,7 +143,6 @@ export default function AdminPage() {
       const hasError = results.some(r => r.error !== null);
       if (hasError) throw new Error("Falha ao atualizar.");
 
-      // CHAMA A API SEGURA NO BACKEND PARA RECALCULAR TUDO
       if (hasNewFinishedGame) {
         await fetch('/api/recalculate', { method: 'POST' });
       }
@@ -169,12 +200,29 @@ export default function AdminPage() {
   const weeks = Object.keys(gamesByWeek).sort((a, b) => Number(a) - Number(b));
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-white font-sans pb-32 relative">
+    <main className="min-h-screen bg-[#050505] text-white font-sans pb-40 sm:pb-48 relative overflow-hidden">
+      
+      {/* Spotlights de Fundo */}
+      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+        <div 
+          className="absolute -top-32 -left-32 w-[600px] h-[600px] rounded-full blur-[150px] opacity-30 transition-colors duration-1000"
+          style={{ backgroundColor: ambientPrimary }}
+        />
+        <div 
+          className="absolute -bottom-32 -right-32 w-[600px] h-[600px] rounded-full blur-[150px] opacity-20 transition-colors duration-1000"
+          style={{ backgroundColor: ambientSecondary }}
+        />
+        <div 
+          className="absolute inset-0 opacity-20 mix-blend-overlay"
+          style={{ backgroundImage: 'repeating-linear-gradient(-45deg, transparent, transparent 4px, rgba(255,255,255,0.05) 4px, rgba(255,255,255,0.05) 8px)' }}
+        />
+      </div>
+
       <Header />
       
       {toast && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-slideDown">
-          <div className={`px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 backdrop-blur-md border ${
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[99999] animate-slideDown">
+          <div className={`px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 backdrop-blur-xl border ${
             toast.type === 'success' ? 'bg-[#10b981]/20 border-[#10b981]/50 text-[#10b981]' : 
             toast.type === 'error' ? 'bg-[#ef4444]/20 border-[#ef4444]/50 text-[#ef4444]' : 
             'bg-white/10 border-white/20 text-white'
@@ -182,44 +230,50 @@ export default function AdminPage() {
             <span className="text-lg">
               {toast.type === 'success' ? <CheckCircle2 size={18} /> : toast.type === 'error' ? <XCircle size={18} /> : <RefreshCw size={18} />}
             </span>
-            <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest">
+            <span className="font-sans text-[10px] sm:text-xs font-black uppercase tracking-widest">
               {toast.message}
             </span>
           </div>
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6 mt-4">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6 mt-4 relative z-10">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-white/10 pb-6">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-black italic uppercase tracking-wider" style={{ color: userColor }}>Control Room</h1>
-            <p className="text-gray-400 mt-1 font-medium text-xs sm:text-sm">Atualize os resultados oficiais e acompanhe as transmissões.</p>
+            <h1 className="font-jersey text-4xl sm:text-5xl uppercase tracking-widest text-white mb-1 drop-shadow-md">
+              CONTROL <span style={{ color: userColor, textShadow: `0 0 15px ${userColor}80` }}>ROOM</span>
+            </h1>
+            <p className="font-sans text-xs sm:text-sm font-bold text-gray-400 uppercase tracking-widest mt-1">Atualize os resultados oficiais e acompanhe as transmissões.</p>
           </div>
           
           <button 
             onClick={forceApiSync}
             disabled={isSyncing}
-            className={`relative overflow-hidden px-6 py-3 rounded-lg font-black uppercase tracking-widest text-xs transition-all shadow-lg border border-white/20 group ${isSyncing ? 'opacity-70 cursor-wait' : 'hover:scale-105'}`}
-            style={{ backgroundColor: `${userColor}20`, color: userColor }}
+            className={`relative overflow-hidden px-6 py-3.5 rounded-xl font-sans text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all shadow-xl border border-white/20 group ${isSyncing ? 'opacity-70 cursor-wait' : 'hover:scale-105'}`}
+            style={{ backgroundColor: `${userColor}20`, color: userColor, boxShadow: `0 0 20px ${userColor}30` }}
           >
             <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
             {isSyncing ? 'Syncing...' : <span className="inline-flex items-center gap-2"><Zap size={14} /> Force API Sync</span>}
           </button>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-4">
           {weeks.map(week => {
             const isOpen = expandedWeek === week;
             return (
-              <div key={week} className="bg-neutral-900/50 rounded-xl border border-white/5 overflow-hidden shadow-lg">
-                <button onClick={() => setExpandedWeek(isOpen ? null : week)} className="w-full flex justify-between items-center p-4 bg-neutral-900 hover:bg-neutral-800/80 transition text-left">
-                  <span className="font-black text-lg uppercase tracking-widest" style={{ color: userColor }}>Week {week}</span>
-                  <span className="text-gray-500 font-bold text-sm shrink-0">{isOpen ? '▲ Collapse' : '▼ Expand'}</span>
+              <div key={week} className={`rounded-2xl border overflow-hidden transition-all shadow-lg ${isOpen ? 'bg-black/60 border-white/10 backdrop-blur-xl' : 'border-white/5 bg-black/40 backdrop-blur-md'}`}>
+                <button 
+                  onClick={() => setExpandedWeek(isOpen ? null : week)} 
+                  className="w-full flex justify-between items-center p-4 sm:p-5 bg-black/80 hover:bg-white/[0.02] transition-colors text-left border-b border-white/5"
+                  style={isOpen ? { borderBottomColor: 'rgba(255,255,255,0.05)' } : {}}
+                >
+                  <span className="font-jersey text-2xl sm:text-3xl uppercase tracking-widest pt-1" style={{ color: isOpen ? userColor : '#ffffff', textShadow: isOpen ? `0 0 10px ${userColor}80` : 'none' }}>Week {week}</span>
+                  <span className="text-gray-500 font-bold text-xs uppercase tracking-widest shrink-0">{isOpen ? '▲ Collapse' : '▼ Expand'}</span>
                 </button>
 
                 {isOpen && (
-                  <div className="p-4 bg-black/20 border-t border-white/5 animate-fadeIn">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                  <div className="p-4 sm:p-5 bg-black/20 animate-fadeIn shadow-inner">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                       {gamesByWeek[week].map((game) => {
                         const isUnsaved = !!draftScores[game.id.toString()];
                         const displayAway = draftScores[game.id.toString()]?.away !== undefined ? draftScores[game.id.toString()].away : game.away_score;
@@ -234,36 +288,37 @@ export default function AdminPage() {
                         return (
                           <div 
                             key={game.id} 
-                            className={`flex flex-col p-3 rounded-xl border transition-colors shadow-sm ${isUnsaved ? 'bg-white/5' : 'border-white/5 bg-black/40'}`} 
-                            style={isUnsaved ? { borderColor: userColor, boxShadow: `0 0 15px ${userColor}20` } : {}}
+                            className={`flex flex-col p-3.5 sm:p-4 rounded-2xl border transition-all shadow-xl ${isUnsaved ? 'bg-white/10' : 'border-white/10 bg-black/60 backdrop-blur-md'}`} 
+                            style={isUnsaved ? { borderColor: userColor, boxShadow: `0 0 20px ${userColor}40` } : {}}
                           >
                             <div className="flex justify-between items-start mb-3 pb-2 border-b border-white/5">
                               <div className="flex flex-col">
-                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-tight">
+                                <span className="font-sans text-[9px] font-black text-gray-400 uppercase tracking-widest leading-tight">
                                   {new Date(game.game_time).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
                                 </span>
-                                <span className="text-[10px] font-bold text-gray-600">
+                                <span className="font-sans text-[9px] font-bold text-gray-500 tracking-widest">
                                   {new Date(game.game_time).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
                                 </span>
                               </div>
                               <div className="text-right shrink-0">
                                 {isUnsaved ? (
-                                  <span className="text-[9px] font-black uppercase tracking-widest animate-pulse" style={{ color: userColor }}>Unsaved</span> 
+                                  <span className="font-sans text-[9px] font-black uppercase tracking-widest animate-pulse" style={{ color: userColor }}>Unsaved</span> 
                                 ) : isFinished ? (
-                                  <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">FINAL</span> 
+                                  <span className="font-sans text-[9px] font-black uppercase tracking-widest text-green-500 drop-shadow-md">FINAL</span> 
                                 ) : isLive ? (
-                                  <span className="text-[9px] font-black uppercase tracking-widest text-red-500 animate-pulse">LIVE</span> 
+                                  <span className="font-sans text-[9px] font-black uppercase tracking-widest text-red-500 animate-pulse">LIVE</span> 
                                 ) : (
-                                  <span className="text-[9px] font-black uppercase tracking-widest text-gray-600">Pending</span>
+                                  <span className="font-sans text-[9px] font-bold uppercase tracking-widest text-gray-600">Pending</span>
                                 )}
                               </div>
                             </div>
 
-                            <div className="flex flex-col gap-2 grow justify-center">
-                              <div className="flex items-center justify-between bg-black/60 p-2 rounded-lg border border-white/5 hover:border-white/10 transition-colors">
+                            <div className="flex flex-col gap-2.5 grow justify-center">
+                              {/* Away Team Input Row */}
+                              <div className="flex items-center justify-between bg-black/60 p-2 sm:p-2.5 rounded-xl border border-white/5 shadow-inner">
                                 <div className="flex items-center gap-2 min-w-0 pr-2">
-                                  {awayTeam?.logo ? <img src={awayTeam.logo} alt="" className="w-5 h-5 object-contain shrink-0" /> : <div className="w-5 h-5 bg-white/5 rounded-full shrink-0" />}
-                                  <span className="text-xs font-black uppercase text-gray-300 truncate">{awayTeam?.abbr || 'AWAY'}</span>
+                                  {awayTeam?.logo ? <img src={awayTeam.logo} alt="" className="w-6 h-6 object-contain shrink-0 drop-shadow-sm" /> : <div className="w-6 h-6 bg-white/5 rounded-full shrink-0" />}
+                                  <span className="font-sport font-bold text-xs uppercase text-gray-300 truncate tracking-wider">{awayTeam?.abbr || 'AWAY'}</span>
                                 </div>
                                 <input 
                                   type="number" 
@@ -272,15 +327,15 @@ export default function AdminPage() {
                                   placeholder="-" 
                                   value={displayAway === null ? "" : displayAway} 
                                   onChange={(e) => handleScoreChange(game.id, displayHome?.toString() || "", e.target.value, game.home_score, game.away_score)} 
-                                  className="w-12 h-9 bg-neutral-900 border border-white/10 rounded-md text-center text-sm font-black text-white focus:outline-none focus:border-transparent focus:ring-1 transition-all shrink-0" 
-                                  style={{ '--tw-ring-color': userColor } as React.CSSProperties} 
+                                  className="w-14 h-10 bg-black/80 border border-white/20 rounded-xl text-center font-jersey text-xl text-white focus:outline-none focus:border-white transition-all shrink-0 shadow-inner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                 />
                               </div>
 
-                              <div className="flex items-center justify-between bg-black/60 p-2 rounded-lg border border-white/5 hover:border-white/10 transition-colors">
+                              {/* Home Team Input Row */}
+                              <div className="flex items-center justify-between bg-black/60 p-2 sm:p-2.5 rounded-xl border border-white/5 shadow-inner">
                                 <div className="flex items-center gap-2 min-w-0 pr-2">
-                                  {homeTeam?.logo ? <img src={homeTeam.logo} alt="" className="w-5 h-5 object-contain shrink-0" /> : <div className="w-5 h-5 bg-white/5 rounded-full shrink-0" />}
-                                  <span className="text-xs font-black uppercase text-gray-300 truncate">{homeTeam?.abbr || 'HOME'}</span>
+                                  {homeTeam?.logo ? <img src={homeTeam.logo} alt="" className="w-6 h-6 object-contain shrink-0 drop-shadow-sm" /> : <div className="w-6 h-6 bg-white/5 rounded-full shrink-0" />}
+                                  <span className="font-sport font-bold text-xs uppercase text-gray-300 truncate tracking-wider">{homeTeam?.abbr || 'HOME'}</span>
                                 </div>
                                 <input 
                                   type="number" 
@@ -289,17 +344,16 @@ export default function AdminPage() {
                                   placeholder="-" 
                                   value={displayHome === null ? "" : displayHome} 
                                   onChange={(e) => handleScoreChange(game.id, e.target.value, displayAway?.toString() || "", game.home_score, game.away_score)} 
-                                  className="w-12 h-9 bg-neutral-900 border border-white/10 rounded-md text-center text-sm font-black text-white focus:outline-none focus:border-transparent focus:ring-1 transition-all shrink-0" 
-                                  style={{ '--tw-ring-color': userColor } as React.CSSProperties} 
+                                  className="w-14 h-10 bg-black/80 border border-white/20 rounded-xl text-center font-jersey text-xl text-white focus:outline-none focus:border-white transition-all shrink-0 shadow-inner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                 />
                               </div>
-                            </div>
 
-                            {game.broadcast_tag && (
-                              <div className="mt-3 flex justify-center scale-90 origin-bottom">
-                                <BroadcastBadge tag={game.broadcast_tag} />
-                              </div>
-                            )}
+                              {game.broadcast_tag && (
+                                <div className="mt-3 flex justify-center scale-90 origin-bottom">
+                                  <BroadcastBadge tag={game.broadcast_tag} />
+                                </div>
+                              )}
+                            </div>
                           </div>
                         );
                       })}
@@ -313,14 +367,29 @@ export default function AdminPage() {
       </div>
 
       {Object.keys(draftScores).length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-md animate-slideUp">
-          <div className="bg-neutral-900 border-2 rounded-2xl p-4 flex items-center justify-between gap-4" style={{ borderColor: userColor, boxShadow: `0 10px 40px ${userColor}50` }}>
-            <div className="flex flex-col">
-              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: userColor }}>Database Update</span>
-              <span className="text-sm font-bold text-white">{Object.keys(draftScores).length} game(s) edited</span>
+        <div 
+          className="fixed bottom-6 sm:bottom-12 left-1/2 -translate-x-1/2 w-[90%] max-w-md animate-slideUp"
+          style={{ zIndex: 999999 }}
+        >
+          <div 
+            className="bg-black/95 backdrop-blur-3xl border-t-4 rounded-3xl p-4 sm:p-5 flex items-center justify-between gap-4 transition-all duration-300 shadow-[0_25px_60px_rgba(0,0,0,0.9)]" 
+            style={{ borderTopColor: userColor }}
+          >
+            <div className="flex flex-col gap-1 pl-2">
+              <span className="font-sans text-[9px] sm:text-[10px] font-black uppercase tracking-widest" style={{ color: userColor, textShadow: `0 0 10px ${userColor}80` }}>
+                Database Update
+              </span>
+              <span className="font-sport font-bold text-base sm:text-xl text-white uppercase tracking-wider drop-shadow-md">
+                {Object.keys(draftScores).length} game(s) edited
+              </span>
             </div>
-            <button onClick={handleSaveAllScores} disabled={isSaving} className="px-6 py-3 rounded-xl font-black uppercase tracking-widest text-black shadow-md transition-colors text-xs sm:text-sm disabled:opacity-50" style={{ backgroundColor: userColor }}>
-              {isSaving ? 'Processing...' : 'Lock Results'}
+            <button 
+              onClick={handleSaveAllScores} 
+              disabled={isSaving} 
+              className="px-5 sm:px-6 py-3 sm:py-3.5 rounded-xl font-sport font-bold text-base sm:text-lg uppercase tracking-wider transition-all shadow-xl hover:scale-105 disabled:opacity-50 text-black flex items-center justify-center min-w-[110px] sm:min-w-[120px]" 
+              style={{ backgroundColor: userColor, boxShadow: `0 0 20px ${userColor}50` }}
+            >
+              {isSaving ? 'PROCESSING...' : 'LOCK RESULTS'}
             </button>
           </div>
         </div>

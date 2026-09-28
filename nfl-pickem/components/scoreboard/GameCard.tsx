@@ -32,7 +32,6 @@ interface GameCardProps {
   customRules?: { exact: number | null, diff: number | null, winner: number | null };
 }
 
-// Função segura para clarear cores muito escuras
 const getSafeColor = (hex: string) => {
   if (!hex) return '#f59e0b';
   let r = parseInt(hex.substring(1, 3), 16) / 255;
@@ -77,6 +76,15 @@ const formatRecord = (recordStr?: string) => {
     return `${parts[0]}-${parts[1]}`;
   }
   return recordStr;
+};
+
+const formatPlayerName = (fullName: string) => {
+  if (!fullName) return '';
+  const parts = fullName.trim().split(' ');
+  if (parts.length > 1) {
+    return `${parts[0][0]}. ${parts.slice(1).join(' ')}`;
+  }
+  return fullName;
 };
 
 export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, existingPick, onPickChange, isUnsaved, isPlayoffLocked = false, hidePicks = false, customRules }: GameCardProps) {
@@ -282,39 +290,40 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
     return 0;
   });
 
-  let wrapperClass = "transition-all duration-300 rounded-[14px] h-full relative mt-2 flex flex-col ";
+  // Removido o 'overflow-hidden' daqui para a badge poder vazar livremente!
+  let wrapperClass = "transition-all duration-300 rounded-2xl h-full relative mt-2 flex flex-col ";
 
   if (hasGameStarted && existingPick && !hidePicks) {
-    wrapperClass += "p-0";
+    wrapperClass += "p-0 border border-white/10";
   } else {
-    wrapperClass += "p-[2px] hover:-translate-y-[1px] ";
+    wrapperClass += "p-[2px] hover:-translate-y-[2px] ";
     if (isLive) {
-      wrapperClass += "bg-gradient-to-br from-red-600 to-black shadow-[0_0_15px_rgba(239,68,68,0.3)] animate-pulse";
+      wrapperClass += "bg-gradient-to-br from-red-600 via-red-900 to-black shadow-[0_0_20px_rgba(239,68,68,0.4)] animate-pulse";
     } else if (game.week === 'SB') {
-      wrapperClass += "bg-gradient-to-br from-purple-600 via-pink-500 to-amber-500 shadow-[0_0_15px_rgba(168,85,247,0.3)]";
+      wrapperClass += "bg-gradient-to-br from-purple-600 via-pink-500 to-amber-500 shadow-[0_0_20px_rgba(168,85,247,0.4)]";
     } else if (isPlayoff) {
       if (game.week === 'AFCC' || conf === 'AFC') {
-        wrapperClass += "bg-gradient-to-br from-[#E31837] to-white shadow-[0_0_15px_rgba(227,24,55,0.15)]";
+        wrapperClass += "bg-gradient-to-br from-[#E31837] to-neutral-900 shadow-[0_0_15px_rgba(227,24,55,0.2)]";
       } else if (game.week === 'NFCC' || conf === 'NFC') {
-        wrapperClass += "bg-gradient-to-br from-[#013369] to-white shadow-[0_0_15px_rgba(1,51,105,0.15)]";
+        wrapperClass += "bg-gradient-to-br from-[#013369] to-neutral-900 shadow-[0_0_15px_rgba(1,51,105,0.2)]";
       } else {
-        wrapperClass += "bg-gradient-to-br from-neutral-600 to-black shadow-sm";
+        wrapperClass += "bg-gradient-to-br from-neutral-600 to-black shadow-lg";
       }
     } else if (sortedTags.length > 0) {
-      if (sortedTags.includes('TNF')) wrapperClass += "bg-gradient-to-br from-[#00A8E1] to-white shadow-[0_0_15px_rgba(0,168,225,0.15)]";
-      else if (sortedTags.includes('SNF')) wrapperClass += "bg-gradient-to-br from-[#E2D82C] to-white shadow-[0_0_15px_rgba(226,216,44,0.15)]";
-      else if (sortedTags.includes('MNF')) wrapperClass += "bg-gradient-to-br from-[#CC0000] to-white shadow-[0_0_15px_rgba(204,0,0,0.15)]";
-      else if (sortedTags.includes('INT')) wrapperClass += "bg-gradient-to-br from-indigo-600 to-cyan-400 shadow-[0_0_15px_rgba(79,70,229,0.15)]";
-      else wrapperClass += "bg-gradient-to-br from-gray-500 to-white shadow-[0_0_15px_rgba(255,255,255,0.1)]";
+      if (sortedTags.includes('TNF')) wrapperClass += "bg-gradient-to-br from-[#00A8E1] to-neutral-900 shadow-[0_0_15px_rgba(0,168,225,0.2)]";
+      else if (sortedTags.includes('SNF')) wrapperClass += "bg-gradient-to-br from-[#E2D82C] to-neutral-900 shadow-[0_0_15px_rgba(226,216,44,0.15)]";
+      else if (sortedTags.includes('MNF')) wrapperClass += "bg-gradient-to-br from-[#CC0000] to-neutral-900 shadow-[0_0_15px_rgba(204,0,0,0.2)]";
+      else if (sortedTags.includes('INT')) wrapperClass += "bg-gradient-to-br from-indigo-600 to-cyan-500 shadow-[0_0_15px_rgba(79,70,229,0.2)]";
+      else wrapperClass += "bg-gradient-to-br from-neutral-500 to-black shadow-[0_0_15px_rgba(255,255,255,0.1)]";
     } else {
-      wrapperClass += "bg-gradient-to-br from-neutral-600 to-black hover:from-neutral-500 shadow-sm";
+      wrapperClass += "bg-gradient-to-br from-white/10 to-transparent hover:from-white/20 shadow-lg";
     }
   }
 
-  let innerCardClass = "rounded-[12px] p-3 sm:p-4 flex flex-col gap-2 relative grow ";
+  let innerCardClass = "rounded-xl p-4 sm:p-5 flex flex-col gap-3 relative grow ";
   if (hasGameStarted && existingPick && !hidePicks) innerCardClass += ` ${resultColorClass}`;
-  else innerCardClass += " bg-neutral-950";
-  innerCardClass += isInputDisabled && !isLive ? " opacity-90" : " shadow-sm";
+  else innerCardClass += " bg-[#050505]/95 backdrop-blur-xl shadow-inner";
+  innerCardClass += isInputDisabled && !isLive ? " opacity-90" : "";
 
   const awayWon = hasGameStarted && game.away_score !== undefined && game.home_score !== undefined && game.away_score > game.home_score;
   const homeWon = hasGameStarted && game.away_score !== undefined && game.home_score !== undefined && game.home_score > game.away_score;
@@ -372,28 +381,29 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
     if (aVal !== hVal) {
         const isAwayBetter = isLowerBetter ? aVal < hVal : aVal > hVal;
         if (isAwayBetter) {
-            aClass = "text-green-400 font-black";
-            hClass = "text-gray-500";
+            aClass = "text-green-400 drop-shadow-[0_0_8px_rgba(74,222,128,0.5)]";
+            hClass = "text-gray-600";
         } else {
-            aClass = "text-gray-500";
-            hClass = "text-green-400 font-black";
+            aClass = "text-gray-600";
+            hClass = "text-green-400 drop-shadow-[0_0_8px_rgba(74,222,128,0.5)]";
         }
     }
 
     return (
-        <div className="flex justify-between items-center py-1.5 border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors rounded px-1">
-            <span className={`w-1/4 text-left text-[11px] sm:text-xs truncate ${aClass}`}>{aNum}</span>
-            <span className="w-1/2 text-center text-[9px] sm:text-[10px] text-gray-400 font-bold uppercase tracking-widest truncate">{label}</span>
-            <span className={`w-1/4 text-right text-[11px] sm:text-xs truncate ${hClass}`}>{hNum}</span>
+        <div className="flex justify-between items-center py-2.5 border-b border-white/5 last:border-0 hover:bg-white/[0.03] transition-colors rounded px-2">
+            <span className={`w-12 sm:w-14 text-left font-jersey text-xl sm:text-2xl leading-none ${aClass}`}>{aNum}</span>
+            <span className="flex-1 text-center font-sans text-[9px] sm:text-[10px] text-gray-500 font-black uppercase tracking-widest truncate px-2">{label}</span>
+            <span className={`w-12 sm:w-14 text-right font-jersey text-xl sm:text-2xl leading-none ${hClass}`}>{hNum}</span>
         </div>
     );
   };
 
   return (
-    <div className={wrapperClass} style={isUnsaved ? { background: userTeamColor, boxShadow: `0 0 15px ${userTeamColor}60` } : {}}>
+    <div className={wrapperClass} style={isUnsaved ? { background: userTeamColor, boxShadow: `0 0 20px ${userTeamColor}70` } : {}}>
       
+      {/* Container de Tags com whitespace-nowrap para impedir amasso! */}
       {sortedTags.length > 0 && (
-        <div className="absolute -top-[12px] right-3 z-20 flex items-center gap-1 scale-[0.85] origin-bottom-right drop-shadow-md">
+        <div className="absolute -top-[12px] right-3 z-20 flex flex-nowrap whitespace-nowrap shrink-0 items-center gap-1 scale-[0.85] origin-bottom-right drop-shadow-xl">
           {sortedTags.map(tag => (
             <BroadcastBadge key={tag} tag={tag} />
           ))}
@@ -402,94 +412,94 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
 
       <div className={innerCardClass}>
         
-        <div className="flex flex-col gap-1.5 pb-2 border-b border-white/5 mb-1 w-full">
+        <div className="flex flex-col gap-2 pb-3 border-b border-white/10 w-full relative z-10">
           <div className="flex justify-between items-start gap-2">
-            <span className="text-[9px] sm:text-[10px] text-gray-400 font-bold uppercase truncate leading-none">
-              {formattedDate} <span className="mx-1">•</span> {formattedTime}
+            <span className="font-sans text-[10px] text-gray-400 font-black uppercase tracking-widest truncate leading-none">
+              {formattedDate} <span className="mx-1.5 text-gray-600">•</span> {formattedTime}
             </span>
             <div className="text-right leading-none shrink-0">
               {isFinished ? (
-                <span className="text-[9px] font-black uppercase tracking-widest text-green-500">Final</span>
+                <span className="font-sans text-[9px] font-black uppercase tracking-widest text-green-500 drop-shadow-md">Final</span>
               ) : isLive ? (
-                <span className="text-[9px] font-black uppercase tracking-widest text-red-500 animate-pulse flex items-center gap-1"><Circle size={7} fill="currentColor" /> Live {game.clock ? `- ${game.clock}` : ''}</span>
+                <span className="font-sans text-[9px] font-black uppercase tracking-widest text-red-500 animate-pulse flex items-center gap-1 drop-shadow-[0_0_5px_rgba(239,68,68,0.8)]"><Circle size={8} fill="currentColor" /> Live {game.clock ? `- ${game.clock}` : ''}</span>
               ) : isPlayoffLocked && !hidePicks ? (
-                <span className="text-[9px] font-black uppercase tracking-widest text-amber-500">Locked</span>
+                <span className="font-sans text-[9px] font-black uppercase tracking-widest text-amber-500">Locked</span>
               ) : isTimeBlocked && !hidePicks ? (
-                <span className="text-[9px] font-black uppercase tracking-widest text-red-500">Locked</span>
+                <span className="font-sans text-[9px] font-black uppercase tracking-widest text-red-500">Locked</span>
               ) : isUnsaved ? (
-                <span className="text-[9px] font-black uppercase tracking-widest animate-pulse" style={{ color: '#FFFFFF' }}>Unsaved</span>
+                <span className="font-sans text-[9px] font-black uppercase tracking-widest text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.8)] animate-pulse">Unsaved</span>
               ) : (
-                <span className="text-[9px] font-black uppercase tracking-widest text-neutral-500">Pending</span>
+                <span className="font-sans text-[9px] font-black uppercase tracking-widest text-neutral-500">Pending</span>
               )}
             </div>
           </div>
           
           {game.stadium && (
-            <span className="text-[8px] sm:text-[9px] text-gray-500 font-semibold uppercase tracking-widest truncate leading-none w-full flex items-center gap-1" title={`${game.stadium.name}, ${game.stadium.city}`}>
-              <MapPin size={10} /> {game.stadium.name}, {game.stadium.city}
+            <span className="font-sans text-[9px] text-gray-500 font-bold uppercase tracking-widest truncate leading-none w-full flex items-center gap-1.5" title={`${game.stadium.name}, ${game.stadium.city}`}>
+              <MapPin size={10} className="text-gray-600" /> {game.stadium.name}, {game.stadium.city}
             </span>
           )}
         </div>
 
-        <div className="flex flex-col gap-3 w-full relative">
+        <div className="flex flex-col gap-4 w-full relative z-10 pt-1">
           {!hidePicks && (
-            <div className={`flex items-end mb-[-4px] ${hasOdds && !hasGameStarted ? 'justify-between' : 'justify-end'}`}>
+            <div className={`flex items-end mb-[-8px] ${hasOdds && !hasGameStarted ? 'justify-between' : 'justify-end'}`}>
               
               {hasOdds && !hasGameStarted && (
-                <div className="flex items-center gap-1.5 pb-0.5">
+                <div className="flex items-center gap-2 pb-1">
                   {odds.details && (
-                    <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20" title="Vegas Spread">
+                    <span className="font-sans text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 shadow-inner" title="Vegas Spread">
                       {odds.details}
                     </span>
                   )}
                   {odds.overUnder && (
-                    <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-gray-400 bg-white/5 px-1.5 py-0.5 rounded border border-white/10" title="Vegas Over/Under">
+                    <span className="font-sans text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-gray-400 bg-white/5 px-1.5 py-0.5 rounded border border-white/10 shadow-inner" title="Vegas Over/Under">
                       O/U {odds.overUnder}
                     </span>
                   )}
                 </div>
               )}
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 {hasGameStarted && (
-                  <span className="w-6 text-center text-[7px] font-black uppercase tracking-widest text-gray-500">{isLive ? 'Live' : 'Real'}</span>
+                  <span className="w-8 text-center font-sans text-[8px] font-black uppercase tracking-widest text-gray-500">{isLive ? 'Live' : 'Real'}</span>
                 )}
-                <span className="w-12 text-center text-[7px] font-black uppercase tracking-widest text-gray-500">Pick</span>
+                <span className="w-14 sm:w-16 text-center font-sans text-[8px] font-black uppercase tracking-widest text-gray-500">Pick</span>
               </div>
             </div>
           )}
           
           <div className="flex items-center justify-between gap-3 w-full">
-            <div className={`flex items-center gap-2 sm:gap-3 flex-1 min-w-0 transition-opacity ${hidePicks && hasGameStarted && !awayWon ? 'opacity-40' : 'opacity-100'}`}>
+            <div className={`flex items-center gap-3 sm:gap-4 flex-1 min-w-0 transition-opacity ${hidePicks && hasGameStarted && !awayWon ? 'opacity-40' : 'opacity-100'}`}>
               {awayTeam?.logo ? (
-                <img src={awayTeam.logo} className="w-6 h-6 sm:w-7 sm:h-7 object-contain shrink-0" alt={awayTeam?.abbr} />
+                <img src={awayTeam.logo} className="w-7 h-7 sm:w-8 sm:h-8 object-contain shrink-0 drop-shadow-lg" alt={awayTeam?.abbr} />
               ) : (
-                <div className="w-6 h-6 sm:w-7 sm:h-7 bg-white/5 rounded-full flex items-center justify-center shrink-0">
-                  <span className="text-[9px] font-black">{awayTeam?.abbr?.[0]}</span>
+                <div className="w-7 h-7 sm:w-8 sm:h-8 bg-white/5 border border-white/10 rounded-full flex items-center justify-center shrink-0">
+                  <span className="font-sport font-bold text-xs">{awayTeam?.abbr?.[0]}</span>
                 </div>
               )}
               
               <div className="flex flex-col min-w-0 flex-1">
-                <span className="font-black text-xs sm:text-sm text-white uppercase truncate leading-none" style={{ fontSize: (awayTeam?.name?.length || 0) > 10 ? '0.75rem' : '' }}>
+                <span className="font-jersey text-lg sm:text-xl text-white uppercase truncate leading-none tracking-wider">
                   {awayTeam?.name?.split(' ').pop() || awayTeam?.abbr || 'AWAY'}
                 </span>
                 {awayTeam?.record && (
-                  <span className="text-[9px] text-gray-500 font-bold tracking-widest leading-none mt-0.5 truncate">
+                  <span className="font-sans text-[9px] text-gray-500 font-bold tracking-widest leading-none mt-1 truncate">
                     {formatRecord(awayTeam.record)}
                   </span>
                 )}
               </div>
             </div>
             
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-3 shrink-0">
               {hidePicks ? (
-                <span className={`font-black text-lg ${hasGameStarted ? (awayWon ? 'text-white' : 'text-gray-400') : 'text-neutral-700'}`}>
+                <span className={`font-jersey text-2xl sm:text-2xl leading-none ${hasGameStarted ? (awayWon ? 'text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]' : 'text-gray-500') : 'text-neutral-700'}`}>
                   {hasGameStarted ? game.away_score : '-'}
                 </span>
               ) : (
                 <>
                   {hasGameStarted && (
-                    <span className={`font-black text-sm w-6 text-center ${awayWon ? 'text-white' : 'text-gray-500'}`}>
+                    <span className={`w-8 text-center font-jersey text-2xl sm:text-2xl leading-none ${awayWon ? 'text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]' : 'text-gray-500'}`}>
                       {game.away_score}
                     </span>
                   )}
@@ -504,7 +514,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                       }
                     }} 
                     placeholder="-"
-                    className="w-12 h-9 sm:h-10 bg-black/50 border border-white/20 rounded-md text-center text-sm sm:text-base font-black text-white focus:outline-none focus:border-white transition p-0 disabled:opacity-60 disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-14 sm:w-16 h-10 sm:h-12 bg-black/60 border border-white/20 rounded-xl text-center font-jersey text-2xl sm:text-2xl text-white focus:outline-none focus:border-white transition-all p-0 disabled:opacity-50 disabled:cursor-not-allowed shadow-inner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 </>
               )}
@@ -512,36 +522,36 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
           </div>
 
           <div className="flex items-center justify-between gap-3 w-full">
-            <div className={`flex items-center gap-2 sm:gap-3 flex-1 min-w-0 transition-opacity ${hidePicks && hasGameStarted && !homeWon ? 'opacity-40' : 'opacity-100'}`}>
+            <div className={`flex items-center gap-3 sm:gap-4 flex-1 min-w-0 transition-opacity ${hidePicks && hasGameStarted && !homeWon ? 'opacity-40' : 'opacity-100'}`}>
               {homeTeam?.logo ? (
-                <img src={homeTeam.logo} className="w-6 h-6 sm:w-7 sm:h-7 object-contain shrink-0" alt={homeTeam?.abbr} />
+                <img src={homeTeam.logo} className="w-7 h-7 sm:w-8 sm:h-8 object-contain shrink-0 drop-shadow-lg" alt={homeTeam?.abbr} />
               ) : (
-                <div className="w-6 h-6 sm:w-7 sm:h-7 bg-white/5 rounded-full flex items-center justify-center shrink-0">
-                  <span className="text-[9px] font-black">{homeTeam?.abbr?.[0]}</span>
+                <div className="w-7 h-7 sm:w-8 sm:h-8 bg-white/5 border border-white/10 rounded-full flex items-center justify-center shrink-0">
+                  <span className="font-sport font-bold text-xs">{homeTeam?.abbr?.[0]}</span>
                 </div>
               )}
               
               <div className="flex flex-col min-w-0 flex-1">
-                <span className="font-black text-xs sm:text-sm text-white uppercase truncate leading-none" style={{ fontSize: (homeTeam?.name?.length || 0) > 10 ? '0.75rem' : '' }}>
+                <span className="font-jersey text-lg sm:text-xl text-white uppercase truncate leading-none tracking-wider">
                   {homeTeam?.name?.split(' ').pop() || homeTeam?.abbr || 'HOME'}
                 </span>
                 {homeTeam?.record && (
-                  <span className="text-[9px] text-gray-500 font-bold tracking-widest leading-none mt-0.5 truncate">
+                  <span className="font-sans text-[9px] text-gray-500 font-bold tracking-widest leading-none mt-1 truncate">
                     {formatRecord(homeTeam.record)}
                   </span>
                 )}
               </div>
             </div>
             
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-3 shrink-0">
               {hidePicks ? (
-                <span className={`font-black text-lg ${hasGameStarted ? (homeWon ? 'text-white' : 'text-gray-400') : 'text-neutral-700'}`}>
+                <span className={`font-jersey text-2xl sm:text-2xl leading-none ${hasGameStarted ? (homeWon ? 'text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]' : 'text-gray-500') : 'text-neutral-700'}`}>
                   {hasGameStarted ? game.home_score : '-'}
                 </span>
               ) : (
                 <>
                   {hasGameStarted && (
-                    <span className={`font-black text-sm w-6 text-center ${homeWon ? 'text-white' : 'text-gray-500'}`}>
+                    <span className={`w-8 text-center font-jersey text-2xl sm:text-2xl leading-none ${homeWon ? 'text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]' : 'text-gray-500'}`}>
                       {game.home_score}
                     </span>
                   )}
@@ -556,7 +566,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                       }
                     }} 
                     placeholder="-"
-                    className="w-12 h-9 sm:h-10 bg-black/50 border border-white/20 rounded-md text-center text-sm sm:text-base font-black text-white focus:outline-none focus:border-white transition p-0 disabled:opacity-60 disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-14 sm:w-16 h-10 sm:h-12 bg-black/60 border border-white/20 rounded-xl text-center font-jersey text-2xl sm:text-2xl text-white focus:outline-none focus:border-white transition-all p-0 disabled:opacity-50 disabled:cursor-not-allowed shadow-inner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 </>
               )}
@@ -564,8 +574,8 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
           </div>
           
           {scoreError && (
-            <div className="mt-1 w-full flex justify-center animate-fadeIn absolute -bottom-5">
-              <span className="text-[8px] font-black uppercase tracking-widest text-red-400 bg-red-950/80 px-2 py-0.5 rounded border border-red-500/30">
+            <div className="mt-2 w-full flex justify-center animate-fadeIn absolute -bottom-6 z-20">
+              <span className="font-sans text-[9px] font-black uppercase tracking-widest text-red-400 bg-red-950/90 px-3 py-1 rounded-full border border-red-500/50 shadow-lg">
                 Invalid NFL Score (1-Pt Rule)
               </span>
             </div>
@@ -573,85 +583,90 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
         </div>
 
         {!hidePicks && hasGameStarted && existingPick && (
-          <div className="mt-2 pt-2 border-t border-white/5 flex justify-between items-center">
-            <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">Pick Result {isLive && <span className="text-red-400"> (Proj)</span>}</span>
-            <div className={`text-white text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded flex items-center gap-1 ${pointsEarned > 0 ? (isLive ? 'bg-black/50 border border-white/10' : 'bg-black/50') : 'bg-red-950/50'}`}>
-              <span className={isLive && pointsEarned > 0 ? 'animate-pulse text-green-400' : ''}>{pointsEarned} PTS</span>
+          <div className="mt-3 pt-3 border-t border-white/10 flex justify-between items-center relative z-10">
+            <span className="font-sans text-[10px] font-black uppercase tracking-widest text-gray-400">Pick Result {isLive && <span className="text-red-500 drop-shadow-md"> (Proj)</span>}</span>
+            <div className={`font-sans text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md flex items-center gap-1 shadow-inner ${pointsEarned > 0 ? (isLive ? 'bg-black/60 border border-white/10' : 'bg-black/60 border border-green-500/30') : 'bg-red-950/60 border border-red-500/30'}`}>
+              <span className={isLive && pointsEarned > 0 ? 'animate-pulse text-green-400 drop-shadow-md' : (pointsEarned > 0 ? 'text-green-400 drop-shadow-md' : 'text-red-400')}>{pointsEarned} PTS</span>
             </div>
           </div>
         )}
 
-        <div className="mt-3">
+        <div className="mt-4 relative z-10">
           <button 
             onClick={() => setIsExpanded(!isExpanded)}
-            className="w-full pt-2 pb-1 border-t border-white/5 text-[9px] font-bold text-gray-500 uppercase tracking-widest hover:text-white transition flex justify-center items-center gap-1"
+            className="w-full pt-3 pb-2 border-t border-white/10 font-sans text-[9px] font-black text-gray-500 uppercase tracking-widest hover:text-white transition-colors flex justify-center items-center gap-1.5"
           >
             {isExpanded ? (hasGameStarted ? 'Hide Game Stats ▲' : 'Hide Matchup ▲') : (hasGameStarted ? 'View Game Stats ▼' : 'View Matchup ▼')}
           </button>
 
           {isExpanded && hasGameStarted && hasMetaData && (
-            <div className="pt-2 flex flex-col gap-3 animate-fadeIn">
-              <div className="bg-black/40 rounded-lg p-2 border border-white/5 overflow-x-auto">
-                <table className="w-full text-[9px] font-bold text-center">
+            <div className="pt-3 flex flex-col gap-4 animate-fadeIn">
+              
+              <div className="bg-black/60 rounded-xl p-3 border border-white/10 overflow-x-auto shadow-inner">
+                <table className="w-full text-center">
                   <thead>
-                    <tr className="text-gray-500 border-b border-white/5">
-                      <th className="text-left pb-1 pl-1">Team</th>
-                      <th className="pb-1 w-6">1</th><th className="pb-1 w-6">2</th>
-                      <th className="pb-1 w-6">3</th><th className="pb-1 w-6">4</th>
-                      <th className="pb-1 w-8 text-white">T</th>
+                    <tr className="font-sans text-[9px] font-black text-gray-500 uppercase tracking-widest border-b border-white/10">
+                      <th className="text-left pb-2 pl-2">Team</th>
+                      <th className="pb-2 w-8">1</th><th className="pb-2 w-8">2</th>
+                      <th className="pb-2 w-8">3</th><th className="pb-2 w-8">4</th>
+                      <th className="pb-2 w-10 text-white drop-shadow-md">T</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
-                    <tr>
-                      <td className="text-left pt-1 pl-1 text-white">{awayTeam?.abbr}</td>
-                      <td className="pt-1 text-gray-400">{game.meta_data.linescores?.away?.[0] ?? '-'}</td>
-                      <td className="pt-1 text-gray-400">{game.meta_data.linescores?.away?.[1] ?? '-'}</td>
-                      <td className="pt-1 text-gray-400">{game.meta_data.linescores?.away?.[2] ?? '-'}</td>
-                      <td className="pt-1 text-gray-400">{game.meta_data.linescores?.away?.[3] ?? '-'}</td>
-                      <td className="pt-1 text-white">{game.away_score}</td>
+                    <tr className="hover:bg-white/[0.02] transition-colors">
+                      <td className="text-left py-2 pl-2 text-white font-jersey text-sm uppercase tracking-wider">{awayTeam?.abbr}</td>
+                      <td className="py-2 text-gray-400 font-jersey text-lg leading-none">{game.meta_data.linescores?.away?.[0] ?? '-'}</td>
+                      <td className="py-2 text-gray-400 font-jersey text-lg leading-none">{game.meta_data.linescores?.away?.[1] ?? '-'}</td>
+                      <td className="py-2 text-gray-400 font-jersey text-lg leading-none">{game.meta_data.linescores?.away?.[2] ?? '-'}</td>
+                      <td className="py-2 text-gray-400 font-jersey text-lg leading-none">{game.meta_data.linescores?.away?.[3] ?? '-'}</td>
+                      <td className="py-2 text-white font-jersey text-xl leading-none drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]">{game.away_score}</td>
                     </tr>
-                    <tr>
-                      <td className="text-left pt-1 pl-1 text-white">{homeTeam?.abbr}</td>
-                      <td className="pt-1 text-gray-400">{game.meta_data.linescores?.home?.[0] ?? '-'}</td>
-                      <td className="pt-1 text-gray-400">{game.meta_data.linescores?.home?.[1] ?? '-'}</td>
-                      <td className="pt-1 text-gray-400">{game.meta_data.linescores?.home?.[2] ?? '-'}</td>
-                      <td className="pt-1 text-gray-400">{game.meta_data.linescores?.home?.[3] ?? '-'}</td>
-                      <td className="pt-1 text-white">{game.home_score}</td>
+                    <tr className="hover:bg-white/[0.02] transition-colors">
+                      <td className="text-left py-2 pl-2 text-white font-jersey text-sm uppercase tracking-wider">{homeTeam?.abbr}</td>
+                      <td className="py-2 text-gray-400 font-jersey text-lg leading-none">{game.meta_data.linescores?.home?.[0] ?? '-'}</td>
+                      <td className="py-2 text-gray-400 font-jersey text-lg leading-none">{game.meta_data.linescores?.home?.[1] ?? '-'}</td>
+                      <td className="py-2 text-gray-400 font-jersey text-lg leading-none">{game.meta_data.linescores?.home?.[2] ?? '-'}</td>
+                      <td className="py-2 text-gray-400 font-jersey text-lg leading-none">{game.meta_data.linescores?.home?.[3] ?? '-'}</td>
+                      <td className="py-2 text-white font-jersey text-xl leading-none drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]">{game.home_score}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
 
-              <div className="flex flex-col md:flex-row gap-2 text-[9px]">
-                <div className="flex-1 min-w-0 bg-black/40 rounded-lg p-2 border border-white/5">
-                  <span className="font-black text-gray-500 uppercase tracking-widest block mb-2">{awayTeam?.abbr} Leaders</span>
+              <div className="flex flex-col md:flex-row gap-3">
+                <div className="flex-1 min-w-0 bg-black/60 rounded-xl p-2 border border-white/10 shadow-inner">
+                  <span className="font-sans text-[9px] font-black text-gray-500 uppercase tracking-widest block mb-2 pl-1">{awayTeam?.abbr} Leaders</span>
                   <div className="flex flex-col gap-1.5">
                     {awayLeaders.map((l: any, i: number) => (
-                      <div key={i} className="flex flex-col bg-white/5 rounded p-1.5">
-                        <div className="flex justify-between items-start mb-0.5">
-                          <span className="text-gray-300 font-bold truncate pr-1">{l.name}</span>
-                          <span className={`text-[6px] sm:text-[7px] font-black uppercase px-1 py-0.5 rounded shrink-0 ${l.badge === 'DEF' || l.badge === 'ST' ? 'bg-transparent text-gray-500' : 'bg-white/10 text-gray-400'}`}>
+                      <div key={i} className="flex flex-col bg-white/5 border border-white/5 rounded-md p-1.5 sm:p-2 hover:bg-white/10 transition-colors">
+                        <div className="flex justify-between items-center mb-0.5 gap-1.5">
+                          <span className="text-white font-sport font-bold text-[10px] sm:text-xs uppercase line-clamp-2 flex-1 min-w-0 leading-tight" title={l.name}>
+                            {formatPlayerName(l.name)}
+                          </span>
+                          <span className={`font-sans text-[7px] font-black uppercase tracking-widest px-1 py-0.5 rounded shrink-0 leading-none ${l.badge === 'DEF' || l.badge === 'ST' ? 'bg-transparent text-gray-500 border border-white/10' : 'bg-white/10 text-gray-300'}`}>
                              {l.badge}
                           </span>
                         </div>
-                        <span className="text-white font-black text-[8px] leading-tight break-words whitespace-normal">{l.formattedStat}</span>
+                        <span className="text-gray-300 font-sport tracking-wide text-[10px] sm:text-[11px] leading-tight pt-0.5">{l.formattedStat}</span>
                       </div>
                     ))}
                   </div>
                 </div>
                 
-                <div className="flex-1 min-w-0 bg-black/40 rounded-lg p-2 border border-white/5">
-                  <span className="font-black text-gray-500 uppercase tracking-widest block mb-2">{homeTeam?.abbr} Leaders</span>
+                <div className="flex-1 min-w-0 bg-black/60 rounded-xl p-2 border border-white/10 shadow-inner">
+                  <span className="font-sans text-[9px] font-black text-gray-500 uppercase tracking-widest block mb-2 pl-1">{homeTeam?.abbr} Leaders</span>
                   <div className="flex flex-col gap-1.5">
                     {homeLeaders.map((l: any, i: number) => (
-                      <div key={i} className="flex flex-col bg-white/5 rounded p-1.5">
-                        <div className="flex justify-between items-start mb-0.5">
-                          <span className="text-gray-300 font-bold truncate pr-1">{l.name}</span>
-                          <span className={`text-[6px] sm:text-[7px] font-black uppercase px-1 py-0.5 rounded shrink-0 ${l.badge === 'DEF' || l.badge === 'ST' ? 'bg-transparent text-gray-500' : 'bg-white/10 text-gray-400'}`}>
+                      <div key={i} className="flex flex-col bg-white/5 border border-white/5 rounded-md p-1.5 sm:p-2 hover:bg-white/10 transition-colors">
+                        <div className="flex justify-between items-center mb-0.5 gap-1.5">
+                          <span className="text-white font-sport font-bold text-[10px] sm:text-xs uppercase line-clamp-2 flex-1 min-w-0 leading-tight" title={l.name}>
+                            {formatPlayerName(l.name)}
+                          </span>
+                          <span className={`font-sans text-[7px] font-black uppercase tracking-widest px-1 py-0.5 rounded shrink-0 leading-none ${l.badge === 'DEF' || l.badge === 'ST' ? 'bg-transparent text-gray-500 border border-white/10' : 'bg-white/10 text-gray-300'}`}>
                              {l.badge}
                           </span>
                         </div>
-                        <span className="text-white font-black text-[8px] leading-tight break-words whitespace-normal">{l.formattedStat}</span>
+                        <span className="text-gray-300 font-sport tracking-wide text-[10px] sm:text-[11px] leading-tight pt-0.5">{l.formattedStat}</span>
                       </div>
                     ))}
                   </div>
@@ -661,23 +676,23 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
           )}
 
           {isExpanded && !hasGameStarted && (
-            <div className="pt-2 flex flex-col gap-3 animate-fadeIn">
-              <div className="bg-black/40 rounded-lg p-3 border border-white/5">
-                <div className="flex items-center justify-center gap-2 mb-3">
-                   <Activity size={12} className="text-gray-500" />
-                   <span className="font-black text-gray-500 uppercase tracking-widest">Season Matchup</span>
+            <div className="pt-3 flex flex-col gap-3 animate-fadeIn">
+              <div className="bg-black/60 rounded-xl p-4 border border-white/10 shadow-inner">
+                <div className="flex items-center justify-center gap-2 mb-4">
+                   <Activity size={14} className="text-gray-500" />
+                   <span className="font-sans text-[10px] font-black text-gray-400 uppercase tracking-widest">Season Matchup</span>
                 </div>
 
                 {loadingStats || !matchupStats ? (
-                   <div className="flex justify-center py-4">
-                     <div className="w-5 h-5 border-2 border-gray-600 border-t-white rounded-full animate-spin"></div>
+                   <div className="flex justify-center py-6">
+                     <div className="w-6 h-6 border-4 border-gray-600 border-t-white rounded-full animate-spin"></div>
                    </div>
                 ) : (
-                   <div className="flex flex-col gap-1">
-                      <div className="flex justify-between items-center text-[9px] text-gray-500 font-bold mb-1 border-b border-white/10 pb-1.5 px-1">
-                         <span className="w-1/4 text-left truncate uppercase" style={{color: getSafeColor(awayTeam.color)}}>{awayTeam.abbr}</span>
-                         <span className="w-1/2 text-center uppercase tracking-widest">Metric</span>
-                         <span className="w-1/4 text-right truncate uppercase" style={{color: getSafeColor(homeTeam.color)}}>{homeTeam.abbr}</span>
+                   <div className="flex flex-col">
+                      <div className="flex justify-between items-center font-sans text-[9px] text-gray-500 font-black uppercase tracking-widest mb-2 border-b border-white/10 pb-2 px-2">
+                         <span className="w-14 sm:w-16 text-left truncate font-jersey text-lg leading-none" style={{color: getSafeColor(awayTeam.color)}}>{awayTeam.abbr}</span>
+                         <span className="flex-1 text-center">Metric</span>
+                         <span className="w-14 sm:w-16 text-right truncate font-jersey text-lg leading-none" style={{color: getSafeColor(homeTeam.color)}}>{homeTeam.abbr}</span>
                       </div>
                       
                       <MatchupRow label="Off YDS/G" awayVal={((matchupStats.away.passYds + matchupStats.away.rushYds)/matchupStats.away.games)} homeVal={((matchupStats.home.passYds + matchupStats.home.rushYds)/matchupStats.home.games)} isFloat />
@@ -685,7 +700,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                       <MatchupRow label="Rush YDS/G" awayVal={(matchupStats.away.rushYds/matchupStats.away.games)} homeVal={(matchupStats.home.rushYds/matchupStats.home.games)} isFloat />
                       <MatchupRow label="Off TDs" awayVal={matchupStats.away.passTd + matchupStats.away.rushTd} homeVal={matchupStats.home.passTd + matchupStats.home.rushTd} />
                       
-                      <div className="my-1 border-t border-white/5"></div>
+                      <div className="my-2 border-t border-white/5 mx-2"></div>
                       
                       <MatchupRow label="Def YDS/G" awayVal={((matchupStats.away.passAlw + matchupStats.away.rushAlw)/matchupStats.away.games)} homeVal={((matchupStats.home.passAlw + matchupStats.home.rushAlw)/matchupStats.home.games)} isFloat isLowerBetter />
                       <MatchupRow label="Def/ST TDs" awayVal={matchupStats.away.defTd} homeVal={matchupStats.home.defTd} />

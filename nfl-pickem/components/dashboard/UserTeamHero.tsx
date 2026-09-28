@@ -310,7 +310,7 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
               <span className={`font-jersey font-bold text-6xl sm:text-8xl ${wonMatch && !isHome ? `text-[${heroColor}] drop-shadow-[0_0_10px_${heroColor}80]` : isTie ? 'text-white' : 'text-gray-500'}`} style={wonMatch && !isHome ? { color: heroColor } : {}}>
                 {(!isHome ? myScore : oppScore) !== null ? (!isHome ? myScore : oppScore) : '-'}
               </span>
-              <span className="text-gray-600 font-jersey font-bold text-3xl sm:text-4xl">-</span>
+              <span className="text-gray-600 font-jersey font-bold text-2xl sm:text-4xl">-</span>
               <span className={`font-jersey font-bold text-6xl sm:text-8xl ${wonMatch && isHome ? `text-[${heroColor}] drop-shadow-[0_0_10px_${heroColor}80]` : isTie ? 'text-white' : 'text-gray-500'}`} style={wonMatch && isHome ? { color: heroColor } : {}}>
                 {(isHome ? myScore : oppScore) !== null ? (isHome ? myScore : oppScore) : '-'}
               </span>
@@ -404,14 +404,14 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
               </span>
             )}
             
-            {/* NOME DO TIME COM TAMBÉM RESPONSIVO (text-3xl no mobile e text-7xl no desktop) */}
-            <h1 className="font-jersey font-bold text-3xl sm:text-5xl md:text-7xl uppercase text-white drop-shadow-[0_5px_10px_rgba(0,0,0,0.8)] leading-none mb-1 tracking-wider break-words">
+            {/* NOME DO TIME COM TAMBÉM RESPONSIVO (text-2xl no mobile e text-7xl no desktop) */}
+            <h1 className="font-jersey font-bold text-2xl sm:text-5xl md:text-7xl uppercase text-white drop-shadow-[0_5px_10px_rgba(0,0,0,0.8)] leading-none mb-1 tracking-wider break-words">
               {nameStr}
             </h1>
             
             {!isGenericNFL ? (
               <div className="flex items-center gap-2 mt-2">
-                <span className="font-sport font-bold text-xl sm:text-2xl text-white bg-black/60 px-3 py-0.5 border border-white/10 rounded tracking-wider leading-none shadow-inner">
+                <span className="font-sport font-bold text-xl sm:text-xl text-white bg-black/60 px-3 py-0.5 border border-white/10 rounded tracking-wider leading-none shadow-inner">
                   {formattedMyRecord}
                 </span>
               </div>
@@ -463,7 +463,7 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
           >
             <span className={`font-sans text-[10px] sm:text-[11px] font-black uppercase tracking-widest mb-2 ${activeTab === 'lastMatch' ? 'text-white' : 'text-gray-500'}`}>LAST MATCH</span>
             {lastGame ? (
-              <div className="flex items-center gap-3 font-jersey font-bold text-3xl sm:text-4xl tracking-wide">
+              <div className="flex items-center gap-3 font-jersey font-bold text-2xl sm:text-4xl tracking-wide">
                 <span className={wonLast ? `text-[${heroColor}] drop-shadow-[0_0_8px_${heroColor}80]` : "text-gray-400"} style={wonLast ? { color: heroColor } : {}}>{lastScoreDisplay.split(' - ')[0]}</span>
                 <span className="text-gray-600 text-sm font-sans font-bold uppercase tracking-widest">{isLastHome ? "VS" : "@"} {lastOppAbbr}</span>
                 <span className={!wonLast && parseInt(lastScoreDisplay.split(' - ')[0]) < parseInt(lastScoreDisplay.split(' - ')[1]) ? "text-red-500" : "text-gray-400"}>{lastScoreDisplay.split(' - ')[1]}</span>
@@ -482,7 +482,7 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
               {isNextLive ? <><Circle size={10} fill="currentColor" /> LIVE NOW</> : 'NEXT KICKOFF'}
             </span>
             {nextGame ? (
-              <div className="font-jersey font-bold text-3xl sm:text-4xl text-white tracking-wide">
+              <div className="font-jersey font-bold text-2xl sm:text-4xl text-white tracking-wide">
                 {isNextLive ? (
                   <div className="flex items-center justify-center gap-3">
                     <span className={wonNextLive ? `text-[${heroColor}] drop-shadow-[0_0_8px_${heroColor}80]` : "text-white"} style={wonNextLive ? { color: heroColor } : {}}>{nextScoreDisplay.split(' - ')[0]}</span>

@@ -3,10 +3,12 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '../../utils/supabase/client';
-import { AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ArrowRight, KeyRound } from 'lucide-react';
 
-export default function LoginPage() {
-  const [isSignUp, setIsSignUp] = useState(false);
+type AuthMode = 'signin' | 'signup' | 'forgot';
+
+export default function AuthPage() {
+  const [mode, setMode] = useState<AuthMode>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -14,24 +16,21 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
-  const [userColor, setUserColor] = useState('#E31837');
 
   const router = useRouter();
   const supabase = createClient();
 
-useEffect(() => {
-    async function checkSession() {
-      // 1. Limpa o storage se for necessário (opcional)
-      const { data: { session }, error } = await supabase.auth.getSession();
+  const leagueBlue = '#013369';
+  const leagueRed = '#E31837';
 
-      // Se houver erro de token (400), o Supabase retornará erro aqui
+  useEffect(() => {
+    async function checkSession() {
+      const { data: { session }, error } = await supabase.auth.getSession();
       if (error || !session) {
-        await supabase.auth.signOut(); // Força a limpeza local
+        await supabase.auth.signOut(); 
         setLoading(false);
         return;
       }
-
-      // Se a sessão for válida, redireciona
       router.push('/dashboard');
     }
     checkSession();
@@ -40,16 +39,15 @@ useEffect(() => {
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage(null);
-
-    if (isSignUp && password !== confirmPassword) {
-      setMessage({ type: 'error', text: "Passwords do not match." });
-      return;
-    }
-
     setSubmitting(true);
 
     try {
-      if (isSignUp) {
+      if (mode === 'signup') {
+        if (password !== confirmPassword) {
+          setMessage({ type: 'error', text: "Passwords do not match." });
+          setSubmitting(false);
+          return;
+        }
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -59,16 +57,25 @@ useEffect(() => {
         if (error) throw error;
 
         if (data.session) {
-          router.push('/dashboard');
-          router.refresh();
+          router.push('/setup');
         } else {
-          setMessage({ type: 'success', text: "Success! Check your email to confirm your account." });
+          setMessage({ type: 'success', text: "Contract drafted! Check your email to confirm your account." });
+          setMode('signin');
+          setPassword('');
+          setConfirmPassword('');
         }
-      } else {
+      } else if (mode === 'signin') {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         router.push('/dashboard');
         router.refresh();
+      } else if (mode === 'forgot') {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/update-password`,
+        });
+        if (error) throw error;
+        setMessage({ type: 'success', text: "Recovery playbook sent! Check your email." });
+        setMode('signin');
       }
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || "An error occurred during authentication." });
@@ -77,72 +84,158 @@ useEffect(() => {
     }
   };
 
+  const toggleMode = (newMode: AuthMode) => {
+    setMode(newMode);
+    setMessage(null);
+    setPassword('');
+    setConfirmPassword('');
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center">
-        <div className="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: `${userColor} var(--tw-border-opacity)` }}></div>
+      <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center">
+        <div className="w-12 h-12 border-4 border-white/10 border-t-[#E31837] rounded-full animate-spin"></div>
       </div>
     );
   }
 
-  return (
-    <main className="min-h-screen bg-neutral-950 text-white font-sans flex items-center justify-center p-4 relative overflow-hidden">
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-red-600/5 blur-[150px] pointer-events-none z-0"></div>
+  // Reforço direto via Tailwind: text-white e !text-white para blindar a cor do texto
+  const inputClass = "w-full bg-transparent !text-white text-white font-sans text-sm font-bold focus:outline-none transition-all placeholder:text-neutral-700";
 
-      <div className="w-full max-w-md bg-neutral-900/80 border border-white/5 rounded-2xl p-8 shadow-2xl backdrop-blur-md z-10 animate-fadeIn">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-black italic uppercase tracking-tighter text-white">
-            Blitz<span style={{ color: userColor }}>Picks</span>
+  return (
+    <main className="min-h-screen bg-[#050505] flex items-center justify-center p-4 relative overflow-hidden transition-colors duration-700">
+      
+      <div 
+        className="absolute -top-32 -left-32 w-[600px] h-[600px] rounded-full blur-[140px] opacity-30 pointer-events-none z-0"
+        style={{ backgroundColor: leagueBlue }}
+      />
+      <div 
+        className="absolute -bottom-32 -right-32 w-[600px] h-[600px] rounded-full blur-[140px] opacity-30 pointer-events-none z-0"
+        style={{ backgroundColor: leagueRed }}
+      />
+      
+      <div 
+        className="absolute inset-0 z-0 pointer-events-none opacity-20 mix-blend-overlay"
+        style={{ backgroundImage: 'repeating-linear-gradient(-45deg, transparent, transparent 4px, rgba(255,255,255,0.05) 4px, rgba(255,255,255,0.05) 8px)' }}
+      />
+
+      <div className="w-full max-w-md bg-black/70 backdrop-blur-2xl border-t-4 rounded-3xl p-8 sm:p-10 shadow-[0_25px_60px_rgba(0,0,0,0.8)] relative z-10 transition-all duration-500" style={{ borderTopColor: leagueRed }}>
+        
+        <div className="text-center mb-10">
+          <h1 className="font-jersey text-4xl sm:text-5xl tracking-wider text-white uppercase mb-1 whitespace-nowrap">
+            BLITZ<span style={{ color: leagueRed, textShadow: `0 0 15px ${leagueRed}80` }}>PICKS</span>
           </h1>
-          <p className="text-gray-400 text-xs font-black uppercase tracking-widest mt-1">
-            {isSignUp ? 'Create your new account' : 'Sign in to manage your predictions'}
+          <p className="text-gray-400 font-sans text-xs sm:text-sm font-bold uppercase tracking-widest mt-3">
+            {mode === 'signin' && 'Enter the Locker Room'}
+            {mode === 'signup' && 'Draft Your Account'}
+            {mode === 'forgot' && 'Recover Your Playbook'}
           </p>
         </div>
 
         {message && (
-          <div className={`mb-6 p-4 border rounded-xl text-[10px] font-bold text-center uppercase tracking-wider flex items-center justify-center gap-2 ${
-            message.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-green-500/10 border-green-500/20 text-green-400'
+          <div className={`mb-6 p-4 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-3 border ${
+            message.type === 'error' ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-green-500/10 border-green-500/30 text-green-400'
           }`}>
-            {message.type === 'error' ? <AlertTriangle size={14} /> : <CheckCircle2 size={14} />} {message.text}
+            {message.type === 'error' ? <AlertTriangle size={16} className="shrink-0" /> : <CheckCircle2 size={16} className="shrink-0" />} 
+            <span className="leading-tight">{message.text}</span>
           </div>
         )}
 
         <form onSubmit={handleAuth} className="space-y-5">
-          <div>
-            <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">Email Address</label>
-            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@example.com" className="w-full h-11 bg-black border border-white/10 rounded-xl px-4 text-sm focus:border-white transition" />
+          
+          <div className="bg-black/40 p-4 rounded-xl border border-white/10 overflow-hidden">
+            <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Email Address</label>
+            <input 
+              type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+              placeholder="qb1@franchise.com" 
+              className={inputClass} 
+              spellCheck="false"
+              autoComplete="email"
+              style={{ WebkitTextFillColor: '#ffffff', color: '#ffffff' }}
+            />
           </div>
 
-          <div>
-            <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">Password</label>
-            <div className="relative">
-              <input type={showPassword ? "text" : "password"} required value={password} onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••" className="w-full h-11 bg-black border border-white/10 rounded-xl px-4 text-sm focus:border-white transition" />
-              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-3.5 text-[9px] font-bold text-gray-500 uppercase tracking-widest hover:text-white">
-                {showPassword ? "Hide" : "Show"}
+          {mode !== 'forgot' && (
+            <div className="bg-black/40 p-4 rounded-xl border border-white/10 relative overflow-hidden">
+              <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Password</label>
+              <input 
+                type={showPassword ? "text" : "password"} required value={password} onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••" 
+                className={`${inputClass} pr-12`} 
+                spellCheck="false"
+                style={{ WebkitTextFillColor: '#ffffff', color: '#ffffff' }}
+              />
+              <button 
+                type="button" 
+                onClick={() => setShowPassword(!showPassword)} 
+                className="absolute right-4 top-[34px] text-[9px] font-black text-gray-500 uppercase tracking-widest hover:text-white transition-colors bg-transparent border-none cursor-pointer"
+              >
+                {showPassword ? "HIDE" : "SHOW"}
               </button>
-            </div>
-          </div>
-
-          {isSignUp && (
-            <div>
-              <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1.5">Confirm Password</label>
-              <input type={showPassword ? "text" : "password"} required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="••••••••" className="w-full h-11 bg-black border border-white/10 rounded-xl px-4 text-sm focus:border-white transition" />
             </div>
           )}
 
-          <button type="submit" disabled={submitting} className="w-full h-12 rounded-xl font-black uppercase tracking-widest text-sm transition-all shadow-lg hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
-            style={{ backgroundColor: userColor, color: '#000' }}>
-            {submitting ? 'Processing...' : isSignUp ? 'Create Account' : 'Sign In'}
+          {mode === 'signup' && (
+            <div className="bg-black/40 p-4 rounded-xl border border-white/10 overflow-hidden">
+              <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Confirm Password</label>
+              <input 
+                type={showPassword ? "text" : "password"} required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="••••••••" 
+                className={inputClass} 
+                spellCheck="false"
+                style={{ WebkitTextFillColor: '#ffffff', color: '#ffffff' }}
+              />
+            </div>
+          )}
+
+          {mode === 'signin' && (
+            <div className="flex justify-end">
+              <button 
+                type="button" 
+                onClick={() => toggleMode('forgot')} 
+                className="text-[10px] font-black text-gray-500 hover:text-white uppercase tracking-widest transition-colors flex items-center gap-1"
+              >
+                <KeyRound size={12} /> Forgot Password?
+              </button>
+            </div>
+          )}
+
+          <button 
+            type="submit" 
+            disabled={submitting} 
+            className="w-full mt-2 font-sport font-bold text-xl uppercase tracking-widest py-4 rounded-xl transition-all shadow-xl hover:scale-[1.02] disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+            style={{ backgroundColor: leagueRed, color: '#fff', boxShadow: `0 0 20px ${leagueRed}50` }}
+          >
+            {submitting ? 'PROCESSING...' : (
+              <>
+                {mode === 'signin' && 'SIGN IN'}
+                {mode === 'signup' && 'CREATE ACCOUNT'}
+                {mode === 'forgot' && 'SEND RECOVERY LINK'}
+                <ArrowRight size={20} />
+              </>
+            )}
           </button>
         </form>
 
-        <div className="mt-6 text-center border-t border-white/5 pt-6">
-          <button type="button" onClick={() => { setIsSignUp(!isSignUp); setMessage(null); }} className="text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white transition-colors">
-            {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
-          </button>
+        <div className="mt-8 pt-6 border-t border-white/10 flex flex-col gap-3 text-center">
+          {mode !== 'signin' && (
+            <button 
+              type="button" 
+              onClick={() => toggleMode('signin')} 
+              className="text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors"
+            >
+              ALREADY DRAFTED? SIGN IN
+            </button>
+          )}
+          {mode !== 'signup' && (
+            <button 
+              type="button" 
+              onClick={() => toggleMode('signup')} 
+              className="text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors"
+            >
+              FREE AGENT? CREATE AN ACCOUNT
+            </button>
+          )}
         </div>
       </div>
     </main>

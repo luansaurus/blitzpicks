@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "../../utils/supabase/client";
-import { User, Shield, ArrowLeft, ChevronRight, Activity } from "lucide-react";
+import { User, Activity, ArrowLeft, ChevronRight } from "lucide-react";
 
 interface TeamStatsViewerProps {
   teamId: string;
@@ -11,41 +11,15 @@ interface TeamStatsViewerProps {
 
 type FullViewCategory = 'pass' | 'rush' | 'rec' | 'sack' | 'kick' | null;
 
-const getSafeColor = (hex: string) => {
-  if (!hex) return '#f59e0b';
-  let r = parseInt(hex.substring(1, 3), 16) / 255;
-  let g = parseInt(hex.substring(3, 5), 16) / 255;
-  let b = parseInt(hex.substring(5, 7), 16) / 255;
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  let h = 0, s = 0, l = (max + min) / 2;
-  if (max !== min) {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-      case g: h = (b - r) / d + 2; break;
-      case b: h = (r - g) / d + 4; break;
-    }
-    h /= 6;
-  }
-  if (l < 0.45) { l = 0.55; s = Math.max(s, 0.90); }
-  const hue2rgb = (p: number, q: number, t: number) => {
-    if (t < 0) t += 1;
-    if (t > 1) t -= 1;
-    if (t < 1/6) return p + (q - p) * 6 * t;
-    if (t < 1/2) return q;
-    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-    return p;
-  };
-  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-  const p = 2 * l - q;
-  r = hue2rgb(p, q, h + 1/3); g = hue2rgb(p, q, h); b = hue2rgb(p, q, h - 1/3);
-  const toHex = (x: number) => {
-    const hexStr = Math.round(x * 255).toString(16);
-    return hexStr.length === 1 ? '0' + hexStr : hexStr;
-  };
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+// Agora usamos a função de luminância para escolher a cor mais clara do time!
+const getLuminance = (hex: string) => {
+  if (!hex) return 0;
+  let cleanHex = hex.replace('#', '');
+  if (cleanHex.length === 3) cleanHex = cleanHex.split('').map(x => x + x).join('');
+  const r = parseInt(cleanHex.substring(0, 2), 16) || 0;
+  const g = parseInt(cleanHex.substring(2, 4), 16) || 0;
+  const b = parseInt(cleanHex.substring(4, 6), 16) || 0;
+  return ((r * 299) + (g * 587) + (b * 114)) / 1000;
 };
 
 export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerProps) {
@@ -234,15 +208,20 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
 
   if (loading || !stats) {
     return (
-      <div className="bg-neutral-900 border border-white/5 rounded-xl p-6 flex flex-col items-center justify-center animate-pulse h-64">
-         <div className="w-10 h-10 border-2 border-gray-600 border-t-white rounded-full animate-spin mb-3"></div>
-         <span className="text-gray-500 font-bold uppercase tracking-widest text-xs">Loading Playbooks...</span>
+      <div className="bg-[#050505]/80 backdrop-blur-xl border border-white/10 rounded-2xl p-8 flex flex-col items-center justify-center animate-pulse h-64 shadow-2xl">
+         <div className="w-12 h-12 border-4 border-gray-800 border-t-white rounded-full animate-spin mb-4"></div>
+         <span className="text-gray-500 font-sans font-black uppercase tracking-widest text-xs">Loading Playbooks...</span>
       </div>
     );
   }
 
   const { tStats, oStats, fullPlayers, teamDefTotals } = stats;
-  const tColor = getSafeColor(teamInfo?.primary_color);
+  
+  // A Mágica da Luminância: puxa a cor mais brilhante do time!
+  const teamPri = teamInfo?.primary_color || '#111111';
+  const teamSec = teamInfo?.secondary_color || '#ff2a2a';
+  const tColor = getLuminance(teamPri) > getLuminance(teamSec) ? teamPri : teamSec;
+  
   const G = tStats.games || 1;
 
   if (fullViewCategory) {
@@ -255,21 +234,29 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
     };
 
     return (
-      <div className="bg-neutral-900 border border-white/5 rounded-xl flex flex-col animate-fadeIn overflow-hidden shadow-lg">
-        <div className="p-4 sm:p-5 border-b border-white/5 bg-black/40 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setFullViewCategory(null)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition">
-              <ArrowLeft size={18} />
+      <div className="bg-[#050505]/95 backdrop-blur-xl border border-white/10 rounded-2xl flex flex-col animate-fadeIn overflow-hidden shadow-2xl relative">
+        <div 
+          className="absolute inset-0 z-0 pointer-events-none opacity-10"
+          style={{ backgroundImage: 'repeating-linear-gradient(-45deg, transparent, transparent 4px, rgba(255,255,255,0.05) 4px, rgba(255,255,255,0.05) 8px)' }}
+        />
+        
+        <div className="p-4 sm:p-5 border-b border-white/10 bg-black/60 flex items-center justify-between relative z-10">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setFullViewCategory(null)} 
+              className="p-2 hover:bg-white/10 rounded-xl text-gray-400 hover:text-white transition-all hover:scale-105"
+            >
+              <ArrowLeft size={20} />
             </button>
-            <h3 className="text-sm font-black uppercase tracking-widest text-white">{categoryTitles[fullViewCategory]}</h3>
+            <h3 className="font-sport text-lg sm:text-xl font-bold uppercase tracking-widest text-white">{categoryTitles[fullViewCategory]}</h3>
           </div>
-          {teamInfo?.logo_url && <img src={teamInfo.logo_url} className="w-6 h-6 object-contain opacity-50" alt="" />}
+          {teamInfo?.logo_url && <img src={teamInfo.logo_url} className="w-8 h-8 object-contain opacity-40 drop-shadow-lg" alt="" />}
         </div>
         
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs sm:text-sm whitespace-nowrap min-w-[400px]">
+        <div className="overflow-x-auto relative z-10">
+          <table className="w-full text-left whitespace-nowrap min-w-[450px]">
             <thead>
-              <tr className="text-[10px] text-gray-500 uppercase tracking-widest border-b border-white/5 bg-black/20">
+              <tr className="font-sans text-[10px] text-gray-500 uppercase tracking-widest border-b border-white/5 bg-black/40">
                 <th className="px-4 py-3 font-black w-10 text-center">RK</th>
                 <th className="px-4 py-3 font-black">Player</th>
                 {isOffense && (
@@ -290,30 +277,30 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
                 )}
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-white/5 bg-black/20">
               {dataList.length === 0 ? (
-                <tr><td colSpan={6} className="p-6 text-center text-gray-500 text-xs uppercase tracking-widest font-bold">No stats recorded</td></tr>
+                <tr><td colSpan={6} className="p-8 text-center text-gray-500 font-sans text-xs uppercase tracking-widest font-bold">No stats recorded</td></tr>
               ) : (
                 dataList.map((p: any, i: number) => (
-                  <tr key={i} className="hover:bg-white/[0.02] transition">
-                    <td className="px-4 py-3 text-center text-gray-600 font-black">{i + 1}</td>
-                    <td className="px-4 py-3 text-white font-bold">{p.name}</td>
+                  <tr key={i} className="hover:bg-white/[0.04] transition-colors group">
+                    <td className="px-4 py-4 text-center font-sport text-gray-500 text-sm group-hover:text-white transition-colors">{i + 1}</td>
+                    <td className="px-4 py-4 text-white font-bold font-sport uppercase tracking-wider">{p.name}</td>
                     
                     {isOffense && (
                       <>
-                        <td className="px-4 py-3 text-right font-black" style={{ color: tColor }}>{p.yds}</td>
-                        <td className="px-4 py-3 text-center font-bold text-gray-300">{p.td}</td>
-                        {fullViewCategory === 'pass' && <td className="px-4 py-3 text-center font-bold text-red-400">{p.int}</td>}
-                        {fullViewCategory === 'rec' && <td className="px-4 py-3 text-center font-bold text-gray-500">{p.rec}</td>}
+                        <td className="px-4 py-4 text-right font-jersey text-xl" style={{ color: tColor, textShadow: `0 0 10px ${tColor}40` }}>{p.yds}</td>
+                        <td className="px-4 py-4 text-center font-jersey text-xl text-gray-300">{p.td}</td>
+                        {fullViewCategory === 'pass' && <td className="px-4 py-4 text-center font-jersey text-xl text-red-500/80">{p.int}</td>}
+                        {fullViewCategory === 'rec' && <td className="px-4 py-4 text-center font-jersey text-xl text-gray-500">{p.rec}</td>}
                       </>
                     )}
                     
-                    {fullViewCategory === 'sack' && <td className="px-4 py-3 text-right font-black" style={{ color: tColor }}>{p.sack}</td>}
+                    {fullViewCategory === 'sack' && <td className="px-4 py-4 text-right font-jersey text-xl" style={{ color: tColor, textShadow: `0 0 10px ${tColor}40` }}>{p.sack}</td>}
                     {fullViewCategory === 'kick' && (
                        <>
-                         <td className="px-4 py-3 text-center font-bold text-gray-300">{p.fgM}/{p.fgA}</td>
-                         <td className="px-4 py-3 text-center font-bold text-gray-300">{p.xpM}/{p.xpA}</td>
-                         <td className="px-4 py-3 text-right font-black" style={{ color: tColor }}>{p.pts}</td>
+                         <td className="px-4 py-4 text-center font-jersey text-xl text-gray-300">{p.fgM}/{p.fgA}</td>
+                         <td className="px-4 py-4 text-center font-jersey text-xl text-gray-300">{p.xpM}/{p.xpA}</td>
+                         <td className="px-4 py-4 text-right font-jersey text-xl" style={{ color: tColor, textShadow: `0 0 10px ${tColor}40` }}>{p.pts}</td>
                        </>
                     )}
                   </tr>
@@ -329,80 +316,89 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
   const PlayerMiniCard = ({ title, data, viewCategory, statKey, statLabel }: any) => {
     const topPlayer = data[0];
     const renderSubText = (cat: string, p: any) => {
-      if (cat === 'pass') return <span className="text-gray-400">{p.td} TD <span className="text-gray-600 px-1">|</span> <span className="text-red-400/80">{p.int} INT</span></span>;
-      if (cat === 'rush') return <span className="text-gray-400">{p.td} TD</span>;
-      if (cat === 'rec') return <span className="text-gray-400">{p.rec} REC <span className="text-gray-600 px-1">|</span> {p.td} TD</span>;
-      if (cat === 'kick') return <span className="text-gray-400">{p.fgM}/{p.fgA} FG <span className="text-gray-600 px-1">|</span> {p.xpM}/{p.xpA} XP</span>;
+      if (cat === 'pass') return <span className="text-gray-400 font-sport uppercase tracking-widest">{p.td} TD <span className="text-gray-600 px-1">|</span> <span className="text-red-500">{p.int} INT</span></span>;
+      if (cat === 'rush') return <span className="text-gray-400 font-sport uppercase tracking-widest">{p.td} TD</span>;
+      if (cat === 'rec') return <span className="text-gray-400 font-sport uppercase tracking-widest">{p.rec} REC <span className="text-gray-600 px-1">|</span> {p.td} TD</span>;
+      if (cat === 'kick') return <span className="text-gray-400 font-sport uppercase tracking-widest">{p.fgM}/{p.fgA} FG <span className="text-gray-600 px-1">|</span> {p.xpM}/{p.xpA} XP</span>;
       return <span className="text-gray-500">-</span>;
     };
 
     return (
-      <div className="bg-black/30 border border-white/5 rounded-xl overflow-hidden flex flex-col hover:border-white/10 transition-colors shadow-lg h-full">
-        <div className="px-3 py-2 bg-black/40 border-b border-white/5 flex justify-between items-center">
-          <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">{title}</span>
+      <div className="bg-black/60 border border-white/10 rounded-xl overflow-hidden flex flex-col transition-all group shadow-lg hover:shadow-[0_8px_30px_rgba(0,0,0,0.8)] relative">
+        <div className="absolute inset-0 bg-gradient-to-t from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+        
+        <div className="px-3 py-2 bg-black/80 border-b border-white/5 flex justify-between items-center relative z-10">
+          <span className="font-sans text-[9px] font-black uppercase tracking-widest text-gray-400">{title}</span>
         </div>
-        <div className="p-3 flex-1 flex flex-col justify-center gap-1">
+        
+        <div className="p-4 flex-1 flex flex-col relative z-10">
           {topPlayer ? (
             <>
-              <div className="flex justify-between items-center">
-                <span className="text-white font-bold text-xs truncate pr-2">{topPlayer.name}</span>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="text-sm font-black" style={{ color: tColor }}>{topPlayer[statKey]}</span>
-                  <span className="text-[8px] text-gray-500 font-bold uppercase">{statLabel}</span>
+              <span className="text-white font-sport font-bold text-sm sm:text-base uppercase tracking-wider truncate w-full block mb-2" title={topPlayer.name}>
+                {topPlayer.name}
+              </span>
+              
+              <div className="flex justify-between items-end border-t border-white/5 pt-2 mt-auto">
+                <div className="flex items-baseline gap-1.5 shrink-0">
+                  <span className="font-jersey text-2xl sm:text-2xl leading-none" style={{ color: tColor, textShadow: `0 0 10px ${tColor}60` }}>{topPlayer[statKey]}</span>
+                  <span className="font-sans text-[9px] text-gray-500 font-black uppercase tracking-widest">{statLabel}</span>
                 </div>
-              </div>
-              <div className="text-[9px] font-bold text-right tracking-wide">
-                {renderSubText(viewCategory, topPlayer)}
+                <div className="text-[10px] sm:text-xs text-right pb-0.5">
+                  {renderSubText(viewCategory, topPlayer)}
+                </div>
               </div>
             </>
           ) : (
-             <span className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">No Data</span>
+             <span className="font-sans text-[10px] text-gray-600 font-black uppercase tracking-widest text-center py-4 my-auto">No Data</span>
           )}
         </div>
+        
         <button 
           onClick={() => setFullViewCategory(viewCategory)}
-          className="w-full py-2 bg-white/[0.02] hover:bg-white/5 border-t border-white/5 text-[9px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors flex items-center justify-center gap-1 mt-auto"
+          className="w-full py-2.5 bg-white/[0.02] hover:bg-white/10 border-t border-white/5 font-sans text-[9px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors flex items-center justify-center gap-1 mt-auto relative z-10"
         >
-          View All <ChevronRight size={10} />
+          View All <ChevronRight size={12} />
         </button>
       </div>
     );
   };
 
   const TeamStatMiniCard = ({ title, totalVal, statLabel, viewCategory }: any) => (
-    <div className="bg-black/30 border border-white/5 rounded-xl overflow-hidden flex flex-col hover:border-white/10 transition-colors shadow-lg h-full">
-      <div className="px-3 py-2 bg-black/40 border-b border-white/5 flex justify-between items-center">
-        <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">{title}</span>
+    <div className="bg-black/60 border border-white/10 rounded-xl overflow-hidden flex flex-col transition-all group shadow-lg hover:shadow-[0_8px_30px_rgba(0,0,0,0.8)] relative">
+      <div className="absolute inset-0 bg-gradient-to-t from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+      
+      <div className="px-3 py-2 bg-black/80 border-b border-white/5 flex justify-between items-center relative z-10">
+        <span className="font-sans text-[9px] font-black uppercase tracking-widest text-gray-400">{title}</span>
       </div>
-      <div className="p-3 flex-1 flex flex-col justify-center items-center gap-1">
-        <div className="flex items-center gap-1.5">
-          <span className="text-3xl font-black" style={{ color: tColor }}>{totalVal || 0}</span>
-          <span className="text-[10px] text-gray-500 font-bold uppercase">{statLabel}</span>
+      <div className="p-4 flex-1 flex flex-col justify-center items-center gap-1 relative z-10">
+        <div className="flex items-baseline gap-1.5">
+          <span className="font-jersey text-2xl sm:text-5xl" style={{ color: tColor, textShadow: `0 0 10px ${tColor}60` }}>{totalVal || 0}</span>
+          <span className="font-sans text-[9px] text-gray-500 font-black uppercase tracking-widest">{statLabel}</span>
         </div>
       </div>
       <button 
         onClick={() => setFullViewCategory(viewCategory)}
-        className="w-full py-2 bg-white/[0.02] hover:bg-white/5 border-t border-white/5 text-[9px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors flex items-center justify-center gap-1 mt-auto"
+        className="w-full py-2.5 bg-white/[0.02] hover:bg-white/10 border-t border-white/5 font-sans text-[9px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors flex items-center justify-center gap-1 mt-auto relative z-10"
       >
-        View All <ChevronRight size={10} />
+        View All <ChevronRight size={12} />
       </button>
     </div>
   );
 
   const StaticStatMiniCard = ({ title, totalVal, statLabel }: any) => (
-    <div className="bg-black/30 border border-white/5 rounded-xl overflow-hidden flex flex-col shadow-lg h-full">
-      <div className="px-3 py-2 bg-black/40 border-b border-white/5 flex justify-between items-center">
-        <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">{title}</span>
+    <div className="bg-black/60 border border-white/10 rounded-xl overflow-hidden flex flex-col shadow-lg relative">
+      <div className="px-3 py-2 bg-black/80 border-b border-white/5 flex justify-between items-center relative z-10">
+        <span className="font-sans text-[9px] font-black uppercase tracking-widest text-gray-400">{title}</span>
       </div>
-      <div className="p-3 flex-1 flex flex-col justify-center items-center gap-1">
-        <div className="flex items-center gap-1.5">
-          <span className="text-3xl font-black text-white">{totalVal || 0}</span>
-          <span className="text-[10px] text-gray-500 font-bold uppercase">{statLabel}</span>
+      <div className="p-4 flex-1 flex flex-col justify-center items-center gap-1 relative z-10">
+        <div className="flex items-baseline gap-1.5">
+          <span className="font-jersey text-2xl sm:text-5xl text-white drop-shadow-md">{totalVal || 0}</span>
+          <span className="font-sans text-[9px] text-gray-500 font-black uppercase tracking-widest">{statLabel}</span>
         </div>
       </div>
-      <div className="w-full py-2 bg-white/[0.02] border-t border-white/5 mt-auto">
-        <span className="text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1 opacity-0 pointer-events-none">
-          View All <ChevronRight size={10} />
+      <div className="w-full py-2.5 bg-white/[0.02] border-t border-white/5 mt-auto relative z-10">
+        <span className="font-sans text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1 opacity-0 pointer-events-none">
+          View All <ChevronRight size={12} />
         </span>
       </div>
     </div>
@@ -413,57 +409,63 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
       const oNum = parseFloat(oppVal);
       
       let tClass = "text-white";
-      let oClass = "text-gray-400";
+      let oClass = "text-gray-500";
       
       if (!isNaN(tNum) && !isNaN(oNum) && tNum !== oNum) {
           if ((isGoodIfHigher && tNum > oNum) || (!isGoodIfHigher && tNum < oNum)) {
-              tClass = "text-green-400 drop-shadow-[0_0_8px_rgba(74,222,128,0.2)]";
-              oClass = "text-gray-500";
+              tClass = "text-green-400 drop-shadow-[0_0_12px_rgba(74,222,128,0.6)]";
+              oClass = "text-gray-600";
           } else {
-              tClass = "text-gray-500";
-              oClass = "text-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.2)]";
+              tClass = "text-gray-600";
+              oClass = "text-red-500 drop-shadow-[0_0_12px_rgba(239,68,68,0.6)]";
           }
       }
 
       return (
-          <div className="flex items-center justify-between py-3 border-b border-white/5 last:border-0 hover:bg-white/[0.02] px-2 rounded transition-colors">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 w-1/3 truncate">{label}</span>
-              <div className="flex gap-4 sm:gap-6 w-2/3 justify-end text-sm sm:text-base font-black items-center">
-                  <span className={`w-12 text-right ${tClass}`}>{teamVal || 0}</span>
-                  <span className="text-gray-600 font-normal text-xs">|</span>
-                  <span className={`w-12 text-right ${oClass}`}>{oppVal || 0}</span>
+          <div className="flex items-center justify-between py-4 border-b border-white/5 last:border-0 hover:bg-white/[0.03] px-3 sm:px-4 rounded-lg transition-colors">
+              <span className="font-sans text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 w-1/3 truncate">{label}</span>
+              <div className="flex gap-2 sm:gap-4 w-2/3 justify-end items-center">
+                  <span className={`w-16 sm:w-20 text-right font-jersey text-xl sm:text-2xl leading-none ${tClass}`}>{teamVal || 0}</span>
+                  <span className="text-gray-700 font-black text-xs sm:text-sm mx-1 sm:mx-2 shrink-0">VS</span>
+                  <span className={`w-16 sm:w-20 text-right font-jersey text-xl sm:text-2xl leading-none ${oClass}`}>{oppVal || 0}</span>
               </div>
           </div>
       );
   };
 
   return (
-    <div className="bg-neutral-900 border border-white/5 rounded-2xl flex flex-col overflow-hidden relative shadow-2xl">
-      <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
-        {teamInfo?.logo_url && <img src={teamInfo.logo_url} className="w-48 h-48 object-contain" alt="" />}
+    <div className="bg-[#050505]/90 backdrop-blur-2xl border border-white/10 rounded-3xl flex flex-col overflow-hidden relative shadow-[0_20px_50px_rgba(0,0,0,0.8)]">
+      
+      <div 
+        className="absolute inset-0 z-0 pointer-events-none opacity-20 mix-blend-overlay"
+        style={{ backgroundImage: 'repeating-linear-gradient(-45deg, transparent, transparent 4px, rgba(255,255,255,0.05) 4px, rgba(255,255,255,0.05) 8px)' }}
+      />
+
+      <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none z-0">
+        {teamInfo?.logo_url && <img src={teamInfo.logo_url} className="w-56 h-56 object-contain" alt="" />}
       </div>
       
-      <div className="flex border-b border-white/5 bg-black/40 relative z-10">
+      <div className="flex border-b border-white/10 bg-black/60 relative z-10 shadow-inner">
         <button 
           onClick={() => setActiveTab('players')} 
-          className={`flex-1 py-3.5 text-[10px] sm:text-xs font-black uppercase tracking-widest transition flex items-center justify-center gap-2 ${activeTab === 'players' ? 'text-white bg-white/5' : 'text-gray-500 hover:text-gray-300'}`}
-          style={activeTab === 'players' ? { borderBottom: `2px solid ${tColor}` } : {}}
+          className={`flex-1 py-4 font-sans text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'players' ? 'text-white bg-white/5' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.02]'}`}
+          style={activeTab === 'players' ? { borderBottom: `2px solid ${tColor}`, boxShadow: `inset 0 -10px 20px -10px ${tColor}40` } : {}}
         >
-          <User size={14} /> Player Stats
+          <User size={16} /> Player Stats
         </button>
         <button 
           onClick={() => setActiveTab('team')} 
-          className={`flex-1 py-3.5 text-[10px] sm:text-xs font-black uppercase tracking-widest transition flex items-center justify-center gap-2 ${activeTab === 'team' ? 'text-white bg-white/5' : 'text-gray-500 hover:text-gray-300'}`}
-          style={activeTab === 'team' ? { borderBottom: `2px solid ${tColor}` } : {}}
+          className={`flex-1 py-4 font-sans text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'team' ? 'text-white bg-white/5' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.02]'}`}
+          style={activeTab === 'team' ? { borderBottom: `2px solid ${tColor}`, boxShadow: `inset 0 -10px 20px -10px ${tColor}40` } : {}}
         >
-          <Activity size={14} /> Team Matchup
+          <Activity size={16} /> Team Matchup
         </button>
       </div>
 
-      <div className="p-4 sm:p-5 relative z-10">
+      <div className="p-4 sm:p-6 relative z-10 bg-black/20">
         
         {activeTab === 'players' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 animate-fadeIn">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-fadeIn">
             <PlayerMiniCard title="Passing" data={fullPlayers.pass} viewCategory="pass" statKey="yds" statLabel="YDS" />
             <PlayerMiniCard title="Rushing" data={fullPlayers.rush} viewCategory="rush" statKey="yds" statLabel="YDS" />
             <PlayerMiniCard title="Receiving" data={fullPlayers.rec} viewCategory="rec" statKey="yds" statLabel="YDS" />
@@ -476,30 +478,33 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
         )}
 
         {activeTab === 'team' && (
-          <div className="bg-black/30 border border-white/5 rounded-xl p-4 sm:p-6 flex flex-col animate-fadeIn shadow-inner">
+          <div className="bg-black/60 border border-white/10 rounded-2xl p-4 sm:p-8 flex flex-col animate-fadeIn shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-2 h-full" style={{ backgroundColor: tColor }}></div>
             
-            <div className="flex justify-between items-center text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-gray-500 border-b border-white/10 pb-3 mb-2 px-2">
+            <div className="flex justify-between items-center font-sans text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-gray-500 border-b border-white/10 pb-4 mb-3 pl-4 sm:pl-2 px-2">
                <span className="w-1/3">Matchup Metric</span>
-               <div className="flex gap-4 sm:gap-6 w-2/3 justify-end items-center">
-                  <span className="w-12 text-right" style={{ color: tColor }}>{teamInfo.abbreviation}</span>
-                  <span className="text-gray-600/0">|</span>
-                  <span className="w-12 text-right text-gray-400">OPP</span>
+               <div className="flex gap-2 sm:gap-4 w-2/3 justify-end items-center">
+                  <span className="w-16 sm:w-20 text-right font-sport text-xs sm:text-sm tracking-wider truncate" style={{ color: tColor }}>{teamInfo.abbreviation}</span>
+                  <span className="text-gray-700/0 mx-1 sm:mx-2 shrink-0">VS</span>
+                  <span className="w-16 sm:w-20 text-right font-sport text-xs sm:text-sm tracking-wider text-gray-400">OPP</span>
                </div>
             </div>
-            <CompareRow label="Total YDS/G" teamVal={((tStats.passYds + tStats.rushYds)/G).toFixed(1)} oppVal={((oStats.passYds + oStats.rushYds)/G).toFixed(1)} />
-            <CompareRow label="Pass YDS/G" teamVal={(tStats.passYds / G).toFixed(1)} oppVal={(oStats.passYds / G).toFixed(1)} />
-            <CompareRow label="Rush YDS/G" teamVal={(tStats.rushYds / G).toFixed(1)} oppVal={(oStats.rushYds / G).toFixed(1)} />
             
-            <CompareRow label="Pass TDs" teamVal={tStats.passTds} oppVal={oStats.passTds} />
-            <CompareRow label="Rush TDs" teamVal={tStats.rushTds} oppVal={oStats.rushTds} />
-            <CompareRow label="Defensive/ST TDs" teamVal={tStats.defTds} oppVal={oStats.defTds} />
-            
-            <CompareRow label="Takeaways (Def)" teamVal={oStats.turnovers} oppVal={tStats.turnovers} />
-            <CompareRow label="Giveaways (Off)" teamVal={tStats.turnovers} oppVal={oStats.turnovers} isGoodIfHigher={false} />
-            
-            <CompareRow label="Sacks" teamVal={tStats.sacks} oppVal={oStats.sacks} />
-
-            <CompareRow label="Points/G" teamVal={(tStats.pts / G).toFixed(1)} oppVal={(oStats.pts / G).toFixed(1)} />
+            <div className="pl-4 sm:pl-2">
+              <CompareRow label="Total YDS/G" teamVal={((tStats.passYds + tStats.rushYds)/G).toFixed(1)} oppVal={((oStats.passYds + oStats.rushYds)/G).toFixed(1)} />
+              <CompareRow label="Pass YDS/G" teamVal={(tStats.passYds / G).toFixed(1)} oppVal={(oStats.passYds / G).toFixed(1)} />
+              <CompareRow label="Rush YDS/G" teamVal={(tStats.rushYds / G).toFixed(1)} oppVal={(oStats.rushYds / G).toFixed(1)} />
+              
+              <CompareRow label="Pass TDs" teamVal={tStats.passTds} oppVal={oStats.passTds} />
+              <CompareRow label="Rush TDs" teamVal={tStats.rushTds} oppVal={oStats.rushTds} />
+              <CompareRow label="Defensive/ST TDs" teamVal={tStats.defTds} oppVal={oStats.defTds} />
+              
+              <CompareRow label="Takeaways (Def)" teamVal={oStats.turnovers} oppVal={tStats.turnovers} />
+              <CompareRow label="Giveaways (Off)" teamVal={tStats.turnovers} oppVal={oStats.turnovers} isGoodIfHigher={false} />
+              
+              <CompareRow label="Sacks" teamVal={tStats.sacks} oppVal={oStats.sacks} />
+              <CompareRow label="Points/G" teamVal={(tStats.pts / G).toFixed(1)} oppVal={(oStats.pts / G).toFixed(1)} />
+            </div>
 
           </div>
         )}

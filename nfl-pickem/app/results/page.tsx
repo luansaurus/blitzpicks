@@ -7,11 +7,27 @@ import PlayoffLiveView from '../../components/bracket/PlayoffLiveView';
 import GameCard from '../../components/scoreboard/GameCard';
 import TeamStatsViewer from '../../components/scoreboard/TeamStatsViewer'; 
 import { createClient } from '../../utils/supabase/client';
-import { getThemeColor } from '../../utils/theme';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { getPlayoffSeeds } from '@/utils/playoffs';
 import { Trophy, LayoutGrid, Calendar, BarChart2 } from 'lucide-react';
 import LeagueLeadersViewer from '@/components/scoreboard/LeagueLeadersViewer';
+
+// Lógica de Luminância para garantir cores legíveis
+const getLuminance = (hex: string) => {
+  if (!hex) return 0;
+  let cleanHex = hex.replace('#', '');
+  if (cleanHex.length === 3) cleanHex = cleanHex.split('').map(x => x + x).join('');
+  const r = parseInt(cleanHex.substring(0, 2), 16) || 0;
+  const g = parseInt(cleanHex.substring(2, 4), 16) || 0;
+  const b = parseInt(cleanHex.substring(4, 6), 16) || 0;
+  return ((r * 299) + (g * 587) + (b * 114)) / 1000;
+};
+
+const getBestColor = (pri: string, sec: string) => {
+  const p = pri || '#111111';
+  const s = sec || '#ff2a2a';
+  return getLuminance(p) > getLuminance(s) ? p : s;
+};
 
 export default function Results() {
   const [activeTab, setActiveTab] = useState<'schedule' | 'standings' | 'stats'>('schedule');
@@ -31,12 +47,14 @@ export default function Results() {
   const [playoffView, setPlayoffView] = useState<'cards' | 'bracket'>('cards');
   
   const [loading, setLoading] = useState(true);
+  
+  // Cores dinâmicas
   const [userColor, setUserColor] = useState('#E31837');
+  const [ambientPrimary, setAmbientPrimary] = useState('#013369');
+  const [ambientSecondary, setAmbientSecondary] = useState('#E31837');
   
   const router = useRouter();
   const supabase = createClient();
-
-  const displayColor = getThemeColor(userColor);
 
   useEffect(() => {
     async function loadResultsData() {
@@ -44,9 +62,14 @@ export default function Results() {
       if (!session) { router.push('/login'); return; }
 
       const { data: profile } = await supabase.from('profiles').select('favorite_team_id').eq('id', session.user.id).single();
+      
       if (profile?.favorite_team_id) {
-        const { data: teamInfo } = await supabase.from('teams').select('primary_color').eq('id', profile.favorite_team_id).single();
-        if (teamInfo?.primary_color) setUserColor(teamInfo.primary_color);
+        const { data: teamInfo } = await supabase.from('teams').select('primary_color, secondary_color').eq('id', profile.favorite_team_id).single();
+        if (teamInfo) {
+          setUserColor(getBestColor(teamInfo.primary_color, teamInfo.secondary_color));
+          setAmbientPrimary(teamInfo.primary_color || '#013369');
+          setAmbientSecondary(teamInfo.secondary_color || '#E31837');
+        }
       } else if (typeof window !== "undefined") {
          const savedAccent = localStorage.getItem('blitz_accent');
          if (savedAccent) setUserColor(savedAccent);
@@ -74,7 +97,13 @@ export default function Results() {
         const recordStr = `${record.wins}-${record.losses}${record.ties > 0 ? `-${record.ties}` : ''}`;
         const teamData = { ...t, ...record, pct, conference: t.conference };
         
-        tMap[t.id.toString()] = { name: t.name, abbr: t.abbreviation, color: t.primary_color, logo: t.logo_url, record: recordStr };
+        tMap[t.id.toString()] = { 
+          name: t.name, 
+          abbr: t.abbreviation, 
+          color: getBestColor(t.primary_color, t.secondary_color), 
+          logo: t.logo_url, 
+          record: recordStr 
+        };
 
         if (t.conference && t.division) {
           if (!groupedStandings[t.conference]) groupedStandings[t.conference] = {};
@@ -135,205 +164,295 @@ export default function Results() {
   const playoffNames: Record<string, string> = { 'WC': 'Wild Card Weekend', 'DR': 'Divisional Round', 'CC': 'Conference Championship', 'SB': 'Super Bowl' };
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-white font-sans pb-24">
-      <Header />
+    <main className="min-h-screen bg-[#050505] text-white font-sans pb-32 relative overflow-hidden">
       
-      <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6 mt-4">
+      {/* Luzes de Atmosfera */}
+      <div 
+        className="absolute -top-32 -left-32 w-[600px] h-[600px] rounded-full blur-[150px] opacity-30 pointer-events-none z-0 transition-colors duration-1000"
+        style={{ backgroundColor: ambientPrimary }}
+      />
+      <div 
+        className="absolute -bottom-32 -right-32 w-[600px] h-[600px] rounded-full blur-[150px] opacity-20 pointer-events-none z-0 transition-colors duration-1000"
+        style={{ backgroundColor: ambientSecondary }}
+      />
+      
+      <div 
+        className="absolute inset-0 z-0 pointer-events-none opacity-20 mix-blend-overlay"
+        style={{ backgroundImage: 'repeating-linear-gradient(-45deg, transparent, transparent 4px, rgba(255,255,255,0.05) 4px, rgba(255,255,255,0.05) 8px)' }}
+      />
+
+      <div className="relative z-10">
+        <Header />
         
-        <div className="text-center mb-8">
-          <h1 className="text-3xl sm:text-4xl font-black italic uppercase tracking-wider">
-            Season<span style={{ color: displayColor, textShadow: `0 0 15px ${displayColor}80, 0 1px 2px rgba(255,255,255,0.2)` }}>Hub</span>
-          </h1>
-          <p className="text-gray-400 mt-1 font-medium text-xs sm:text-sm">Official NFL data, complete schedule, and league metrics.</p>
-        </div>
+        <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-8 mt-4">
+          
+          <div className="text-center mb-10">
+            {/* FONTE REDUZIDA: text-5xl/7xl -> text-5xl/6xl */}
+            <h1 className="font-jersey text-5xl sm:text-5xl uppercase tracking-widest text-white mb-2">
+              SEASON<span style={{ color: userColor, textShadow: `0 0 15px ${userColor}80` }}>HUB</span>
+            </h1>
+            <p className="font-sans text-xs sm:text-sm font-bold text-gray-400 uppercase tracking-widest mt-1">Official NFL data, complete schedule, and league metrics.</p>
+          </div>
 
-        <div className="flex bg-neutral-900 border border-white/10 rounded-xl p-1 w-full max-w-lg mx-auto shadow-lg mb-8">
-          <button onClick={() => setActiveTab('schedule')} className={`flex-1 px-4 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${activeTab === 'schedule' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-white'}`} style={activeTab === 'schedule' ? { color: displayColor } : {}}>
-            <Calendar size={14} /> Schedule
-          </button>
-          <button onClick={() => setActiveTab('standings')} className={`flex-1 px-4 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${activeTab === 'standings' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-white'}`} style={activeTab === 'standings' ? { color: displayColor } : {}}>
-            <Trophy size={14} /> Standings
-          </button>
-          <button onClick={() => setActiveTab('stats')} className={`flex-1 px-4 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${activeTab === 'stats' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-white'}`} style={activeTab === 'stats' ? { color: displayColor } : {}}>
-            <BarChart2 size={14} /> Team Stats
-          </button>
-        </div>
+          {/* Nav Pills - Glassmorphism */}
+          <div className="flex bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl p-1.5 w-full max-w-lg mx-auto shadow-2xl mb-8">
+            <button 
+              onClick={() => setActiveTab('schedule')} 
+              className={`flex-1 px-4 py-3 font-sans text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${activeTab === 'schedule' ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.02]'}`} 
+              style={activeTab === 'schedule' ? { color: userColor, boxShadow: `inset 0 -4px 0 ${userColor}` } : {}}
+            >
+              <Calendar size={16} /> Schedule
+            </button>
+            <button 
+              onClick={() => setActiveTab('standings')} 
+              className={`flex-1 px-4 py-3 font-sans text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${activeTab === 'standings' ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.02]'}`} 
+              style={activeTab === 'standings' ? { color: userColor, boxShadow: `inset 0 -4px 0 ${userColor}` } : {}}
+            >
+              <Trophy size={16} /> Standings
+            </button>
+            <button 
+              onClick={() => setActiveTab('stats')} 
+              className={`flex-1 px-4 py-3 font-sans text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${activeTab === 'stats' ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.02]'}`} 
+              style={activeTab === 'stats' ? { color: userColor, boxShadow: `inset 0 -4px 0 ${userColor}` } : {}}
+            >
+              <BarChart2 size={16} /> Team Stats
+            </button>
+          </div>
 
-        {/* ================= ABA: SCHEDULE ================= */}
-        {activeTab === 'schedule' && (
-          <div className="space-y-4 animate-fadeIn">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/10 pb-3 gap-4 sm:gap-0">
-              <h2 className="text-xl font-black italic uppercase tracking-wider text-white">Season Matches</h2>
-              <div className="flex bg-neutral-900 border border-white/10 rounded-xl p-1">
-                <button onClick={() => setSeasonPhase('regular')} className={`flex-1 sm:px-6 py-2 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all ${seasonPhase === 'regular' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-white'}`} style={seasonPhase === 'regular' ? { color: displayColor } : {}}>Regular</button>
-                <button onClick={() => setSeasonPhase('playoffs')} className={`flex-1 sm:px-6 py-2 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all ${seasonPhase === 'playoffs' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-white'}`} style={seasonPhase === 'playoffs' ? { color: displayColor } : {}}>Playoffs</button>
-              </div>
-            </div>
-
-            {seasonPhase === 'playoffs' && (
-              <div className="flex justify-end animate-fadeIn">
-                <div className="flex bg-neutral-900 border border-white/10 rounded-lg p-1">
-                  <button onClick={() => setPlayoffView('cards')} className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md transition-all flex items-center gap-2 ${playoffView === 'cards' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-white'}`}><LayoutGrid size={14} /> Cards</button>
-                  <button onClick={() => setPlayoffView('bracket')} className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md transition-all flex items-center gap-2 ${playoffView === 'bracket' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-white'}`}><Trophy size={14} /> Bracket</button>
+          {/* ================= ABA: SCHEDULE ================= */}
+          {activeTab === 'schedule' && (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/10 pb-4 gap-4 sm:gap-0">
+                {/* FONTE REDUZIDA: text-2xl/5xl -> text-2xl/4xl */}
+                <h2 className="font-jersey text-2xl sm:text-2xl uppercase tracking-widest text-white drop-shadow-md">SEASON MATCHES</h2>
+                
+                <div className="flex bg-black/60 border border-white/10 rounded-xl p-1.5 shadow-inner">
+                  <button 
+                    onClick={() => setSeasonPhase('regular')} 
+                    className={`flex-1 sm:px-6 py-2.5 font-sans text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all ${seasonPhase === 'regular' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-white hover:bg-white/[0.02]'}`} 
+                    style={seasonPhase === 'regular' ? { color: userColor } : {}}
+                  >
+                    Regular
+                  </button>
+                  <button 
+                    onClick={() => setSeasonPhase('playoffs')} 
+                    className={`flex-1 sm:px-6 py-2.5 font-sans text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all ${seasonPhase === 'playoffs' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-white hover:bg-white/[0.02]'}`} 
+                    style={seasonPhase === 'playoffs' ? { color: userColor } : {}}
+                  >
+                    Playoffs
+                  </button>
                 </div>
               </div>
-            )}
-            
-            {seasonPhase === 'playoffs' && playoffView === 'bracket' ? (
-              <PlayoffLiveView userAccentColor={userColor} userInitialSeeds={computedSeeds} realResults={{}} />
-            ) : (
-              displayWeeks.length === 0 ? (
-                <div className="bg-neutral-900 border border-white/5 rounded-xl p-8 text-center text-gray-500 font-bold uppercase tracking-widest text-xs">No matchups scheduled.</div>
+
+              {seasonPhase === 'playoffs' && (
+                <div className="flex justify-end animate-fadeIn">
+                  <div className="flex bg-black/60 border border-white/10 rounded-xl p-1.5 shadow-inner">
+                    <button 
+                      onClick={() => setPlayoffView('cards')} 
+                      className={`px-4 py-2 font-sans text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex items-center gap-2 ${playoffView === 'cards' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-white'}`}
+                    >
+                      <LayoutGrid size={14} /> Cards
+                    </button>
+                    <button 
+                      onClick={() => setPlayoffView('bracket')} 
+                      className={`px-4 py-2 font-sans text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex items-center gap-2 ${playoffView === 'bracket' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-white'}`}
+                    >
+                      <Trophy size={14} /> Bracket
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              {seasonPhase === 'playoffs' && playoffView === 'bracket' ? (
+                <div className="bg-black/40 backdrop-blur-md rounded-3xl border border-white/10 overflow-hidden shadow-2xl p-4">
+                  <PlayoffLiveView userAccentColor={userColor} userInitialSeeds={computedSeeds} realResults={{}} />
+                </div>
               ) : (
-                displayWeeks.map(week => {
-                  const isWeekOpen = expandedWeek === week;
-                  const weekGames = gamesByWeek[week];
-                  const isSuperBowlWeek = week === 'SB';
-                  const isCurrentWeek = week === currentActiveWeek;
-                  const isFinished = weekGames.length > 0 && weekGames.every(g => g.status === 'finished');
+                displayWeeks.length === 0 ? (
+                  <div className="bg-black/60 backdrop-blur-md border border-white/5 rounded-2xl p-10 text-center font-sans text-[10px] sm:text-xs text-gray-500 font-black uppercase tracking-widest shadow-inner">
+                    No matchups scheduled.
+                  </div>
+                ) : (
+                  displayWeeks.map(week => {
+                    const isWeekOpen = expandedWeek === week;
+                    const weekGames = gamesByWeek[week];
+                    const isSuperBowlWeek = week === 'SB';
+                    const isCurrentWeek = week === currentActiveWeek;
+                    const isFinished = weekGames.length > 0 && weekGames.every(g => g.status === 'finished');
 
-                  return (
-                    <div key={week} className={`rounded-xl border overflow-hidden transition-all animate-fadeIn ${isSuperBowlWeek && isWeekOpen ? 'border-purple-500/50 shadow-[0_0_30px_rgba(168,85,247,0.15)]' : 'bg-neutral-900/40 border-white/5 shadow-sm'}`}>
-                      <button onClick={() => setExpandedWeek(isWeekOpen ? null : week)} className={`w-full flex justify-between items-center p-4 sm:p-5 transition text-left border-b border-white/5 ${isSuperBowlWeek ? 'bg-gradient-to-r from-purple-900/40 via-black to-amber-900/40 hover:from-purple-900/60' : 'bg-neutral-900/90 hover:bg-neutral-800'}`}>
-                        <div className="flex items-center gap-3">
-                          {isWeekOpen && !isSuperBowlWeek && <div className="w-1.5 h-6 rounded-full shadow-lg" style={{ backgroundColor: displayColor, boxShadow: `0 0 10px ${displayColor}80` }}></div>}
-                          {isWeekOpen && isSuperBowlWeek && <Trophy size={20} className="animate-pulse text-amber-400" />}
-                          <span className="font-black text-base uppercase tracking-widest" style={{ color: isWeekOpen && !isSuperBowlWeek ? displayColor : '#ffffff', textShadow: isWeekOpen && !isSuperBowlWeek ? `0 0 15px ${displayColor}80` : 'none' }}>{seasonPhase === 'playoffs' ? (playoffNames[week] || week) : `Week ${week}`}</span>
-                          {!isSuperBowlWeek && (
-                            isCurrentWeek ? <span className="hidden sm:inline-block text-[8px] sm:text-[9px] uppercase font-black px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded border border-red-500/30 tracking-widest animate-pulse ml-2">Current Week</span> : isFinished ? <span className="hidden sm:inline-block text-[8px] sm:text-[9px] uppercase font-black px-1.5 py-0.5 bg-white/10 text-gray-400 rounded tracking-widest ml-2">Finished</span> : <span className="hidden sm:inline-block text-[8px] sm:text-[9px] uppercase font-black px-1.5 py-0.5 bg-white/5 text-gray-500 rounded tracking-widest ml-2">Upcoming</span>
-                          )}
-                        </div>
-                        <span className="text-gray-500 text-xs font-bold shrink-0">{isWeekOpen ? '▲ Collapse' : '▼ Expand'}</span>
-                      </button>
-
-                      {isWeekOpen && (
-                        <div className={`p-3 sm:p-4 ${isSuperBowlWeek ? 'bg-black/40' : 'bg-black/30'}`}>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-                            {weekGames.map(game => (
-                              <GameCard 
-                                key={game.id} 
-                                game={game} 
-                                userTeamColor={userColor} 
-                                homeTeam={teamsMap[game.home_team_id?.toString()] || { name: 'Home', abbr: 'HOME', color: '#171717' }} 
-                                awayTeam={teamsMap[game.away_team_id?.toString()] || { name: 'Away', abbr: 'AWAY', color: '#171717' }} 
-                                hidePicks={true}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              )
-            )} 
-          </div>
-        )}
-
-        {/* ================= ABA: STANDINGS ================= */}
-        {activeTab === 'standings' && (
-          <div className="animate-fadeIn space-y-6">
-            <h2 className="text-xl font-black italic uppercase tracking-wider text-white border-b border-white/10 pb-3">Official Standings</h2>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
-              {['AFC', 'NFC'].map(conf => (
-                <div key={conf} className="space-y-6">
-                  <h2 className="text-2xl font-black italic text-white uppercase tracking-wider border-b border-white/10 pb-2" style={{ color: conf === 'AFC' ? '#ef4444' : '#3b82f6' }}>{conf}</h2>
-                  {['North', 'South', 'East', 'West'].map(div => {
-                    const teamsInDiv = standingsByConfAndDiv[conf]?.[`${conf} ${div}`] || standingsByConfAndDiv[conf]?.[div];
-                    if (!teamsInDiv || teamsInDiv.length === 0) return null;
                     return (
-                      <div key={div} className="bg-neutral-900 border border-white/5 rounded-lg overflow-hidden shadow-sm">
-                        <div className="bg-black/60 px-4 py-2 border-b border-white/5"><span className="text-xs font-bold uppercase tracking-widest text-gray-400">{conf} {div}</span></div>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left text-sm min-w-[500px]">
-                            <thead>
-                              <tr className="text-[9px] text-gray-500 uppercase tracking-widest bg-black/20">
-                                <th className="px-4 py-2 font-black">Team</th><th className="px-2 py-2 text-center">W</th><th className="px-2 py-2 text-center">L</th><th className="px-2 py-2 text-center">T</th>
-                                <th className="px-3 py-2 text-right">PCT</th><th className="px-3 py-2 text-center border-l border-white/5">DIV</th><th className="px-3 py-2 text-center">CONF</th><th className="px-3 py-2 text-center">NON-CONF</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-white/5">
-                              {teamsInDiv.map(team => (
-                                <tr key={team.id} className="hover:bg-white/[0.02] transition">
-                                  <td className="px-4 py-3 flex items-center gap-3">{team.logo_url && <img src={team.logo_url} alt="" className="w-5 h-5 object-contain" />}<span className="font-bold uppercase tracking-wider">{team.name}</span></td>
-                                  <td className="px-2 py-3 text-center font-medium text-white">{team.wins}</td><td className="px-2 py-3 text-center font-medium text-white">{team.losses}</td><td className="px-2 py-3 text-center font-medium text-white">{team.ties}</td>
-                                  <td className="px-3 py-3 text-right font-black text-amber-500">{team.pct.toFixed(3).replace('0.', '.')}</td>
-                                  <td className="px-3 py-3 text-center font-medium text-gray-400 border-l border-white/5 text-xs">{team.division_record || '0-0'}</td>
-                                  <td className="px-3 py-3 text-center font-medium text-gray-400 text-xs">{team.conference_record || '0-0'}</td>
-                                  <td className="px-3 py-3 text-center font-medium text-gray-400 text-xs">{team.cross_conference_record || '0-0'}</td>
-                                </tr>
+                      <div key={week} className={`rounded-2xl border overflow-hidden transition-all shadow-lg ${isSuperBowlWeek && isWeekOpen ? 'border-purple-500/50 shadow-[0_0_30px_rgba(168,85,247,0.2)]' : isWeekOpen ? 'border-white/10 shadow-xl' : 'border-white/5 shadow-sm bg-black/40'}`}>
+                        <button 
+                          onClick={() => setExpandedWeek(isWeekOpen ? null : week)} 
+                          className={`w-full flex justify-between items-center p-4 sm:p-5 transition-colors text-left border-b border-transparent ${isSuperBowlWeek ? 'bg-gradient-to-r from-purple-900/40 via-black to-amber-900/40 hover:from-purple-900/60' : 'bg-black/60 hover:bg-white/[0.02]'}`}
+                          style={isWeekOpen && !isSuperBowlWeek ? { borderBottomColor: 'rgba(255,255,255,0.05)' } : {}}
+                        >
+                          <div className="flex items-center gap-3">
+                            {isWeekOpen && !isSuperBowlWeek && <div className="w-1.5 h-6 rounded-full shadow-lg" style={{ backgroundColor: userColor, boxShadow: `0 0 10px ${userColor}80` }}></div>}
+                            {isWeekOpen && isSuperBowlWeek && <Trophy size={20} className="animate-pulse text-amber-400 drop-shadow-md" />}
+                            
+                            {/* FONTE REDUZIDA: text-xl/3xl -> text-xl/2xl */}
+                            <span className={`font-jersey text-xl sm:text-xl uppercase tracking-widest pt-1 leading-none ${isWeekOpen && !isSuperBowlWeek ? 'text-white' : isSuperBowlWeek ? 'text-amber-400' : 'text-gray-400'}`} style={isWeekOpen && !isSuperBowlWeek ? { color: userColor, textShadow: `0 0 15px ${userColor}80` } : {}}>
+                              {seasonPhase === 'playoffs' ? (playoffNames[week] || week) : `Week ${week}`}
+                            </span>
+                            {!isSuperBowlWeek && (
+                              isCurrentWeek ? <span className="hidden sm:inline-flex items-center text-[9px] uppercase font-black px-2 py-0.5 bg-red-500/10 text-red-500 rounded border border-red-500/30 tracking-widest animate-pulse ml-2 shadow-inner">Current Week</span> 
+                              : isFinished ? <span className="hidden sm:inline-flex items-center text-[9px] uppercase font-black px-2 py-0.5 bg-white/5 text-gray-500 rounded border border-white/5 tracking-widest ml-2">Finished</span> 
+                              : <span className="hidden sm:inline-flex items-center text-[9px] uppercase font-black px-2 py-0.5 bg-white/5 text-gray-400 rounded border border-white/5 tracking-widest ml-2">Upcoming</span>
+                            )}
+                          </div>
+                          <span className="text-gray-500 text-xs font-bold shrink-0">{isWeekOpen ? '▲ Collapse' : '▼ Expand'}</span>
+                        </button>
+
+                        {isWeekOpen && (
+                          <div className={`p-4 sm:p-6 ${isSuperBowlWeek ? 'bg-black/40' : 'bg-black/20'} animate-fadeIn shadow-inner`}>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+                              {weekGames.map(game => (
+                                <GameCard 
+                                  key={game.id} 
+                                  game={game} 
+                                  userTeamColor={userColor} 
+                                  homeTeam={teamsMap[game.home_team_id?.toString()] || { name: 'Home', abbr: 'HOME', color: '#171717' }} 
+                                  awayTeam={teamsMap[game.away_team_id?.toString()] || { name: 'Away', abbr: 'AWAY', color: '#171717' }} 
+                                  hidePicks={true}
+                                />
                               ))}
-                            </tbody>
-                          </table>
-                        </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
-                  })}
-                </div>
-              ))}
+                  })
+                )
+              )} 
             </div>
-          </div>
-        )}
+          )}
 
-        {/* ================= ABA: TEAM STATS ================= */}
-        {activeTab === 'stats' && (
-          <div className="animate-fadeIn space-y-6">
-            <h2 className="text-xl font-black italic uppercase tracking-wider text-white border-b border-white/10 pb-3">Team Metrics & Leaders</h2>
-            
-            {/* GRID AGRUPADO POR DIVISÃO */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-               
-               {/* ADICIONANDO BOTÃO GLOBAL DA NFL PRIMEIRO */}
-               <div className="md:col-span-2 flex flex-col items-center mb-2">
-                 <button 
-                    onClick={() => setSelectedTeamId('NFL')}
-                    className={`shrink-0 rounded-xl px-6 py-3 border transition-all flex items-center justify-center gap-3 ${selectedTeamId === 'NFL' || !selectedTeamId ? 'border-amber-500 bg-amber-500/10 scale-105 shadow-[0_0_15px_rgba(245,158,11,0.2)]' : 'border-white/10 bg-neutral-900 hover:bg-neutral-800'}`}
-                  >
-                    <Trophy size={20} className={selectedTeamId === 'NFL' || !selectedTeamId ? 'text-amber-500' : 'text-gray-500'} />
-                    <span className={`font-black uppercase tracking-widest text-sm ${selectedTeamId === 'NFL' || !selectedTeamId ? 'text-amber-500' : 'text-gray-400'}`}>NFL Global Leaders</span>
-                  </button>
-               </div>
-
-               {['AFC', 'NFC'].map(conf => (
-                 <div key={conf} className="space-y-4">
-                    <h3 className="text-lg font-black italic text-white uppercase tracking-wider border-b border-white/5 pb-2" style={{ color: conf === 'AFC' ? '#ef4444' : '#3b82f6' }}>{conf}</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                       {['North', 'South', 'East', 'West'].map(div => {
-                          const divTeams = allTeamsList.filter(t => t.conference === conf && t.division === div && t.abbreviation !== 'NFL' && t.abbreviation !== 'TBD');
-                          if (divTeams.length === 0) return null;
-                          
-                          return (
-                             <div key={div} className="flex flex-col gap-2 bg-black/20 p-3 rounded-xl border border-white/5">
-                                <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest text-center">{conf} {div}</span>
-                                <div className="flex justify-center gap-2 flex-wrap">
-                                   {divTeams.map(team => (
-                                      <button 
-                                        key={team.id}
-                                        onClick={() => setSelectedTeamId(team.id.toString())}
-                                        className={`shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full p-1.5 sm:p-2 border transition-all flex items-center justify-center ${selectedTeamId === team.id.toString() ? 'border-white bg-white/10 scale-110 shadow-lg' : 'border-white/5 bg-black/40 hover:bg-white/5 opacity-50 hover:opacity-100'}`}
-                                        style={selectedTeamId === team.id.toString() ? { borderColor: team.primary_color, boxShadow: `0 0 10px ${team.primary_color}40` } : {}}
-                                      >
-                                        <img src={team.logo_url} alt={team.abbreviation} className="w-full h-full object-contain drop-shadow-md" title={team.name} />
-                                      </button>
-                                   ))}
-                                </div>
-                             </div>
-                          )
-                       })}
-                    </div>
-                 </div>
-               ))}
-            </div>
-
-            {selectedTeamId === 'NFL' || !selectedTeamId ? (
-               <LeagueLeadersViewer teamsDataMap={teamsMap} />
-            ) : selectedTeamId ? (
-              <div className="mt-8 pt-6 border-t border-white/10">
-                <TeamStatsViewer teamId={selectedTeamId} teamInfo={allTeamsList.find(t => t.id.toString() === selectedTeamId)} />
+          {/* ================= ABA: STANDINGS ================= */}
+          {activeTab === 'standings' && (
+            <div className="animate-fadeIn space-y-8">
+              {/* FONTE REDUZIDA: text-2xl/5xl -> text-2xl/4xl */}
+              <h2 className="font-jersey text-2xl sm:text-2xl uppercase tracking-widest text-white border-b border-white/10 pb-4 drop-shadow-md">OFFICIAL STANDINGS</h2>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+                {['AFC', 'NFC'].map(conf => (
+                  <div key={conf} className="space-y-6">
+                    {/* FONTE REDUZIDA: text-2xl/5xl -> text-2xl/4xl */}
+                    <h2 className="font-jersey text-2xl sm:text-2xl text-white uppercase tracking-widest border-b border-white/10 pb-3" style={{ color: conf === 'AFC' ? '#ef4444' : '#3b82f6', textShadow: `0 0 15px ${conf === 'AFC' ? '#ef444460' : '#3b82f660'}` }}>{conf}</h2>
+                    {['North', 'South', 'East', 'West'].map(div => {
+                      const teamsInDiv = standingsByConfAndDiv[conf]?.[`${conf} ${div}`] || standingsByConfAndDiv[conf]?.[div];
+                      if (!teamsInDiv || teamsInDiv.length === 0) return null;
+                      return (
+                        <div key={div} className="bg-black/60 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+                          <div className="bg-black/80 px-4 py-3 border-b border-white/10 flex items-center shadow-inner">
+                            <span className="font-sans text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400">{conf} {div}</span>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left whitespace-nowrap min-w-[500px]">
+                              <thead>
+                                <tr className="font-sans text-[9px] text-gray-500 uppercase tracking-widest bg-black/40 border-b border-white/5">
+                                  <th className="px-5 py-3 font-black">Team</th>
+                                  <th className="px-3 py-3 text-center">W</th><th className="px-3 py-3 text-center">L</th><th className="px-3 py-3 text-center">T</th>
+                                  <th className="px-4 py-3 text-right">PCT</th>
+                                  <th className="px-4 py-3 text-center border-l border-white/10">DIV</th>
+                                  <th className="px-4 py-3 text-center">CONF</th>
+                                  <th className="px-4 py-3 text-center">NON-CONF</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/5">
+                                {teamsInDiv.map(team => (
+                                  <tr key={team.id} className="hover:bg-white/[0.03] transition-colors group">
+                                    <td className="px-5 py-3 flex items-center gap-3">
+                                      {team.logo_url && <img src={team.logo_url} alt="" className="w-6 h-6 object-contain drop-shadow-md" />}
+                                      <span className="font-sport font-bold text-sm sm:text-base uppercase tracking-wider text-gray-300 group-hover:text-white transition-colors">{team.name}</span>
+                                    </td>
+                                    {/* FONTE REDUZIDA NA TABELA: text-xl/2xl -> text-lg/xl */}
+                                    <td className="px-3 py-3 text-center font-jersey text-lg sm:text-xl leading-none pt-2 text-white">{team.wins}</td>
+                                    <td className="px-3 py-3 text-center font-jersey text-lg sm:text-xl leading-none pt-2 text-gray-400">{team.losses}</td>
+                                    <td className="px-3 py-3 text-center font-jersey text-lg sm:text-xl leading-none pt-2 text-gray-600">{team.ties}</td>
+                                    <td className="px-4 py-3 text-right font-jersey text-lg sm:text-xl leading-none pt-2 text-amber-500 drop-shadow-[0_0_5px_rgba(245,158,11,0.5)]">{team.pct.toFixed(3).replace('0.', '.')}</td>
+                                    <td className="px-4 py-3 text-center font-sport font-bold text-gray-500 border-l border-white/10 text-xs tracking-wider">{team.division_record || '0-0'}</td>
+                                    <td className="px-4 py-3 text-center font-sport font-bold text-gray-500 text-xs tracking-wider">{team.conference_record || '0-0'}</td>
+                                    <td className="px-4 py-3 text-center font-sport font-bold text-gray-500 text-xs tracking-wider">{team.cross_conference_record || '0-0'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
               </div>
-            ) : null}
-          </div>
-        )}
+            </div>
+          )}
+
+          {/* ================= ABA: TEAM STATS ================= */}
+          {activeTab === 'stats' && (
+            <div className="animate-fadeIn space-y-8">
+              {/* FONTE REDUZIDA: text-2xl/5xl -> text-2xl/4xl */}
+              <h2 className="font-jersey text-2xl sm:text-2xl uppercase tracking-widest text-white border-b border-white/10 pb-4 drop-shadow-md">TEAM METRICS & LEADERS</h2>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                 
+                 <div className="lg:col-span-2 flex justify-center mb-4">
+                   <button 
+                      onClick={() => setSelectedTeamId('NFL')}
+                      className={`shrink-0 rounded-2xl px-8 py-4 border transition-all flex items-center justify-center gap-3 shadow-xl hover:scale-105 ${selectedTeamId === 'NFL' || !selectedTeamId ? 'border-amber-500 bg-amber-500/20 shadow-[0_0_30px_rgba(245,158,11,0.3)]' : 'border-white/10 bg-black/60 backdrop-blur-md hover:bg-white/5'}`}
+                    >
+                      <Trophy size={20} className={selectedTeamId === 'NFL' || !selectedTeamId ? 'text-amber-400 drop-shadow-md' : 'text-gray-500'} />
+                      <span className={`font-sport font-bold text-sm sm:text-base uppercase tracking-wider leading-none pt-1 ${selectedTeamId === 'NFL' || !selectedTeamId ? 'text-amber-400 drop-shadow-md' : 'text-gray-400'}`}>NFL GLOBAL LEADERS</span>
+                    </button>
+                 </div>
+
+                 {['AFC', 'NFC'].map(conf => (
+                   <div key={conf} className="space-y-6">
+                      {/* FONTE REDUZIDA: text-2xl/5xl -> text-2xl/4xl */}
+                      <h3 className="font-jersey text-2xl sm:text-2xl text-white uppercase tracking-widest border-b border-white/10 pb-3" style={{ color: conf === 'AFC' ? '#ef4444' : '#3b82f6', textShadow: `0 0 15px ${conf === 'AFC' ? '#ef444460' : '#3b82f660'}` }}>{conf}</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+                         {['North', 'South', 'East', 'West'].map(div => {
+                            const divTeams = allTeamsList.filter(t => t.conference === conf && t.division === div && t.abbreviation !== 'NFL' && t.abbreviation !== 'TBD');
+                            if (divTeams.length === 0) return null;
+                            
+                            return (
+                               <div key={div} className="flex flex-col gap-3 bg-black/60 backdrop-blur-md p-4 rounded-2xl border border-white/10 shadow-lg">
+                                  <span className="font-sans text-[10px] font-black text-gray-500 uppercase tracking-widest text-center shadow-inner py-1 rounded bg-black/40">{conf} {div}</span>
+                                  
+                                  <div className="grid grid-cols-2 gap-3 sm:gap-4 place-items-center w-fit mx-auto">
+                                     {divTeams.map(team => {
+                                       const isSelected = selectedTeamId === team.id.toString();
+                                       const tColor = getBestColor(team.primary_color, team.secondary_color);
+                                       return (
+                                        <button 
+                                          key={team.id}
+                                          onClick={() => setSelectedTeamId(team.id.toString())}
+                                          className={`shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-full p-2 border transition-all flex items-center justify-center ${isSelected ? 'border-white bg-black scale-110 shadow-2xl z-10' : 'border-white/5 bg-black/60 hover:bg-black/80 hover:scale-105 opacity-60 hover:opacity-100'}`}
+                                          style={isSelected ? { borderColor: tColor, boxShadow: `0 0 20px ${tColor}60` } : {}}
+                                        >
+                                          <img src={team.logo_url} alt={team.abbreviation} className="w-full h-full object-contain drop-shadow-md" title={team.name} />
+                                        </button>
+                                       );
+                                     })}
+                                  </div>
+                                  
+                               </div>
+                            )
+                         })}
+                      </div>
+                   </div>
+                 ))}
+              </div>
+
+              {selectedTeamId === 'NFL' || !selectedTeamId ? (
+                 <LeagueLeadersViewer teamsDataMap={teamsMap} />
+              ) : selectedTeamId ? (
+                <div className="mt-10 pt-8 border-t border-white/10 animate-fadeIn">
+                  <TeamStatsViewer teamId={selectedTeamId} teamInfo={allTeamsList.find(t => t.id.toString() === selectedTeamId)} />
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );
