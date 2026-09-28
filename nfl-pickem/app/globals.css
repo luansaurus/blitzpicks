@@ -1,3 +1,6 @@
+/* Importação forçada da fonte Varsity/Jersey direto do Google */
+@import url('https://fonts.googleapis.com/css2?family=Graduate&display=swap');
+
 @import "tailwindcss";
 
 @theme {
@@ -7,6 +10,10 @@
   --color-nfl-gray: #999999;
   --color-nfl-light: #CCCCCC;
   
-  /* Mantendo a fonte mais limpa */
+  /* Mantendo a fonte mais limpa para leitura geral */
   --font-sans: var(--font-inter), Arial, sans-serif;
+  
+  /* NOSSAS FONTES PERSONALIZADAS PARA O APP */
+  --font-sport: var(--font-oswald), Impact, sans-serif;
+  --font-jersey: 'Graduate', Impact, serif;
 }

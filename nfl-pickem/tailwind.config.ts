@@ -5,8 +5,6 @@ const config: Config = {
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
-    // Se a sua pasta app não estiver dentro de src, use a linha abaixo e apague as de cima:
-    // "./app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     extend: {
@@ -21,6 +19,9 @@ const config: Config = {
       },
       fontFamily: {
         sans: ['var(--font-inter)', 'Arial', 'sans-serif'], 
+        sport: ['var(--font-oswald)', 'Impact', 'sans-serif'],
+        // Lendo diretamente a fonte Graduate que importamos no CSS:
+        jersey: ['"Graduate"', 'Impact', 'serif'], 
       }
     },
   },
