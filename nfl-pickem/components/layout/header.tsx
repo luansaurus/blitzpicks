@@ -5,10 +5,10 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createClient } from '../../utils/supabase/client';
 import { Shirt, ClipboardList, Trophy, BarChart3, Calendar, Settings, HelpCircle, type LucideIcon } from 'lucide-react';
-import HelpModal from '../ui/HelpModal'; // Ajuste o caminho se necessário dependendo de onde salvou o HelpModal
+import HelpModal from '../ui/HelpModal'; 
 
 const getSafeColor = (hex: string) => {
-  if (!hex) return '#f59e0b';
+  if (!hex) return '#ff2a2a'; 
   let r = parseInt(hex.substring(1, 3), 16) / 255;
   let g = parseInt(hex.substring(3, 5), 16) / 255;
   let b = parseInt(hex.substring(5, 7), 16) / 255;
@@ -44,15 +44,30 @@ const getSafeColor = (hex: string) => {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 };
 
+const getIsLight = (hex: string) => {
+  if (!hex) return false;
+  let cleanHex = hex.replace('#', '');
+  if (cleanHex.length === 3) cleanHex = cleanHex.split('').map(x => x + x).join('');
+  const r = parseInt(cleanHex.substring(0, 2), 16);
+  const g = parseInt(cleanHex.substring(2, 4), 16);
+  const b = parseInt(cleanHex.substring(4, 6), 16);
+  const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+  return yiq >= 135; 
+};
+
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
   
   const [logoUrl, setLogoUrl] = useState<string>('https://upload.wikimedia.org/wikipedia/en/a/a2/National_Football_League_logo.svg');
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
-  const [isVip, setIsVip] = useState<boolean>(false);
   const [loadingLogout, setLoadingLogout] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState<boolean>(false);
+  
+  const [headerBg, setHeaderBg] = useState<string>('#0a0a0a');
+  const [headerSec, setHeaderSec] = useState<string>('#ff2a2a');
+  const [isLightBg, setIsLightBg] = useState<boolean>(false);
+  
   const supabase = createClient();
 
   useEffect(() => {
@@ -62,27 +77,38 @@ export default function Header() {
       
       const { data: profile } = await supabase
         .from('profiles')
-        .select('favorite_team_id, is_admin, is_vip')
+        .select('favorite_team_id, is_admin')
         .eq('id', session.user.id)
         .single();
         
       if (profile) {
         setIsAdmin(!!profile.is_admin);
-        setIsVip(!!profile.is_vip);
         
         if (profile.favorite_team_id) {
-          const { data: team } = await supabase.from('teams').select('logo_url, primary_color').eq('id', profile.favorite_team_id).single();
+          // Buscamos agora a primary_color e a secondary_color
+          const { data: team } = await supabase.from('teams').select('logo_url, primary_color, secondary_color').eq('id', profile.favorite_team_id).single();
           if (team) {
             if (team.logo_url) setLogoUrl(team.logo_url);
+            
             if (team.primary_color) {
+              setHeaderBg(team.primary_color);
+              setIsLightBg(getIsLight(team.primary_color));
+              
               const vibrantSafeColor = getSafeColor(team.primary_color);
               localStorage.setItem('blitz_accent', vibrantSafeColor);
               document.documentElement.style.setProperty('--team-accent', vibrantSafeColor);
             }
+            
+            if (team.secondary_color) {
+              // Aplica a cor secundária nos detalhes da UI
+              setHeaderSec(team.secondary_color);
+              document.documentElement.style.setProperty('--team-secondary', team.secondary_color);
+            }
           }
         } else {
-           localStorage.setItem('blitz_accent', '#f59e0b');
-           document.documentElement.style.setProperty('--team-accent', '#f59e0b');
+           localStorage.setItem('blitz_accent', '#ff2a2a');
+           document.documentElement.style.setProperty('--team-accent', '#ff2a2a');
+           document.documentElement.style.setProperty('--team-secondary', '#ffffff');
         }
       }
     }
@@ -112,49 +138,92 @@ export default function Header() {
     { name: 'Season', path: '/results', icon: Calendar }
   ];
 
+  const textMain = isLightBg ? 'text-black' : 'text-white';
+  const textMuted = isLightBg ? 'text-neutral-800' : 'text-neutral-400';
+  const hoverColor = isLightBg ? 'hover:text-black hover:drop-shadow-[0_0_8px_rgba(0,0,0,0.5)]' : 'hover:text-white hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]';
+  const groupHoverColor = isLightBg ? 'group-hover:text-black' : 'group-hover:text-white';
+  const textureColor = isLightBg ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)';
+
   return (
     <>
-      <header className="bg-neutral-950 border-b border-white/10 sticky top-0 z-40 shadow-xl">
-        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link href="/dashboard" className="flex items-center gap-1 hover:opacity-80 transition">
-            <span className="text-xl font-black italic uppercase tracking-tighter text-white">
-              Blitz<span style={{ color: 'var(--team-accent)' }}>Picks</span>
+      {/* HEADER DINÂMICO COM A COR PRIMÁRIA DO TIME */}
+      <header className="border-b-4 relative z-40 transition-colors duration-500" style={{ backgroundColor: headerBg, borderBottomColor: headerSec }}>
+        
+        <div 
+          className="absolute inset-0 z-0 pointer-events-none"
+          style={{
+            backgroundImage: `repeating-linear-gradient(-45deg, transparent, transparent 4px, ${textureColor} 4px, ${textureColor} 8px)`
+          }}
+        />
+
+        <div className="max-w-7xl mx-auto px-4 h-16 sm:h-20 flex items-center justify-between relative z-10">
+          
+          <Link href="/dashboard" className="flex items-center gap-1 hover:opacity-80 transition-opacity">
+            <span className={`text-2xl sm:text-3xl font-black italic uppercase tracking-tighter ${textMain}`}>
+              BLITZ
+              <span 
+                style={{ 
+                  color: headerSec, 
+                  textShadow: isLightBg ? 'none' : '0 2px 4px rgba(0,0,0,0.6)' 
+                }}
+              >
+                PICKS
+              </span>
             </span>
           </Link>
 
-          <nav className="hidden sm:flex items-center gap-2">
+          <nav className="hidden sm:flex items-center h-full">
             {navLinks.map((link) => {
               const isActive = pathname === link.path || (link.path !== '/dashboard' && pathname.startsWith(link.path));
               return (
-                <Link key={link.path} href={link.path} className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-colors ${isActive ? 'bg-white/10 text-white shadow-sm' : 'text-neutral-500 hover:text-white hover:bg-white/5'}`} style={isActive ? { color: 'var(--team-accent)' } : {}}>
-                  {link.name}
+                <Link 
+                  key={link.path} 
+                  href={link.path} 
+                  className="relative h-full flex items-center px-5 group overflow-hidden"
+                >
+                  <span className={`relative z-10 text-[14px] font-black uppercase tracking-widest transition-colors ${isActive ? textMain : textMuted} ${groupHoverColor}`}>
+                    {link.name}
+                  </span>
+                  
+                  {/* Linha Ativa no Desktop - Usando Cor Secundária */}
+                  {isActive && (
+                    <span 
+                      className="absolute bottom-0 left-0 w-full h-[5px] origin-bottom-left -skew-x-12 z-20"
+                      style={{ backgroundColor: headerSec }} 
+                    />
+                  )}
+                  
+                  <span className={`absolute bottom-0 left-0 w-full h-full opacity-0 group-hover:opacity-100 transition-opacity ${isLightBg ? 'bg-black/5' : 'bg-white/10'}`} />
                 </Link>
               );
             })}
           </nav>
 
-          <div className="flex items-center gap-3 sm:gap-6">
+          <div className="flex items-center gap-4 sm:gap-6 h-full">
             
-            {/* BOTÃO DE HELP */}
             <button 
               onClick={() => setIsHelpOpen(true)}
               title="Help & Rules"
-              className="text-gray-400 hover:text-white transition-colors flex items-center gap-1"
+              className={`${textMuted} ${hoverColor} transition-all duration-300 flex items-center gap-1.5`}
             >
-              <HelpCircle size={20} />
-              <span className="hidden md:inline text-[10px] font-black uppercase tracking-widest">Help</span>
+              <HelpCircle size={22} />
+              <span className="hidden md:inline text-[13px] font-black uppercase tracking-widest">HELP</span>
             </button>
 
             {isAdmin && (
-              <Link href="/admin" className="text-red-400 hover:text-yellow-300 transition-colors drop-shadow-[0_0_8px_rgba(168,85,247,0.5)]">
-                <span className="hidden sm:inline text-[10px] font-black uppercase tracking-widest">Admin</span>
-                <span className="sm:hidden text-lg"><Settings size={18} /></span>
+              <Link href="/admin" className={`text-neutral-500 ${hoverColor} transition-colors flex items-center gap-1`}>
+                <Settings size={20} />
+                <span className="hidden sm:inline text-[13px] font-black uppercase tracking-widest">ADMIN</span>
               </Link>
             )}
             
-            <Link href="/setup" title="Profile" className="hover:scale-105 transition-transform flex items-center gap-2">
-              <span className="hidden md:inline-block text-[10px] font-bold text-gray-400 uppercase tracking-widest">Profile</span>
-              <div className="w-8 h-8 rounded-full border-2 bg-black flex items-center justify-center overflow-hidden shadow-lg p-0.5" style={{ borderColor: 'var(--team-accent)' }}>
+            <div className={`w-[2px] h-6 hidden sm:block -skew-x-12 ${isLightBg ? 'bg-black/20' : 'bg-white/20'}`}></div>
+
+            <Link href="/setup" title="Profile" className="relative flex items-center justify-center group hover:scale-105 transition-transform">
+              <div 
+                className={`w-10 h-10 rounded-sm bg-[#111] flex items-center justify-center overflow-hidden p-1 border transition-colors`}
+                style={{ borderColor: isLightBg ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.2)' }}
+              >
                 <img src={logoUrl} alt="User Logo" className="w-full h-full object-contain" />
               </div>
             </Link>
@@ -162,30 +231,46 @@ export default function Header() {
             <button 
               onClick={handleLogout} 
               disabled={loadingLogout}
-              className="text-[10px] font-bold text-gray-500 hover:text-red-400 uppercase tracking-widest transition-colors disabled:opacity-50"
+              className={`hidden sm:block text-[13px] font-black ${textMuted} ${hoverColor} uppercase tracking-widest transition-all disabled:opacity-50`}
             >
-              {loadingLogout ? 'Signing Out...' : 'Sign Out'}
+              {loadingLogout ? 'WAIT...' : 'SIGN OUT'}
             </button>
           </div>
         </div>
       </header>
 
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 bg-neutral-950/95 backdrop-blur-md border-t border-white/10 z-50 px-2 pb-safe">
-        <div className="flex justify-around items-center h-16">
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 bg-[#0a0a0a] border-t border-white/10 z-50 px-2 pb-safe shadow-[0_-10px_30px_rgba(0,0,0,0.8)]">
+        <div className="flex justify-around items-center h-16 relative">
           {navLinks.map((link) => {
             const isActive = pathname === link.path || (link.path !== '/dashboard' && pathname.startsWith(link.path));
             const Icon = link.icon;
+            
             return (
-              <Link key={link.path} href={link.path} className="flex flex-col items-center justify-center w-full h-full gap-1" style={isActive ? { color: 'var(--team-accent)' } : { color: '#737373' }}>
-                <Icon size={20} className={`transition-transform ${isActive ? 'scale-110 drop-shadow-md' : 'opacity-60'}`} />
-                <span className={`text-[9px] font-black uppercase tracking-widest ${isActive ? 'opacity-100' : 'opacity-60'}`}>{link.name}</span>
+              <Link 
+                key={link.path} 
+                href={link.path} 
+                className="relative flex flex-col items-center justify-center w-full h-full gap-1 pt-1" 
+                style={isActive ? { color: 'white' } : { color: '#666' }}
+              >
+                {/* Linha indicadora usando a cor Secundária do time */}
+                {isActive && (
+                  <div 
+                    className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-[3px] rounded-b-sm" 
+                    style={{ backgroundColor: headerSec }} 
+                  />
+                )}
+                
+                <Icon size={22} className={`transition-transform ${isActive ? 'scale-110' : ''}`} style={isActive ? { color: headerSec } : {}} />
+                
+                <span className={`text-[10px] font-black uppercase tracking-widest ${isActive ? 'opacity-100' : 'opacity-70'}`}>
+                  {link.name}
+                </span>
               </Link>
             );
           })}
         </div>
       </nav>
 
-      {/* MODAL DE AJUDA / REGRAS */}
       <HelpModal 
         isOpen={isHelpOpen} 
         onClose={() => setIsHelpOpen(false)} 
