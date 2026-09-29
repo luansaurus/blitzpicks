@@ -9,7 +9,7 @@ import { createClient } from '../../utils/supabase/client';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import LeagueHub from '../../components/leagues/LeagueHub';
 import { getPickResult } from '@/utils/scoring';
-import { Shirt, Shield, Star, Crown, Trophy } from 'lucide-react';
+import { Shirt, Shield, Star, Crown, Trophy, Target, Minimize2, CheckCircle2, XCircle, LineChart } from 'lucide-react';
 
 const getLuminance = (hex: string) => {
   if (!hex) return 0;
@@ -229,12 +229,10 @@ export default function Dashboard() {
     }
   };
 
-  // Garante que o Contexto é seguro (evita o bug de 0 pontos se a liga for apagada)
   const activeContextLeague = myLeagues.find(l => l.id === contextLeagueId);
   const safeContextLeagueId = activeContextLeague ? activeContextLeague.id : null;
   const currentRules = activeContextLeague ? { exact: activeContextLeague.pts_exact, diff: activeContextLeague.pts_diff, winner: activeContextLeague.pts_winner } : undefined;
 
-  // Limpa o cache se o ID for inválido (ex: a liga foi apagada noutro dispositivo)
   useEffect(() => {
     if (!loading && contextLeagueId && !activeContextLeague) {
       setContextLeagueId(null);
@@ -277,26 +275,83 @@ export default function Dashboard() {
 
     const scores = competingUsers.map(user => {
       let total = 0;
+      let exactHits = 0;
+      let diffHits = 0;
+
       const uGuesses = allGuesses.filter(g => g.user_id === user.id);
       uGuesses.forEach(guess => {
         const game = games.find(g => g.id === guess.game_id);
         if (game && (game.status === 'finished' || game.status === 'in_progress')) {
-          total += getPickResult(game, guess, rulesToUse).points;
+          const res = getPickResult(game, guess, rulesToUse);
+          total += res.points;
+          if (res.points === rulesToUse.exact) exactHits++;
+          if (res.points === rulesToUse.diff) diffHits++;
         }
       });
-      return { id: user.id, total };
+      return { id: user.id, total, exactHits, diffHits, nickname: user.nickname, global_titles: user.global_titles };
     });
 
-    scores.sort((a, b) => b.total - a.total);
+    scores.sort((a, b) => {
+      if (b.total !== a.total) return b.total - a.total;
+      if (b.exactHits !== a.exactHits) return b.exactHits - a.exactHits;
+      if (b.diffHits !== a.diffHits) return b.diffHits - a.diffHits;
+      if ((b.global_titles || 0) !== (a.global_titles || 0)) return (b.global_titles || 0) - (a.global_titles || 0);
+      return (a.nickname || '').localeCompare(b.nickname || '');
+    });
     
-    const rankIndex = scores.findIndex(u => u.id === currentUserId);
-    if (rankIndex !== -1) {
-      myRank = rankIndex + 1;
-      myScore = scores[rankIndex].total;
+    for (let i = 0; i < scores.length; i++) {
+      if (i > 0) {
+        const prev = scores[i - 1] as any;
+        const curr = scores[i] as any;
+        if (
+          curr.total === prev.total &&
+          curr.exactHits === prev.exactHits &&
+          curr.diffHits === prev.diffHits &&
+          (curr.global_titles || 0) === (prev.global_titles || 0)
+        ) {
+          curr.displayRank = prev.displayRank; 
+        } else {
+          curr.displayRank = i + 1;
+        }
+      } else {
+        (scores[i] as any).displayRank = 1;
+      }
+      
+      if (scores[i].id === currentUserId) {
+        myRank = (scores[i] as any).displayRank;
+        myScore = scores[i].total;
+      }
     }
 
     return { dynamicScore: myScore, currentContextRank: myRank };
   }, [games, allGuesses, allUsers, currentRules, safeContextLeagueId, currentUserId, leagueMembersMap]);
+
+  const userStats = useMemo(() => {
+    let exact = 0, margin = 0, winner = 0, miss = 0;
+    let totalPts = 0;
+    const weeksPlayed = new Set<string>();
+
+    const rulesToUse = currentRules || { exact: 7, diff: 5, winner: 3 };
+
+    myGuesses.forEach(guess => {
+      const game = games.find(g => g.id === guess.game_id);
+      if (game && game.status === 'finished') {
+        const res = getPickResult(game, guess, rulesToUse);
+        totalPts += res.points;
+        weeksPlayed.add(game.week?.toString() || '1');
+
+        if (res.points === rulesToUse.exact) exact++;
+        else if (res.points === rulesToUse.diff) margin++;
+        else if (res.points === rulesToUse.winner) winner++;
+        else miss++;
+      }
+    });
+
+    const playedCount = weeksPlayed.size;
+    const avg = playedCount > 0 ? (totalPts / playedCount).toFixed(1) : '0.0';
+
+    return { exact, margin, winner, miss, avg, playedCount };
+  }, [myGuesses, games, currentRules]);
 
   useEffect(() => {
     async function recordChampionship() {
@@ -348,7 +403,7 @@ export default function Dashboard() {
       <div className="relative z-10">
         <Header />
         
-        <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-8 mt-4">
+        <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6 sm:space-y-8 mt-4">
           
           <div className="flex bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl p-1.5 w-full max-w-sm mx-auto shadow-xl">
             <button 
@@ -368,21 +423,21 @@ export default function Dashboard() {
           </div>
 
           {activeDashboardTab === 'locker' ? (
-            <div className="space-y-8 animate-fadeIn">
+            <div className="space-y-6 sm:space-y-8 animate-fadeIn">
               
-              {/* O NOVO BANNER CONTEXTUAL COMPACTO E INTELIGENTE */}
-              <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg">
+              {/* O NOVO BANNER CONTEXTUAL (ULTRA COMPACTO NO MOBILE) */}
+              <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl p-2 sm:p-4 flex flex-row items-center justify-between gap-2 sm:gap-4 shadow-lg">
                 
-                <div className="flex items-center gap-3 w-full sm:w-auto">
-                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center border shadow-inner shrink-0" style={{ backgroundColor: `${userColor}20`, borderColor: `${userColor}50` }}>
+                <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                  <div className="hidden sm:flex w-10 h-10 rounded-lg items-center justify-center border shadow-inner shrink-0" style={{ backgroundColor: `${userColor}20`, borderColor: `${userColor}50` }}>
                     <Trophy style={{ color: userColor }} size={16} className="drop-shadow-md" />
                   </div>
-                  <div className="flex flex-col flex-1">
-                    <span className="font-sans text-[8px] font-black text-gray-500 uppercase tracking-widest mb-0.5">Scoring Context</span>
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <span className="font-sans text-[7px] sm:text-[9px] font-black text-gray-500 uppercase tracking-widest mb-0.5">League Rules</span>
                     
                     {myLeagues.length > 0 ? (
                       <select
-                        className="bg-transparent font-sport font-bold text-sm sm:text-base uppercase tracking-wider text-white focus:outline-none appearance-none pr-6 cursor-pointer drop-shadow-md w-full"
+                        className="bg-transparent font-sport font-bold text-xs sm:text-base uppercase tracking-wider text-white focus:outline-none appearance-none pr-5 sm:pr-6 cursor-pointer drop-shadow-md w-full truncate"
                         value={safeContextLeagueId || 'global'}
                         onChange={e => setContextLeagueId(e.target.value === 'global' ? null : e.target.value)}
                         style={{ 
@@ -400,29 +455,27 @@ export default function Dashboard() {
                         ))}
                       </select>
                     ) : (
-                      <span className="font-sport font-bold text-sm sm:text-base uppercase tracking-wider text-white drop-shadow-md pt-0.5">
+                      <span className="font-sport font-bold text-xs sm:text-base uppercase tracking-wider text-white drop-shadow-md pt-0.5 truncate">
                         Global Leaderboard (7/5/3)
                       </span>
                     )}
-
                   </div>
                 </div>
 
-                <div className="flex items-center gap-5 bg-white/5 border border-white/10 px-5 py-2.5 rounded-xl shadow-inner w-full sm:w-auto justify-around sm:justify-end">
+                <div className="flex items-center gap-3 sm:gap-5 bg-white/5 border border-white/10 px-3 py-1.5 sm:px-5 sm:py-2.5 rounded-xl shadow-inner shrink-0">
                   <div className="flex flex-col items-center">
-                    <span className="font-sans text-[8px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Rank</span>
+                    <span className="font-sans text-[7px] sm:text-[8px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Rank</span>
                     <div className="flex items-baseline leading-none">
-                      <span className="font-jersey text-xl sm:text-2xl text-white drop-shadow-md">{currentContextRank || '-'}</span>
-                      {currentContextRank && <span className="font-sans text-[9px] font-black text-gray-500 ml-0.5">{rankSuffix}</span>}
+                      <span className="font-jersey text-lg sm:text-2xl text-white drop-shadow-md">{currentContextRank || '-'}</span>
+                      {currentContextRank && <span className="font-sans text-[8px] sm:text-[9px] font-black text-gray-500 ml-0.5 hidden sm:inline-block">{rankSuffix}</span>}
                     </div>
                   </div>
-                  <div className="w-[1px] h-7 bg-white/10" />
+                  <div className="w-[1px] h-6 sm:h-7 bg-white/10" />
                   <div className="flex flex-col items-center">
-                    <span className="font-sans text-[8px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Points</span>
-                    <span className="font-jersey text-xl sm:text-2xl leading-none drop-shadow-md" style={{ color: userColor }}>{dynamicScore}</span>
+                    <span className="font-sans text-[7px] sm:text-[8px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Points</span>
+                    <span className="font-jersey text-lg sm:text-2xl leading-none drop-shadow-md" style={{ color: userColor }}>{dynamicScore}</span>
                   </div>
                 </div>
-
               </div>
 
               {isSeasonOver && leagueWinner && (
@@ -466,6 +519,51 @@ export default function Dashboard() {
 
               <UserTeamHero key={dynamicScore} teamId={favoriteTeamId} score={dynamicScore} lastGame={lastGame} nextGame={nextGame} teamsDataMap={teamsDataMap} />
 
+              {/* ==================================================== */}
+              {/* NOVA SECÇÃO: METRICS RIBBON (MUITO COMPACTO NO MOBILE) */}
+              {/* ==================================================== */}
+              <div className="space-y-1.5 sm:space-y-2 mt-2 sm:mt-4">
+                <div className="flex items-center gap-2 px-2">
+                  <span className="font-sans text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-gray-500">Your Season Metrics</span>
+                </div>
+                
+                <div className="bg-black/40 border border-white/5 rounded-xl sm:rounded-2xl flex flex-row items-stretch divide-x divide-white/5 shadow-inner w-full">
+                  
+                  {/* Exact Scores */}
+                  <div className="flex-1 py-2 sm:py-3 flex flex-col items-center justify-center hover:bg-white/[0.02] transition-colors px-1">
+                    
+                    <span className="font-jersey text-xl sm:text-3xl text-white drop-shadow-md leading-none mb-1">{userStats.exact}</span>
+                    <span className="font-sans text-[7px] sm:text-[8px] font-black uppercase tracking-widest text-green-500 text-center leading-tight">Exact</span>
+                  </div>
+                  
+                  {/* Correct Margin */}
+                  <div className="flex-1 py-2 sm:py-3 flex flex-col items-center justify-center hover:bg-white/[0.02] transition-colors px-1">
+                    <span className="font-jersey text-xl sm:text-3xl text-white drop-shadow-md leading-none mb-1">{userStats.margin}</span>
+                    <span className="font-sans text-[7px] sm:text-[8px] font-black uppercase tracking-widest text-blue-500 text-center leading-tight">Margin</span>
+                  </div>
+                  
+                  {/* Correct Winner */}
+                  <div className="flex-1 py-2 sm:py-3 flex flex-col items-center justify-center hover:bg-white/[0.02] transition-colors px-1">
+                    <span className="font-jersey text-xl sm:text-3xl text-white drop-shadow-md leading-none mb-1">{userStats.winner}</span>
+                    <span className="font-sans text-[7px] sm:text-[8px] font-black uppercase tracking-widest text-amber-500 text-center leading-tight">Winner</span>
+                  </div>
+                  
+                  {/* Misses */}
+                  <div className="flex-1 py-2 sm:py-3 flex flex-col items-center justify-center hover:bg-white/[0.02] transition-colors px-1">
+                    <span className="font-jersey text-xl sm:text-3xl text-white drop-shadow-md leading-none mb-1">{userStats.miss}</span>
+                    <span className="font-sans text-[7px] sm:text-[8px] font-black uppercase tracking-widest text-red-500 text-center leading-tight">Missed</span>
+                  </div>
+                  
+                  {/* Avg Pts / Week */}
+                  <div className="flex-1 py-2 sm:py-3 flex flex-col items-center justify-center hover:bg-white/[0.02] transition-colors bg-white/[0.01] px-1 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-0.5 sm:h-1" style={{ backgroundColor: userColor }} />
+                    <span className="font-jersey text-xl sm:text-3xl text-white drop-shadow-md leading-none mb-1">{userStats.avg}</span>
+                    <span className="font-sans text-[7px] sm:text-[8px] font-black uppercase tracking-widest text-gray-500 text-center leading-tight">Avg/Wk</span>
+                  </div>
+                  
+                </div>
+              </div>
+
               <div className="space-y-4">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-white/10 pb-4 gap-4">
                   <div>
@@ -473,7 +571,7 @@ export default function Dashboard() {
                       WEEK <span style={{ color: userColor }}>{currentWeek}</span>
                     </h2>
                     <p className="font-sans text-[10px] sm:text-xs font-black text-gray-500 uppercase tracking-widest mt-1">
-                      Cards are scoring based on your active context.
+                      Cards are scoring based on your active league rules.
                     </p>
                   </div>
                 </div>

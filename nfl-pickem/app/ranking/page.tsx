@@ -151,18 +151,72 @@ export default function RankingPage() {
         const liveGames = games.filter(g => g.status === 'in_progress');
         setHasLiveGames(liveGames.length > 0);
 
+        // ==========================================
+        // LÓGICA DE PONTUAÇÃO E TIEBREAKER
+        // ==========================================
         const liveLeaderboard = validUsers.map((user: any) => {
-          let officialScore = user.score || 0;
+          let officialScore = 0;
           let projectedPoints = 0;
-          if (liveGames.length > 0) {
-            allGuesses.filter(g => g.user_id === user.id && liveGames.some(lg => lg.id === g.game_id)).forEach(pick => {
-              const game = liveGames.find(lg => lg.id === pick.game_id);
-              projectedPoints += getPickResult(game, pick).points;
-            });
-          }
-          return { ...user, officialScore, projectedPoints, totalScore: officialScore + projectedPoints };
+          let exactHits = 0;
+          let diffHits = 0;
+
+          allGuesses.filter(g => g.user_id === user.id).forEach(pick => {
+            const game = games.find(g => g.id === pick.game_id);
+            if (game && (game.status === 'finished' || game.status === 'in_progress')) {
+              const res = getPickResult(game, pick, { exact: 7, diff: 5, winner: 3 });
+              
+              if (game.status === 'finished') {
+                officialScore += res.points;
+              } else if (game.status === 'in_progress') {
+                projectedPoints += res.points;
+              }
+
+              if (res.points === 7) exactHits++;
+              else if (res.points === 5) diffHits++;
+            }
+          });
+
+          return { 
+            ...user, 
+            officialScore, 
+            projectedPoints, 
+            totalScore: officialScore + projectedPoints,
+            exactHits,
+            diffHits
+          };
         });
-        liveLeaderboard.sort((a, b) => b.totalScore - a.totalScore);
+
+        // ==========================================
+        // CASCATA DE DESEMPATE
+        // ==========================================
+        liveLeaderboard.sort((a, b) => {
+          if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
+          if (b.exactHits !== a.exactHits) return b.exactHits - a.exactHits;
+          if (b.diffHits !== a.diffHits) return b.diffHits - a.diffHits;
+          if ((b.global_titles || 0) !== (a.global_titles || 0)) return (b.global_titles || 0) - (a.global_titles || 0);
+          return (a.nickname || '').localeCompare(b.nickname || '');
+        });
+
+        // Aplicação do Rank com Empate Correto (Se estiverem iguais, têm o mesmo Rank)
+        for (let i = 0; i < liveLeaderboard.length; i++) {
+          if (i > 0) {
+            const prev = liveLeaderboard[i - 1];
+            const curr = liveLeaderboard[i];
+            if (
+              curr.totalScore === prev.totalScore &&
+              curr.exactHits === prev.exactHits &&
+              curr.diffHits === prev.diffHits &&
+              (curr.global_titles || 0) === (prev.global_titles || 0)
+            ) {
+              curr.displayRank = prev.displayRank;
+            } else {
+              curr.displayRank = i + 1;
+            }
+          } else {
+            liveLeaderboard[i].displayRank = 1;
+          }
+        }
+
         setLeaderboard(liveLeaderboard);
       }
       setLoading(false);
@@ -231,7 +285,6 @@ export default function RankingPage() {
               const formattedDate = gDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
               const formattedTime = gDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 
-              // Lógica da Trava (10 min antes do jogo) para esconder os escores dos outros
               const nowMs = new Date().getTime();
               const isRevealedForEveryone = (gDate.getTime() - nowMs) <= 10 * 60 * 1000;
 
@@ -266,7 +319,6 @@ export default function RankingPage() {
                       </div>
                     </div>
 
-                    {/* Votação Global */}
                     <div className="flex items-center justify-start xl:justify-end gap-2 font-sans text-[9px] font-black tracking-widest uppercase mt-2 xl:mt-0 shrink-0">
                        <div className="flex items-center gap-1.5 bg-black/60 px-2.5 py-1.5 rounded-lg border border-white/5 shadow-inner">
                          <span className="text-gray-500">{awayTeam?.abbr || 'AWAY'}</span>
@@ -297,7 +349,6 @@ export default function RankingPage() {
                           const pts = getPickResult(game, guess).points;
                           const userObj = usersMap[guess.user_id] || { nickname: 'N/A', logoUrl: null };
                           
-                          // Regra: Pode ver se faltam 10min pro jogo OU se for o próprio usuário
                           const isRevealed = isRevealedForEveryone || guess.user_id === currentUserId;
 
                           let pickedLogo = null;
@@ -433,7 +484,7 @@ export default function RankingPage() {
                       <tr className="font-sans text-[10px] text-gray-500 uppercase tracking-widest bg-black/80 border-b border-white/10 shadow-sm">
                         <th className="px-6 py-4 font-black w-16 text-center">RK</th>
                         <th className="px-6 py-4 font-black">Player</th>
-                        <th className="px-6 py-4 font-black text-center w-32">Score</th>
+                        <th className="px-6 py-4 font-black text-center w-36">Score <span className="hidden sm:inline-block text-[8px] text-gray-600 ml-1">(TIEBREAKERS)</span></th>
                         <th className="px-6 py-4 font-black text-right w-24">Action</th>
                       </tr>
                     </thead>
@@ -441,13 +492,13 @@ export default function RankingPage() {
                       {leaderboard.map((user, index) => {
                         const isCurrentUser = user.id === currentUserId;
                         const isExpanded = expandedUserId === user.id;
-                        const positionColor = index === 0 ? 'text-yellow-500 drop-shadow-[0_0_8px_rgba(234,179,8,0.6)]' : index === 1 ? 'text-gray-300 drop-shadow-[0_0_8px_rgba(209,213,219,0.4)]' : index === 2 ? 'text-amber-600 drop-shadow-[0_0_8px_rgba(217,119,6,0.4)]' : 'text-gray-600';
+                        const positionColor = user.displayRank === 1 ? 'text-yellow-500 drop-shadow-[0_0_8px_rgba(234,179,8,0.6)]' : user.displayRank === 2 ? 'text-gray-300 drop-shadow-[0_0_8px_rgba(209,213,219,0.4)]' : user.displayRank === 3 ? 'text-amber-600 drop-shadow-[0_0_8px_rgba(217,119,6,0.4)]' : 'text-gray-600';
 
                         return (
                           <React.Fragment key={user.id}>
                             <tr onClick={() => !isCurrentUser && setExpandedUserId(isExpanded ? null : user.id)} className={`transition-all ${!isCurrentUser ? 'cursor-pointer hover:bg-white/[0.03]' : ''} ${isCurrentUser ? 'bg-white/5' : ''} ${isExpanded ? 'bg-black/60 shadow-inner' : ''}`}>
                               <td className="px-6 py-5 text-center">
-                                <span className={`font-jersey text-2xl sm:text-3xl leading-none ${positionColor}`}>{index + 1}</span>
+                                <span className={`font-jersey text-2xl sm:text-3xl leading-none ${positionColor}`}>{user.displayRank}</span>
                               </td>
                               <td className="px-6 py-5">
                                 <div className="flex items-center gap-4">
@@ -466,8 +517,19 @@ export default function RankingPage() {
                               </td>
                               <td className="px-6 py-5 text-center">
                                 <div className="flex flex-col items-center justify-center">
-                                  <span className={`font-jersey text-2xl sm:text-3xl leading-none pt-1 ${user.projectedPoints > 0 ? 'text-green-400 drop-shadow-[0_0_10px_rgba(74,222,128,0.5)] animate-pulse' : 'text-white'}`}>{user.totalScore}</span>
-                                  {user.projectedPoints > 0 && <span className="font-sans text-[8px] font-black uppercase text-green-500 tracking-widest mt-1">+{user.projectedPoints} Proj</span>}
+                                  <div className="flex items-end gap-2">
+                                    <span className={`font-jersey text-2xl sm:text-3xl leading-none pt-1 ${user.projectedPoints > 0 ? 'text-green-400 drop-shadow-[0_0_10px_rgba(74,222,128,0.5)] animate-pulse' : 'text-white'}`}>
+                                      {user.totalScore}
+                                    </span>
+                                    {user.projectedPoints > 0 && <span className="font-sans text-[8px] font-black uppercase text-green-500 tracking-widest mb-1.5">+{user.projectedPoints} Proj</span>}
+                                  </div>
+                                  
+                                  {/* TIEBREAKERS DISPLAY */}
+                                  <div className="flex items-center gap-2 mt-1.5 opacity-80 bg-black/40 px-2 py-1.5 rounded-md border border-white/5 shadow-inner">
+                                    <span className="font-sans text-[8px] font-black tracking-widest uppercase text-green-400 drop-shadow-sm" title="Exact Scores (7 pts)">{user.exactHits} EX</span>
+                                    <span className="text-gray-600 text-[8px]">|</span>
+                                    <span className="font-sans text-[8px] font-black tracking-widest uppercase text-blue-400 drop-shadow-sm" title="Correct Margins (5 pts)">{user.diffHits} MRG</span>
+                                  </div>
                                 </div>
                               </td>
                               <td className="px-6 py-5">
