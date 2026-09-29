@@ -7,6 +7,7 @@ import GameCard from '../../components/scoreboard/GameCard';
 import { createClient } from '../../utils/supabase/client';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { Trophy, AlertTriangle } from 'lucide-react';
+import { getBestColor } from '@/lib/color';
 
 const TBD_TEAM = { 
   name: 'Free Agent', 
@@ -16,22 +17,7 @@ const TBD_TEAM = {
   conference: null
 };
 
-// Nova lógica baseada em Luminância Real
-const getLuminance = (hex: string) => {
-  if (!hex) return 0;
-  let cleanHex = hex.replace('#', '');
-  if (cleanHex.length === 3) cleanHex = cleanHex.split('').map(x => x + x).join('');
-  const r = parseInt(cleanHex.substring(0, 2), 16) || 0;
-  const g = parseInt(cleanHex.substring(2, 4), 16) || 0;
-  const b = parseInt(cleanHex.substring(4, 6), 16) || 0;
-  return ((r * 299) + (g * 587) + (b * 114)) / 1000;
-};
 
-const getBestColor = (pri: string, sec: string) => {
-  const p = pri || '#111111';
-  const s = sec || '#ff2a2a';
-  return getLuminance(p) > getLuminance(s) ? p : s;
-};
 
 export default function SchedulePage() {
   const [gamesByWeek, setGamesByWeek] = useState<Record<string, any[]>>({});

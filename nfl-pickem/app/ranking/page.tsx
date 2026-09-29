@@ -8,30 +8,10 @@ import LoadingScreen from '@/components/ui/LoadingScreen';
 import { getPickResult } from '@/utils/scoring';
 import SpyLockerRoom from '../../components/scoreboard/SpyLockerRoom';
 import { Calendar, Scale, Trophy, Eye, ChevronUp, Crown, Binoculars, Circle, Lock } from 'lucide-react';
+import { getBestColor } from '@/lib/color';
+import { PLAYOFF_ORDER, PLAYOFF_NAMES } from '@/lib/constants/playoffs';
 
-const PLAYOFF_ORDER = ['WC', 'DR', 'CC', 'SB'];
-const PLAYOFF_NAMES: Record<string, string> = {
-  'WC': 'Wild Card',
-  'DR': 'Divisional Round',
-  'CC': 'Conference Championship',
-  'SB': 'Super Bowl'
-};
 
-const getLuminance = (hex: string) => {
-  if (!hex) return 0;
-  let cleanHex = hex.replace('#', '');
-  if (cleanHex.length === 3) cleanHex = cleanHex.split('').map(x => x + x).join('');
-  const r = parseInt(cleanHex.substring(0, 2), 16) || 0;
-  const g = parseInt(cleanHex.substring(2, 4), 16) || 0;
-  const b = parseInt(cleanHex.substring(4, 6), 16) || 0;
-  return ((r * 299) + (g * 587) + (b * 114)) / 1000;
-};
-
-const getBestColor = (pri: string, sec: string) => {
-  const p = pri || '#111111';
-  const s = sec || '#ff2a2a';
-  return getLuminance(p) > getLuminance(s) ? p : s;
-};
 
 export default function RankingPage() {
   const router = useRouter();

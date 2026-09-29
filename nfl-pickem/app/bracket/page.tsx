@@ -5,6 +5,8 @@ import Header from '../../components/layout/header';
 import { createClient } from '../../utils/supabase/client';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { Repeat, Save, Loader2, Camera, X, AlertTriangle } from 'lucide-react';
+import { PLAYOFF_ORDER, PLAYOFF_NAMES } from '@/lib/constants/playoffs';
+import { getBestColor } from '@/lib/color';
 
 const TBD_TEAM = { 
   name: 'To Be Determined', 
@@ -16,21 +18,6 @@ const TBD_TEAM = {
 type Team = { id: string | number; name: string; abbreviation?: string; abbr?: string; logo_url: string; seed: number; conference: string; division: string };
 type ConfSeeds = Record<number, Team | null>;
 
-const getLuminance = (hex: string) => {
-  if (!hex) return 0;
-  let cleanHex = hex.replace('#', '');
-  if (cleanHex.length === 3) cleanHex = cleanHex.split('').map(x => x + x).join('');
-  const r = parseInt(cleanHex.substring(0, 2), 16) || 0;
-  const g = parseInt(cleanHex.substring(2, 4), 16) || 0;
-  const b = parseInt(cleanHex.substring(4, 6), 16) || 0;
-  return ((r * 299) + (g * 587) + (b * 114)) / 1000;
-};
-
-const getBestColor = (pri: string, sec: string) => {
-  const p = pri || '#111111';
-  const s = sec || '#ff2a2a';
-  return getLuminance(p) > getLuminance(s) ? p : s;
-};
 
 export default function BracketPage() {
   const [loading, setLoading] = useState(true);

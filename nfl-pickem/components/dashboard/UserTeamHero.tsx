@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { createClient } from "../../utils/supabase/client";
 import { Circle } from 'lucide-react';
 import TeamStatsViewer from '@/components/scoreboard/TeamStatsViewer';
+import { getSafeColor } from '@/lib/color';
+import { calculatePct } from '@/lib/format';
 
 interface UserTeamHeroProps {
   teamId: string | number | null;
@@ -12,60 +14,6 @@ interface UserTeamHeroProps {
   nextGame?: any;
   teamsDataMap?: Record<string, any>;
 }
-
-const calculatePct = (w = 0, l = 0, t = 0) => {
-  const total = w + l + t;
-  if (total === 0) return ".000";
-  const pct = (w + (t * 0.5)) / total;
-  return pct === 1 ? "1.000" : pct.toFixed(3).replace("0.", ".");
-};
-
-const formatRecord = (recordStr?: string) => {
-  if (!recordStr) return "";
-  const parts = recordStr.split('-');
-  if (parts.length === 3 && parts[2] === '0') {
-    return `${parts[0]}-${parts[1]}`;
-  }
-  return recordStr;
-};
-
-// Cálculo de safe color dinâmico para os holofotes
-const getSafeColor = (hex: string) => {
-  if (!hex) return '#ff2a2a'; 
-  let r = parseInt(hex.substring(1, 3), 16) / 255;
-  let g = parseInt(hex.substring(3, 5), 16) / 255;
-  let b = parseInt(hex.substring(5, 7), 16) / 255;
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  let h = 0, s = 0, l = (max + min) / 2;
-  if (max !== min) {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-      case g: h = (b - r) / d + 2; break;
-      case b: h = (r - g) / d + 4; break;
-    }
-    h /= 6;
-  }
-  if (l < 0.45) { l = 0.55; s = Math.max(s, 0.90); }
-  const hue2rgb = (p: number, q: number, t: number) => {
-    if (t < 0) t += 1;
-    if (t > 1) t -= 1;
-    if (t < 1/6) return p + (q - p) * 6 * t;
-    if (t < 1/2) return q;
-    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-    return p;
-  };
-  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-  const p = 2 * l - q;
-  r = hue2rgb(p, q, h + 1/3); g = hue2rgb(p, q, h); b = hue2rgb(p, q, h - 1/3);
-  const toHex = (x: number) => {
-    const hexStr = Math.round(x * 255).toString(16);
-    return hexStr.length === 1 ? '0' + hexStr : hexStr;
-  };
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-};
 
 export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsDataMap }: UserTeamHeroProps) {
   const [teamInfo, setTeamInfo] = useState<any>(null);
@@ -98,9 +46,8 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
             });
 
             merged.sort((a, b) => {
-              const getPctVal = (w=0, l=0, t=0) => (w+l+t === 0 ? 0 : (w + t*0.5)/(w+l+t));
-              const pctA = getPctVal(a.wins, a.losses, a.ties);
-              const pctB = getPctVal(b.wins, b.losses, b.ties);
+              const pctA = calculatePct(a.wins || 0, a.losses || 0, a.ties || 0);
+              const pctB = calculatePct(b.wins || 0, b.losses || 0, b.ties || 0);
               if (pctB !== pctA) return pctB - pctA;
               return (b.wins || 0) - (a.wins || 0);
             });
@@ -134,7 +81,7 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
 
   const isGenericNFL = teamInfo.abbreviation === 'NFL';
   const myRecordFromMap = teamsDataMap?.[teamId?.toString() || '']?.record;
-  const formattedMyRecord = myRecordFromMap ? formatRecord(myRecordFromMap) : "0-0";
+  const formattedMyRecord = myRecordFromMap || "0-0";
 
   let cityStr = "";
   let nameStr = "Locker Room";
@@ -189,7 +136,7 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
     }
   }
 
-  // Define a cor de destaque (Primary ou SafeColor)
+  // Define a cor de destaque usando utilitário seguro importado (agora vindo do lib/color.ts)
   const heroColor = teamInfo.primary_color ? getSafeColor(teamInfo.primary_color) : '#ff2a2a';
 
   const renderGameDetails = (gameToRender: any, titleStr: string) => {
@@ -205,7 +152,7 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
     const oppLogo = teamsDataMap?.[oppId?.toString()]?.logo || teamsDataMap?.[oppId?.toString()]?.logo_url;
 
     const rawOppRecord = teamsDataMap?.[oppId?.toString()]?.record;
-    const oppRecordStr = rawOppRecord ? formatRecord(rawOppRecord) : "";
+    const oppRecordStr = rawOppRecord || "0-0";
     const myRecordStr = formattedMyRecord;
 
     const myScore = isHome ? gameToRender.home_score : gameToRender.away_score;
@@ -564,7 +511,7 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
                           <td className="py-3 text-center text-gray-300 font-sport font-bold text-xl">{row.wins || 0}</td>
                           <td className="py-3 text-center text-gray-300 font-sport font-bold text-xl">{row.losses || 0}</td>
                           <td className="py-3 text-center text-gray-300 font-sport font-bold text-xl">{row.ties || 0}</td>
-                          <td className="py-3 text-center text-amber-500 font-sport font-bold text-xl drop-shadow-[0_0_5px_rgba(245,158,11,0.5)]">{calculatePct(row.wins, row.losses, row.ties)}</td>
+                          <td className="py-3 text-center text-amber-500 font-sport font-bold text-xl drop-shadow-[0_0_5px_rgba(245,158,11,0.5)]">{calculatePct(row.wins || 0, row.losses || 0, row.ties || 0).toFixed(3).replace("0.", ".")}</td>
                           <td className="py-3 text-center text-gray-500 font-sans font-bold text-xs hidden sm:table-cell">{row.division_record || "0-0"}</td>
                           <td className="py-3 text-center text-gray-500 font-sans font-bold text-xs hidden sm:table-cell">{row.conference_record || "0-0"}</td>
                           <td className="py-3 text-center text-gray-500 font-sans font-bold text-xs hidden lg:table-cell">{row.non_conference_record || "0-0"}</td>

@@ -5,6 +5,8 @@ import BroadcastBadge from '../ui/BroadcastBadge';
 import { getPickResult } from '@/utils/scoring';
 import { Circle, MapPin, Activity } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
+import { getGameCardSafeColor, getIsLight } from '@/lib/color';
+// Mude as chamadas internas getGameCardSafeColor(...) para getGameCardSafeColor(...)
 
 interface GameCardProps {
   game: {
@@ -32,42 +34,6 @@ interface GameCardProps {
   customRules?: { exact: number | null, diff: number | null, winner: number | null };
 }
 
-const getSafeColor = (hex: string) => {
-  if (!hex) return '#f59e0b';
-  let r = parseInt(hex.substring(1, 3), 16) / 255;
-  let g = parseInt(hex.substring(3, 5), 16) / 255;
-  let b = parseInt(hex.substring(5, 7), 16) / 255;
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  let h = 0, s = 0, l = (max + min) / 2;
-  if (max !== min) {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-      case g: h = (b - r) / d + 2; break;
-      case b: h = (r - g) / d + 4; break;
-    }
-    h /= 6;
-  }
-  if (l < 0.45) { l = 0.55; s = Math.max(s, 0.90); }
-  const hue2rgb = (p: number, q: number, t: number) => {
-    if (t < 0) t += 1;
-    if (t > 1) t -= 1;
-    if (t < 1/6) return p + (q - p) * 6 * t;
-    if (t < 1/2) return q;
-    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-    return p;
-  };
-  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-  const p = 2 * l - q;
-  r = hue2rgb(p, q, h + 1/3); g = hue2rgb(p, q, h); b = hue2rgb(p, q, h - 1/3);
-  const toHex = (x: number) => {
-    const hexStr = Math.round(x * 255).toString(16);
-    return hexStr.length === 1 ? '0' + hexStr : hexStr;
-  };
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-};
 
 const formatRecord = (recordStr?: string) => {
   if (!recordStr) return "";
@@ -690,9 +656,9 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                 ) : (
                    <div className="flex flex-col">
                       <div className="flex justify-between items-center font-sans text-[9px] text-gray-500 font-black uppercase tracking-widest mb-2 border-b border-white/10 pb-2 px-2">
-                         <span className="w-14 sm:w-16 text-left truncate font-jersey text-lg leading-none" style={{color: getSafeColor(awayTeam.color)}}>{awayTeam.abbr}</span>
+                         <span className="w-14 sm:w-16 text-left truncate font-jersey text-lg leading-none" style={{color: getGameCardSafeColor(awayTeam.color)}}>{awayTeam.abbr}</span>
                          <span className="flex-1 text-center">Metric</span>
-                         <span className="w-14 sm:w-16 text-right truncate font-jersey text-lg leading-none" style={{color: getSafeColor(homeTeam.color)}}>{homeTeam.abbr}</span>
+                         <span className="w-14 sm:w-16 text-right truncate font-jersey text-lg leading-none" style={{color: getGameCardSafeColor(homeTeam.color)}}>{homeTeam.abbr}</span>
                       </div>
                       
                       <MatchupRow label="Off YDS/G" awayVal={((matchupStats.away.passYds + matchupStats.away.rushYds)/matchupStats.away.games)} homeVal={((matchupStats.home.passYds + matchupStats.home.rushYds)/matchupStats.home.games)} isFloat />
