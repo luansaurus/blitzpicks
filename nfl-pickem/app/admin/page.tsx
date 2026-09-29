@@ -186,7 +186,8 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
     showToast("Requesting ESPN data...", "info");
     
     try {
-      const response = await fetch('/api/sync-games?secret=UkyZcmgwUfp25Ij5'); 
+      // A rota valida a sessão de admin no servidor; nenhum secret trafega pelo navegador.
+      const response = await fetch('/api/sync-games', { method: 'POST' });
       const data = await response.json();
       if(data.success) {
         window.location.reload(); 

@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { isAdminSession, isCronAuthorized } from '@/utils/routeAuth';
 
 interface GameRecord {
   id: number;
@@ -28,18 +29,29 @@ function calculatePoints(homeScore: number, awayScore: number, homeGuess: number
   return 0;
 }
 
+// GET: usado por cron/automação. Exige CRON_SECRET (header Authorization: Bearer ou ?secret= legado).
 export async function GET(request: Request) {
+  if (!isCronAuthorized(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  return runSync(request);
+}
+
+// POST: usado pelo painel /admin. Exige sessão de admin validada no servidor (ou CRON_SECRET).
+export async function POST(request: Request) {
+  if (!isCronAuthorized(request) && !(await isAdminSession())) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  return runSync(request);
+}
+
+async function runSync(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const secret = searchParams.get('secret');
     const isPatch = searchParams.get('patch')?.toLowerCase() === 'true'; 
     const weekParam = searchParams.get('week');
     const seasonTypeParam = searchParams.get('seasontype') || '2';
     
-    if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!

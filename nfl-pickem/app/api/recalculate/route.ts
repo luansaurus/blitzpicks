@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { isAdminSession, isCronAuthorized } from '@/utils/routeAuth';
 
 function calculatePoints(homeScore: number, awayScore: number, homeGuess: number, awayGuess: number) {
   const realDiff = homeScore - awayScore;
@@ -18,6 +19,11 @@ function calculatePoints(homeScore: number, awayScore: number, homeGuess: number
 }
 
 export async function POST(request: Request) {
+  // Só admin logado (validado no servidor) ou automação com CRON_SECRET.
+  if (!isCronAuthorized(request) && !(await isAdminSession())) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   try {
     // Usando a chave SERVICE ROLE para ignorar o RLS (Segurança)
     const supabase = createClient(
