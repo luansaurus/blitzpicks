@@ -38,9 +38,18 @@ export default function RankingPage() {
   const supabase = createClient();
 
   const [activeTab, setActiveTab] = useState<'ranking' | 'spy'>('ranking');
-  const [userColor, setUserColor] = useState('#E31837'); // Cor ativa para botões/borda
-  const [ambientPrimary, setAmbientPrimary] = useState('#013369'); // Spotlight 1
-  const [ambientSecondary, setAmbientSecondary] = useState('#E31837'); // Spotlight 2
+const [userColor, setUserColor] = useState(() => {
+  if (typeof window !== 'undefined') return localStorage.getItem('blitz_accent') || '#E31837';
+  return '#E31837';
+});
+const [ambientPrimary, setAmbientPrimary] = useState(() => {
+  if (typeof window !== 'undefined') return localStorage.getItem('blitz_header_bg') || '#013369';
+  return '#013369';
+});
+const [ambientSecondary, setAmbientSecondary] = useState(() => {
+  if (typeof window !== 'undefined') return localStorage.getItem('blitz_header_sec') || '#E31837';
+  return '#E31837';
+});
   
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);

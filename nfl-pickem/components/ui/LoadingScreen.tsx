@@ -1,31 +1,35 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 export default function LoadingScreen() {
-  const [accentColor, setAccentColor] = useState('#E31837');
-
-  useEffect(() => {
+  
+  // Puxa a cor imediatamente de forma síncrona (Lazy Init)
+  const [accentColor] = useState(() => {
     if (typeof window !== "undefined") {
-      const savedAccent = localStorage.getItem('blitz_accent');
-      if (savedAccent) setAccentColor(savedAccent);
-      
-      const cssVar = getComputedStyle(document.documentElement).getPropertyValue('--team-accent').trim();
-      if (cssVar) setAccentColor(cssVar);
+      return localStorage.getItem('blitz_accent') || '#E31837';
     }
-  }, []);
+    return '#E31837';
+  });
+
+  const [ambientPrimary] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem('blitz_header_bg') || '#013369';
+    }
+    return '#013369';
+  });
 
   return (
     <main className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-white overflow-hidden relative">
       
-      {/* Spotlights de Atmosfera */}
+      {/* Spotlights de Atmosfera (já nascem na cor certa, sem transition) */}
       <div 
-        className="absolute -top-32 -left-32 w-[500px] h-[500px] rounded-full blur-[140px] opacity-25 pointer-events-none z-0 transition-colors duration-1000"
+        className="absolute -top-32 -left-32 w-[500px] h-[500px] rounded-full blur-[140px] opacity-25 pointer-events-none z-0"
         style={{ backgroundColor: accentColor }}
       />
       <div 
-        className="absolute -bottom-32 -right-32 w-[500px] h-[500px] rounded-full blur-[140px] opacity-15 pointer-events-none z-0 transition-colors duration-1000"
-        style={{ backgroundColor: '#013369' }}
+        className="absolute -bottom-32 -right-32 w-[500px] h-[500px] rounded-full blur-[140px] opacity-15 pointer-events-none z-0"
+        style={{ backgroundColor: ambientPrimary }}
       />
       
       <div 

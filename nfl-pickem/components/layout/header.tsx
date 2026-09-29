@@ -59,14 +59,33 @@ export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
   
-  const [logoUrl, setLogoUrl] = useState<string>('https://upload.wikimedia.org/wikipedia/en/a/a2/National_Football_League_logo.svg');
+  // Lazy Init para garantir a extração dos dados síncronos no 1º frame
+  const [logoUrl, setLogoUrl] = useState<string>(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('blitz_logo_url') || 'https://upload.wikimedia.org/wikipedia/en/a/a2/National_Football_League_logo.svg';
+    return 'https://upload.wikimedia.org/wikipedia/en/a/a2/National_Football_League_logo.svg';
+  });
+
+  const [headerBg, setHeaderBg] = useState<string>(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('blitz_header_bg') || '#0a0a0a';
+    return '#0a0a0a';
+  });
+
+  const [headerSec, setHeaderSec] = useState<string>(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('blitz_header_sec') || '#ff2a2a';
+    return '#ff2a2a';
+  });
+
+  const [isLightBg, setIsLightBg] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const bg = localStorage.getItem('blitz_header_bg');
+      return bg ? getIsLight(bg) : false;
+    }
+    return false;
+  });
+
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [loadingLogout, setLoadingLogout] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState<boolean>(false);
-  
-  const [headerBg, setHeaderBg] = useState<string>('#0a0a0a');
-  const [headerSec, setHeaderSec] = useState<string>('#ff2a2a');
-  const [isLightBg, setIsLightBg] = useState<boolean>(false);
   
   const supabase = createClient();
 
@@ -87,11 +106,15 @@ export default function Header() {
         if (profile.favorite_team_id) {
           const { data: team } = await supabase.from('teams').select('logo_url, primary_color, secondary_color').eq('id', profile.favorite_team_id).single();
           if (team) {
-            if (team.logo_url) setLogoUrl(team.logo_url);
+            if (team.logo_url) {
+              setLogoUrl(team.logo_url);
+              localStorage.setItem('blitz_logo_url', team.logo_url);
+            }
             
             if (team.primary_color) {
               setHeaderBg(team.primary_color);
               setIsLightBg(getIsLight(team.primary_color));
+              localStorage.setItem('blitz_header_bg', team.primary_color);
               
               const vibrantSafeColor = getSafeColor(team.primary_color);
               localStorage.setItem('blitz_accent', vibrantSafeColor);
@@ -100,6 +123,7 @@ export default function Header() {
             
             if (team.secondary_color) {
               setHeaderSec(team.secondary_color);
+              localStorage.setItem('blitz_header_sec', team.secondary_color);
               document.documentElement.style.setProperty('--team-secondary', team.secondary_color);
             }
           }
@@ -175,9 +199,8 @@ export default function Header() {
 
         <div className="max-w-7xl mx-auto px-4 h-16 sm:h-20 flex items-center justify-between relative z-10">
           
-          {/* Logo atualizado para usar font-jersey e cor secundária */}
           <Link href="/dashboard" className="flex items-center gap-1 hover:opacity-90 transition-opacity">
-            <b><i><span className={`font-jersey text-3xl sm:text-4xl uppercase tracking-widest pt-1 ${textMain}`}>
+            <span className={`font-jersey text-3xl sm:text-4xl uppercase tracking-widest pt-1 ${textMain}`}>
               BLITZ
               <span 
                 style={{ 
@@ -188,7 +211,6 @@ export default function Header() {
                 PICKS
               </span>
             </span>
-           </i> </b>
           </Link>
 
           <nav className="hidden sm:flex items-center h-full">

@@ -47,10 +47,18 @@ export default function SchedulePage() {
   const [seasonMode, setSeasonMode] = useState<'regular' | 'playoffs'>('regular');
   const [isWeek18Finished, setIsWeek18Finished] = useState(false);
   
-  // Cores dinâmicas
-  const [userColor, setUserColor] = useState('#E31837');
-  const [ambientPrimary, setAmbientPrimary] = useState('#013369');
-  const [ambientSecondary, setAmbientSecondary] = useState('#E31837');
+const [userColor, setUserColor] = useState(() => {
+  if (typeof window !== 'undefined') return localStorage.getItem('blitz_accent') || '#E31837';
+  return '#E31837';
+});
+const [ambientPrimary, setAmbientPrimary] = useState(() => {
+  if (typeof window !== 'undefined') return localStorage.getItem('blitz_header_bg') || '#013369';
+  return '#013369';
+});
+const [ambientSecondary, setAmbientSecondary] = useState(() => {
+  if (typeof window !== 'undefined') return localStorage.getItem('blitz_header_sec') || '#E31837';
+  return '#E31837';
+});
   
   const [loading, setLoading] = useState(true);
 
