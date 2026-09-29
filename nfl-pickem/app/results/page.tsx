@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '../../components/layout/header';
 import PlayoffLiveView from '../../components/bracket/PlayoffLiveView';
@@ -48,18 +48,21 @@ export default function Results() {
   
   const [loading, setLoading] = useState(true);
   
-const [userColor, setUserColor] = useState(() => {
-  if (typeof window !== 'undefined') return localStorage.getItem('blitz_accent') || '#E31837';
-  return '#E31837';
-});
-const [ambientPrimary, setAmbientPrimary] = useState(() => {
-  if (typeof window !== 'undefined') return localStorage.getItem('blitz_header_bg') || '#013369';
-  return '#013369';
-});
-const [ambientSecondary, setAmbientSecondary] = useState(() => {
-  if (typeof window !== 'undefined') return localStorage.getItem('blitz_header_sec') || '#E31837';
-  return '#E31837';
-});
+  const [userColor, setUserColor] = useState(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('blitz_accent') || '#E31837';
+    return '#E31837';
+  });
+  const [ambientPrimary, setAmbientPrimary] = useState(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('blitz_header_bg') || '#013369';
+    return '#013369';
+  });
+  const [ambientSecondary, setAmbientSecondary] = useState(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('blitz_header_sec') || '#E31837';
+    return '#E31837';
+  });
+
+  // Referência para o container onde as estatísticas são renderizadas
+  const statsContainerRef = useRef<HTMLDivElement>(null);
   
   const router = useRouter();
   const supabase = createClient();
@@ -162,6 +165,25 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
     loadResultsData();
   }, [router, supabase]);
 
+  // Função que seleciona o time e faz o scroll suave até a área de stats
+  const handleTeamSelection = (teamId: string) => {
+    setSelectedTeamId(teamId);
+    
+    // Pequeno atraso para garantir que o componente renderize antes do scroll
+    setTimeout(() => {
+      if (statsContainerRef.current) {
+        const offset = 80; // Dá um pequeno respiro no topo (abaixo do header fixo, se houver)
+        const elementPosition = statsContainerRef.current.getBoundingClientRect().top;
+        const offsetPosition = elementPosition + window.scrollY - offset;
+
+        window.scrollTo({
+          top: offsetPosition,
+          behavior: 'smooth'
+        });
+      }
+    }, 100);
+  };
+
   if (loading) return <LoadingScreen/>;
 
   const regularWeeks = Object.keys(gamesByWeek).filter(w => !isNaN(Number(w))).sort((a, b) => Number(a) - Number(b));
@@ -195,8 +217,7 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
         <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-8 mt-4">
           
           <div className="text-center mb-10">
-            {/* FONTE REDUZIDA: text-5xl/7xl -> text-5xl/6xl */}
-            <h1 className="font-jersey text-5xl sm:text-5xl uppercase tracking-widest text-white mb-2">
+            <h1 className="font-jersey text-5xl sm:text-6xl uppercase tracking-widest text-white mb-2">
               SEASON<span style={{ color: userColor, textShadow: `0 0 15px ${userColor}80` }}>HUB</span>
             </h1>
             <p className="font-sans text-xs sm:text-sm font-bold text-gray-400 uppercase tracking-widest mt-1">Official NFL data, complete schedule, and league metrics.</p>
@@ -231,8 +252,7 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
           {activeTab === 'schedule' && (
             <div className="space-y-6 animate-fadeIn">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/10 pb-4 gap-4 sm:gap-0">
-                {/* FONTE REDUZIDA: text-2xl/5xl -> text-2xl/4xl */}
-                <h2 className="font-jersey text-2xl sm:text-2xl uppercase tracking-widest text-white drop-shadow-md">SEASON MATCHES</h2>
+                <h2 className="font-jersey text-3xl sm:text-4xl uppercase tracking-widest text-white drop-shadow-md">SEASON MATCHES</h2>
                 
                 <div className="flex bg-black/60 border border-white/10 rounded-xl p-1.5 shadow-inner">
                   <button 
@@ -299,8 +319,7 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
                             {isWeekOpen && !isSuperBowlWeek && <div className="w-1.5 h-6 rounded-full shadow-lg" style={{ backgroundColor: userColor, boxShadow: `0 0 10px ${userColor}80` }}></div>}
                             {isWeekOpen && isSuperBowlWeek && <Trophy size={20} className="animate-pulse text-amber-400 drop-shadow-md" />}
                             
-                            {/* FONTE REDUZIDA: text-xl/3xl -> text-xl/2xl */}
-                            <span className={`font-jersey text-xl sm:text-xl uppercase tracking-widest pt-1 leading-none ${isWeekOpen && !isSuperBowlWeek ? 'text-white' : isSuperBowlWeek ? 'text-amber-400' : 'text-gray-400'}`} style={isWeekOpen && !isSuperBowlWeek ? { color: userColor, textShadow: `0 0 15px ${userColor}80` } : {}}>
+                            <span className={`font-jersey text-xl sm:text-2xl uppercase tracking-widest pt-1 leading-none ${isWeekOpen && !isSuperBowlWeek ? 'text-white' : isSuperBowlWeek ? 'text-amber-400' : 'text-gray-400'}`} style={isWeekOpen && !isSuperBowlWeek ? { color: userColor, textShadow: `0 0 15px ${userColor}80` } : {}}>
                               {seasonPhase === 'playoffs' ? (playoffNames[week] || week) : `Week ${week}`}
                             </span>
                             {!isSuperBowlWeek && (
@@ -339,13 +358,11 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
           {/* ================= ABA: STANDINGS ================= */}
           {activeTab === 'standings' && (
             <div className="animate-fadeIn space-y-8">
-              {/* FONTE REDUZIDA: text-2xl/5xl -> text-2xl/4xl */}
-              <h2 className="font-jersey text-2xl sm:text-2xl uppercase tracking-widest text-white border-b border-white/10 pb-4 drop-shadow-md">OFFICIAL STANDINGS</h2>
+              <h2 className="font-jersey text-3xl sm:text-4xl uppercase tracking-widest text-white border-b border-white/10 pb-4 drop-shadow-md">OFFICIAL STANDINGS</h2>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
                 {['AFC', 'NFC'].map(conf => (
                   <div key={conf} className="space-y-6">
-                    {/* FONTE REDUZIDA: text-2xl/5xl -> text-2xl/4xl */}
-                    <h2 className="font-jersey text-2xl sm:text-2xl text-white uppercase tracking-widest border-b border-white/10 pb-3" style={{ color: conf === 'AFC' ? '#ef4444' : '#3b82f6', textShadow: `0 0 15px ${conf === 'AFC' ? '#ef444460' : '#3b82f660'}` }}>{conf}</h2>
+                    <h2 className="font-jersey text-3xl sm:text-4xl text-white uppercase tracking-widest border-b border-white/10 pb-3" style={{ color: conf === 'AFC' ? '#ef4444' : '#3b82f6', textShadow: `0 0 15px ${conf === 'AFC' ? '#ef444460' : '#3b82f660'}` }}>{conf}</h2>
                     {['North', 'South', 'East', 'West'].map(div => {
                       const teamsInDiv = standingsByConfAndDiv[conf]?.[`${conf} ${div}`] || standingsByConfAndDiv[conf]?.[div];
                       if (!teamsInDiv || teamsInDiv.length === 0) return null;
@@ -373,7 +390,6 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
                                       {team.logo_url && <img src={team.logo_url} alt="" className="w-6 h-6 object-contain drop-shadow-md" />}
                                       <span className="font-sport font-bold text-sm sm:text-base uppercase tracking-wider text-gray-300 group-hover:text-white transition-colors">{team.name}</span>
                                     </td>
-                                    {/* FONTE REDUZIDA NA TABELA: text-xl/2xl -> text-lg/xl */}
                                     <td className="px-3 py-3 text-center font-jersey text-lg sm:text-xl leading-none pt-2 text-white">{team.wins}</td>
                                     <td className="px-3 py-3 text-center font-jersey text-lg sm:text-xl leading-none pt-2 text-gray-400">{team.losses}</td>
                                     <td className="px-3 py-3 text-center font-jersey text-lg sm:text-xl leading-none pt-2 text-gray-600">{team.ties}</td>
@@ -398,14 +414,13 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
           {/* ================= ABA: TEAM STATS ================= */}
           {activeTab === 'stats' && (
             <div className="animate-fadeIn space-y-8">
-              {/* FONTE REDUZIDA: text-2xl/5xl -> text-2xl/4xl */}
-              <h2 className="font-jersey text-2xl sm:text-2xl uppercase tracking-widest text-white border-b border-white/10 pb-4 drop-shadow-md">TEAM METRICS & LEADERS</h2>
+              <h2 className="font-jersey text-3xl sm:text-4xl uppercase tracking-widest text-white border-b border-white/10 pb-4 drop-shadow-md">TEAM METRICS & LEADERS</h2>
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                  
                  <div className="lg:col-span-2 flex justify-center mb-4">
                    <button 
-                      onClick={() => setSelectedTeamId('NFL')}
+                      onClick={() => handleTeamSelection('NFL')}
                       className={`shrink-0 rounded-2xl px-8 py-4 border transition-all flex items-center justify-center gap-3 shadow-xl hover:scale-105 ${selectedTeamId === 'NFL' || !selectedTeamId ? 'border-amber-500 bg-amber-500/20 shadow-[0_0_30px_rgba(245,158,11,0.3)]' : 'border-white/10 bg-black/60 backdrop-blur-md hover:bg-white/5'}`}
                     >
                       <Trophy size={20} className={selectedTeamId === 'NFL' || !selectedTeamId ? 'text-amber-400 drop-shadow-md' : 'text-gray-500'} />
@@ -415,8 +430,7 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
 
                  {['AFC', 'NFC'].map(conf => (
                    <div key={conf} className="space-y-6">
-                      {/* FONTE REDUZIDA: text-2xl/5xl -> text-2xl/4xl */}
-                      <h3 className="font-jersey text-2xl sm:text-2xl text-white uppercase tracking-widest border-b border-white/10 pb-3" style={{ color: conf === 'AFC' ? '#ef4444' : '#3b82f6', textShadow: `0 0 15px ${conf === 'AFC' ? '#ef444460' : '#3b82f660'}` }}>{conf}</h3>
+                      <h3 className="font-jersey text-3xl sm:text-4xl text-white uppercase tracking-widest border-b border-white/10 pb-3" style={{ color: conf === 'AFC' ? '#ef4444' : '#3b82f6', textShadow: `0 0 15px ${conf === 'AFC' ? '#ef444460' : '#3b82f660'}` }}>{conf}</h3>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
                          {['North', 'South', 'East', 'West'].map(div => {
                             const divTeams = allTeamsList.filter(t => t.conference === conf && t.division === div && t.abbreviation !== 'NFL' && t.abbreviation !== 'TBD');
@@ -433,7 +447,7 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
                                        return (
                                         <button 
                                           key={team.id}
-                                          onClick={() => setSelectedTeamId(team.id.toString())}
+                                          onClick={() => handleTeamSelection(team.id.toString())}
                                           className={`shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-full p-2 border transition-all flex items-center justify-center ${isSelected ? 'border-white bg-black scale-110 shadow-2xl z-10' : 'border-white/5 bg-black/60 hover:bg-black/80 hover:scale-105 opacity-60 hover:opacity-100'}`}
                                           style={isSelected ? { borderColor: tColor, boxShadow: `0 0 20px ${tColor}60` } : {}}
                                         >
@@ -451,13 +465,16 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
                  ))}
               </div>
 
-              {selectedTeamId === 'NFL' || !selectedTeamId ? (
-                 <LeagueLeadersViewer teamsDataMap={teamsMap} />
-              ) : selectedTeamId ? (
-                <div className="mt-10 pt-8 border-t border-white/10 animate-fadeIn">
-                  <TeamStatsViewer teamId={selectedTeamId} teamInfo={allTeamsList.find(t => t.id.toString() === selectedTeamId)} />
-                </div>
-              ) : null}
+              {/* TARGET PARA O SCROLL DAS ESTATÍSTICAS */}
+              <div ref={statsContainerRef} className="pt-2">
+                {selectedTeamId === 'NFL' || !selectedTeamId ? (
+                   <LeagueLeadersViewer teamsDataMap={teamsMap} />
+                ) : selectedTeamId ? (
+                  <div className="mt-10 pt-8 border-t border-white/10 animate-fadeIn">
+                    <TeamStatsViewer teamId={selectedTeamId} teamInfo={allTeamsList.find(t => t.id.toString() === selectedTeamId)} />
+                  </div>
+                ) : null}
+              </div>
             </div>
           )}
         </div>

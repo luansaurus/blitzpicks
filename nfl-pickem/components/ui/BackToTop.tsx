@@ -29,15 +29,18 @@ export default function BackToTop() {
   return (
     <button
       onClick={scrollToTop}
-      className="fixed bottom-6 right-6 p-3 sm:p-4 bg-neutral-800 border border-white/10 hover:bg-neutral-700 hover:-translate-y-1 text-white rounded-full shadow-2xl transition-all duration-300 z-50 group"
+      // bottom-24 afasta o botão da barra de navegação no mobile
+      // sm:bottom-10 devolve o botão para perto do rodapé no PC
+      // z-[90] garante que fica acima dos cards, mas abaixo de modais grandes
+      className="fixed bottom-24 sm:bottom-10 right-4 sm:right-8 p-3.5 sm:p-4 bg-black/60 backdrop-blur-xl border border-white/10 hover:bg-white/10 hover:border-white/30 hover:-translate-y-1 rounded-full shadow-[0_10px_25px_rgba(0,0,0,0.8)] transition-all duration-300 z-[90] group"
       title="Back to top"
     >
       <svg 
-        className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" 
+        className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors drop-shadow-md" 
         fill="none" 
         strokeLinecap="round" 
         strokeLinejoin="round" 
-        strokeWidth="2" 
+        strokeWidth="3" 
         viewBox="0 0 24 24" 
         stroke="currentColor"
       >

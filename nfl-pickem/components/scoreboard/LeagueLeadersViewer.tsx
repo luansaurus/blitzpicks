@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "../../utils/supabase/client";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, ChevronDown, ChevronUp } from "lucide-react";
 
 interface LeagueLeadersViewerProps {
   teamsDataMap: Record<string, any>;
@@ -14,6 +14,14 @@ export default function LeagueLeadersViewer({ teamsDataMap }: LeagueLeadersViewe
   const [loading, setLoading] = useState(true);
   const [leaders, setLeaders] = useState<any>(null);
   const [fullViewCategory, setFullViewCategory] = useState<FullViewCategory>(null);
+
+  // Estado de Ordenação
+  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
+
+  // Reseta a ordenação quando a categoria muda
+  useEffect(() => {
+    setSortConfig(null);
+  }, [fullViewCategory]);
 
   useEffect(() => {
     async function fetchAndCalculateLeagueLeaders() {
@@ -158,6 +166,19 @@ export default function LeagueLeadersViewer({ teamsDataMap }: LeagueLeadersViewe
     fetchAndCalculateLeagueLeaders();
   }, []);
 
+  const handleSort = (key: string) => {
+    let direction: 'desc' | 'asc' = 'desc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'desc') {
+      direction = 'asc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const renderSortIcon = (key: string) => {
+    if (sortConfig?.key !== key) return <ArrowUpDown size={10} className="opacity-40" />;
+    return sortConfig.direction === 'asc' ? <ChevronUp size={12} className="text-amber-400 drop-shadow-md" /> : <ChevronDown size={12} className="text-amber-400 drop-shadow-md" />;
+  };
+
   if (loading || !leaders) {
     return (
       <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl p-8 flex items-center justify-center animate-pulse h-64 mt-6 shadow-2xl">
@@ -173,6 +194,27 @@ export default function LeagueLeadersViewer({ teamsDataMap }: LeagueLeadersViewe
     const isPlayer = ['pass', 'rush', 'rec', 'sack', 'int'].includes(fullViewCategory);
     const isOffense = ['pass', 'rush', 'rec'].includes(fullViewCategory);
     const dataList = isPlayer ? leaders.fullPlayers[fullViewCategory] : leaders.fullTeams[fullViewCategory];
+
+    const sortedDataList = [...dataList].sort((a, b) => {
+      if (!sortConfig) return 0;
+      
+      let aVal = a[sortConfig.key];
+      let bVal = b[sortConfig.key];
+
+      // Lida com buscas customizadas por Nome de Time ou Sigla
+      if (sortConfig.key === 'teamAbbr') {
+        aVal = teamsDataMap[a.teamId]?.abbr || '';
+        bVal = teamsDataMap[b.teamId]?.abbr || '';
+      } else if (sortConfig.key === 'teamName') {
+        aVal = teamsDataMap[a.id]?.name || '';
+        bVal = teamsDataMap[b.id]?.name || '';
+      }
+
+      if (typeof aVal === 'string') {
+        return sortConfig.direction === 'asc' ? aVal.localeCompare(bVal as string) : (bVal as string).localeCompare(aVal);
+      }
+      return sortConfig.direction === 'asc' ? (aVal || 0) - (bVal || 0) : (bVal || 0) - (aVal || 0);
+    });
 
     const categoryTitles: Record<string, string> = {
       pass: 'Passing Leaders', rush: 'Rushing Leaders', rec: 'Receiving Leaders',
@@ -233,32 +275,56 @@ export default function LeagueLeadersViewer({ teamsDataMap }: LeagueLeadersViewe
                 <th className="px-5 py-3 font-black w-14 text-center">RK</th>
                 {isPlayer ? (
                   <>
-                    <th className="px-5 py-3 font-black">Name</th>
-                    <th className="px-5 py-3 font-black text-center">Team</th>
+                    <th className="px-5 py-3 font-black cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('name')}>
+                      <div className="flex items-center gap-1.5">Name {renderSortIcon('name')}</div>
+                    </th>
+                    <th className="px-5 py-3 font-black text-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('teamAbbr')}>
+                      <div className="flex items-center justify-center gap-1.5">Team {renderSortIcon('teamAbbr')}</div>
+                    </th>
                     {isOffense ? (
                       <>
-                        <th className="px-5 py-3 font-black text-right">YDS</th>
-                        <th className="px-5 py-3 font-black text-center">TD</th>
-                        {fullViewCategory === 'pass' && <th className="px-5 py-3 font-black text-center">INT</th>}
+                        <th className="px-5 py-3 font-black text-right cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('yds')}>
+                          <div className="flex items-center justify-end gap-1.5">YDS {renderSortIcon('yds')}</div>
+                        </th>
+                        <th className="px-5 py-3 font-black text-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('td')}>
+                          <div className="flex items-center justify-center gap-1.5">TD {renderSortIcon('td')}</div>
+                        </th>
+                        {fullViewCategory === 'pass' && (
+                          <th className="px-5 py-3 font-black text-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('int')}>
+                            <div className="flex items-center justify-center gap-1.5">INT {renderSortIcon('int')}</div>
+                          </th>
+                        )}
                       </>
                     ) : (
-                      <th className="px-5 py-3 font-black text-right">{fullViewCategory === 'sack' ? 'SACKS' : 'INTS'}</th>
+                      <th className="px-5 py-3 font-black text-right cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('val')}>
+                        <div className="flex items-center justify-end gap-1.5">{fullViewCategory === 'sack' ? 'SACKS' : 'INTS'} {renderSortIcon('val')}</div>
+                      </th>
                     )}
                   </>
                 ) : (
                   <>
-                    <th className="px-5 py-3 font-black">Team</th>
-                    <th className="px-5 py-3 font-black text-right">
-                      {fullViewCategory === 'teamOffense' ? 'YDS/G' : 
-                       fullViewCategory === 'teamDefense' ? 'YDS ALW/G' : 
-                       fullViewCategory === 'teamSacks' ? 'SACKS' : 'DIFF'}
+                    <th className="px-5 py-3 font-black cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('teamName')}>
+                      <div className="flex items-center gap-1.5">Team {renderSortIcon('teamName')}</div>
+                    </th>
+                    <th className="px-5 py-3 font-black text-right cursor-pointer hover:bg-white/5 transition-colors" onClick={() => {
+                        if (fullViewCategory === 'teamOffense') handleSort('totalYds');
+                        else if (fullViewCategory === 'teamDefense') handleSort('ydsAllowed');
+                        else if (fullViewCategory === 'teamSacks') handleSort('sacks');
+                        else handleSort('diff');
+                    }}>
+                      <div className="flex items-center justify-end gap-1.5">
+                        {fullViewCategory === 'teamOffense' ? 'YDS/G' : 
+                         fullViewCategory === 'teamDefense' ? 'YDS ALW/G' : 
+                         fullViewCategory === 'teamSacks' ? 'SACKS' : 'DIFF'}
+                        {renderSortIcon(fullViewCategory === 'teamOffense' ? 'totalYds' : fullViewCategory === 'teamDefense' ? 'ydsAllowed' : fullViewCategory === 'teamSacks' ? 'sacks' : 'diff')}
+                      </div>
                     </th>
                   </>
                 )}
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {dataList.map((row: any, i: number) => {
+              {sortedDataList.map((row: any, i: number) => {
                 if (isPlayer) {
                   const team = teamsDataMap[row.teamId] || {};
                   return (

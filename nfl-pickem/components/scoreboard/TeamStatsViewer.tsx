@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "../../utils/supabase/client";
-import { User, Activity, ArrowLeft, ChevronRight } from "lucide-react";
+import { User, Activity, ArrowLeft, ChevronRight, ArrowUpDown, ChevronDown, ChevronUp } from "lucide-react";
 
 interface TeamStatsViewerProps {
   teamId: string;
@@ -11,7 +11,6 @@ interface TeamStatsViewerProps {
 
 type FullViewCategory = 'pass' | 'rush' | 'rec' | 'sack' | 'kick' | null;
 
-// Agora usamos a função de luminância para escolher a cor mais clara do time!
 const getLuminance = (hex: string) => {
   if (!hex) return 0;
   let cleanHex = hex.replace('#', '');
@@ -27,6 +26,14 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
   const [stats, setStats] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'players' | 'team'>('players');
   const [fullViewCategory, setFullViewCategory] = useState<FullViewCategory>(null);
+  
+  // Estado de Ordenação
+  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
+
+  // Reseta a ordenação quando a categoria muda
+  useEffect(() => {
+    setSortConfig(null);
+  }, [fullViewCategory]);
 
   useEffect(() => {
     async function fetchTeamStats() {
@@ -206,6 +213,19 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
     fetchTeamStats();
   }, [teamId]);
 
+  const handleSort = (key: string) => {
+    let direction: 'desc' | 'asc' = 'desc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'desc') {
+      direction = 'asc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const renderSortIcon = (key: string) => {
+    if (sortConfig?.key !== key) return <ArrowUpDown size={10} className="opacity-30" />;
+    return sortConfig.direction === 'asc' ? <ChevronUp size={12} className="text-white drop-shadow-md" /> : <ChevronDown size={12} className="text-white drop-shadow-md" />;
+  };
+
   if (loading || !stats) {
     return (
       <div className="bg-[#050505]/80 backdrop-blur-xl border border-white/10 rounded-2xl p-8 flex flex-col items-center justify-center animate-pulse h-64 shadow-2xl">
@@ -217,7 +237,6 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
 
   const { tStats, oStats, fullPlayers, teamDefTotals } = stats;
   
-  // A Mágica da Luminância: puxa a cor mais brilhante do time!
   const teamPri = teamInfo?.primary_color || '#111111';
   const teamSec = teamInfo?.secondary_color || '#ff2a2a';
   const tColor = getLuminance(teamPri) > getLuminance(teamSec) ? teamPri : teamSec;
@@ -228,6 +247,17 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
     const isOffense = ['pass', 'rush', 'rec'].includes(fullViewCategory);
     const dataList = fullPlayers[fullViewCategory] || [];
     
+    const sortedDataList = [...dataList].sort((a, b) => {
+      if (!sortConfig) return 0;
+      const aVal = a[sortConfig.key];
+      const bVal = b[sortConfig.key];
+      
+      if (typeof aVal === 'string') {
+        return sortConfig.direction === 'asc' ? aVal.localeCompare(bVal as string) : (bVal as string).localeCompare(aVal);
+      }
+      return sortConfig.direction === 'asc' ? (aVal || 0) - (bVal || 0) : (bVal || 0) - (aVal || 0);
+    });
+
     const categoryTitles: Record<string, string> = {
       pass: 'Passing Leaders', rush: 'Rushing Leaders', rec: 'Receiving Leaders',
       sack: 'Sack Leaders', kick: 'Special Teams (Kickers)'
@@ -258,30 +288,54 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
             <thead>
               <tr className="font-sans text-[10px] text-gray-500 uppercase tracking-widest border-b border-white/5 bg-black/40">
                 <th className="px-4 py-3 font-black w-10 text-center">RK</th>
-                <th className="px-4 py-3 font-black">Player</th>
+                <th className="px-4 py-3 font-black cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('name')}>
+                  <div className="flex items-center gap-1.5">Player {renderSortIcon('name')}</div>
+                </th>
                 {isOffense && (
                   <>
-                    <th className="px-4 py-3 font-black text-right">YDS</th>
-                    <th className="px-4 py-3 font-black text-center">TD</th>
-                    {fullViewCategory === 'pass' && <th className="px-4 py-3 font-black text-center">INT</th>}
-                    {fullViewCategory === 'rec' && <th className="px-4 py-3 font-black text-center">REC</th>}
+                    <th className="px-4 py-3 font-black text-right cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('yds')}>
+                      <div className="flex items-center justify-end gap-1.5">YDS {renderSortIcon('yds')}</div>
+                    </th>
+                    <th className="px-4 py-3 font-black text-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('td')}>
+                      <div className="flex items-center justify-center gap-1.5">TD {renderSortIcon('td')}</div>
+                    </th>
+                    {fullViewCategory === 'pass' && (
+                      <th className="px-4 py-3 font-black text-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('int')}>
+                        <div className="flex items-center justify-center gap-1.5">INT {renderSortIcon('int')}</div>
+                      </th>
+                    )}
+                    {fullViewCategory === 'rec' && (
+                      <th className="px-4 py-3 font-black text-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('rec')}>
+                        <div className="flex items-center justify-center gap-1.5">REC {renderSortIcon('rec')}</div>
+                      </th>
+                    )}
                   </>
                 )}
-                {fullViewCategory === 'sack' && <th className="px-4 py-3 font-black text-right">SACKS</th>}
+                {fullViewCategory === 'sack' && (
+                  <th className="px-4 py-3 font-black text-right cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('sack')}>
+                    <div className="flex items-center justify-end gap-1.5">SACKS {renderSortIcon('sack')}</div>
+                  </th>
+                )}
                 {fullViewCategory === 'kick' && (
                    <>
-                     <th className="px-4 py-3 font-black text-center">FG</th>
-                     <th className="px-4 py-3 font-black text-center">XP</th>
-                     <th className="px-4 py-3 font-black text-right">PTS</th>
+                     <th className="px-4 py-3 font-black text-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('fgM')}>
+                       <div className="flex items-center justify-center gap-1.5">FG {renderSortIcon('fgM')}</div>
+                     </th>
+                     <th className="px-4 py-3 font-black text-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('xpM')}>
+                       <div className="flex items-center justify-center gap-1.5">XP {renderSortIcon('xpM')}</div>
+                     </th>
+                     <th className="px-4 py-3 font-black text-right cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('pts')}>
+                       <div className="flex items-center justify-end gap-1.5">PTS {renderSortIcon('pts')}</div>
+                     </th>
                    </>
                 )}
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5 bg-black/20">
-              {dataList.length === 0 ? (
+              {sortedDataList.length === 0 ? (
                 <tr><td colSpan={6} className="p-8 text-center text-gray-500 font-sans text-xs uppercase tracking-widest font-bold">No stats recorded</td></tr>
               ) : (
-                dataList.map((p: any, i: number) => (
+                sortedDataList.map((p: any, i: number) => (
                   <tr key={i} className="hover:bg-white/[0.04] transition-colors group">
                     <td className="px-4 py-4 text-center font-sport text-gray-500 text-sm group-hover:text-white transition-colors">{i + 1}</td>
                     <td className="px-4 py-4 text-white font-bold font-sport uppercase tracking-wider">{p.name}</td>
