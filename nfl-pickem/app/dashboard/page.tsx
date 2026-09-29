@@ -9,7 +9,7 @@ import { createClient } from '../../utils/supabase/client';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import LeagueHub from '../../components/leagues/LeagueHub';
 import { getPickResult } from '@/utils/scoring';
-import { Shirt, Shield, Star, Crown } from 'lucide-react';
+import { Shirt, Shield, Star, Crown, Trophy } from 'lucide-react';
 
 const getLuminance = (hex: string) => {
   if (!hex) return 0;
@@ -45,19 +45,18 @@ export default function Dashboard() {
 
   const [favoriteTeamId, setFavoriteTeamId] = useState<number | string>('');
   
-  // Cores dinâmicas
   const [userColor, setUserColor] = useState(() => {
-  if (typeof window !== 'undefined') return localStorage.getItem('blitz_accent') || '#E31837';
-  return '#E31837';
-});
-const [ambientPrimary, setAmbientPrimary] = useState(() => {
-  if (typeof window !== 'undefined') return localStorage.getItem('blitz_header_bg') || '#013369';
-  return '#013369';
-});
-const [ambientSecondary, setAmbientSecondary] = useState(() => {
-  if (typeof window !== 'undefined') return localStorage.getItem('blitz_header_sec') || '#E31837';
-  return '#E31837';
-});
+    if (typeof window !== 'undefined') return localStorage.getItem('blitz_accent') || '#E31837';
+    return '#E31837';
+  });
+  const [ambientPrimary, setAmbientPrimary] = useState(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('blitz_header_bg') || '#013369';
+    return '#013369';
+  });
+  const [ambientSecondary, setAmbientSecondary] = useState(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('blitz_header_sec') || '#E31837';
+    return '#E31837';
+  });
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -98,14 +97,15 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
         setFavoriteTeamId(profile.favorite_team_id);
       }
 
-      const [resTeams, resStandings, resGames, resGuesses, resMembers, resUsers, resChamps] = await Promise.all([
+      const [resTeams, resStandings, resGames, resGuesses, resUsers, resChamps, resMembers, resLeagues] = await Promise.all([
         supabase.from('teams').select('*'),
         supabase.from('standings').select('*'),
         supabase.from('games').select('*, stadium(name, city)').order('game_time', { ascending: true }),
         supabase.from('guesses').select('*'),
-        supabase.from('league_members').select('league_id, user_id, leagues(*)'),
         supabase.from('profiles').select('id, nickname, score, global_titles, is_test, teams ( logo_url, abbreviation )'),
-        supabase.from('championships').select('*')
+        supabase.from('championships').select('*'),
+        supabase.from('league_members').select('league_id, user_id'),
+        supabase.from('leagues').select('*')
       ]);
 
       if (resChamps.data) setChampionships(resChamps.data);
@@ -126,9 +126,6 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
       });
       setTeamsDataMap(tMap);
 
-      const savedAccent = localStorage.getItem('blitz_accent');
-      if (savedAccent && !profile.favorite_team_id) setUserColor(savedAccent);
-
       if (resGames.data && resGames.data.length > 0) {
         setGames(resGames.data);
         if (profile.favorite_team_id) {
@@ -148,18 +145,19 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
       setAllGuesses(resGuesses.data || []);
       setAllUsers((resUsers.data || []).filter(u => !u.is_test));
 
-      if (resMembers.data) {
-        const leaguesMap: Record<string, string[]> = {};
+      if (resMembers.data && resLeagues.data) {
+        const lMap: Record<string, string[]> = {};
         const userLeaguesTemp: any[] = [];
         resMembers.data.forEach((m: any) => {
-          if (!leaguesMap[m.league_id]) leaguesMap[m.league_id] = [];
-          leaguesMap[m.league_id].push(m.user_id);
+          if (!lMap[m.league_id]) lMap[m.league_id] = [];
+          lMap[m.league_id].push(m.user_id);
+          
           if (m.user_id === session.user.id) {
-            const f = m.leagues;
-            if (f) userLeaguesTemp.push(Array.isArray(f) ? f[0] : f);
+            const found = resLeagues.data.find(l => l.id === m.league_id);
+            if (found) userLeaguesTemp.push(found);
           }
         });
-        setLeagueMembersMap(leaguesMap);
+        setLeagueMembersMap(lMap);
         setMyLeagues(userLeaguesTemp);
       }
 
@@ -167,6 +165,32 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
     }
     loadDashboardData();
   }, [router, supabase]);
+
+  useEffect(() => {
+    if (activeDashboardTab === 'locker' && currentUserId && !loading) {
+      async function refreshLeagues() {
+        const [resMembers, resLeagues] = await Promise.all([
+          supabase.from('league_members').select('league_id, user_id'),
+          supabase.from('leagues').select('*')
+        ]);
+        if (resMembers.data && resLeagues.data) {
+          const lMap: Record<string, string[]> = {};
+          const userLeaguesTemp: any[] = [];
+          resMembers.data.forEach((m: any) => {
+            if (!lMap[m.league_id]) lMap[m.league_id] = [];
+            lMap[m.league_id].push(m.user_id);
+            if (m.user_id === currentUserId) {
+              const found = resLeagues.data.find(l => l.id === m.league_id);
+              if (found) userLeaguesTemp.push(found);
+            }
+          });
+          setLeagueMembersMap(lMap);
+          setMyLeagues(userLeaguesTemp);
+        }
+      }
+      refreshLeagues();
+    }
+  }, [activeDashboardTab, currentUserId, supabase]);
 
   const handlePickChange = (gameId: string | number, homeStr: string, awayStr: string) => {
     const gId = gameId.toString();
@@ -205,8 +229,17 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
     }
   };
 
+  // Garante que o Contexto é seguro (evita o bug de 0 pontos se a liga for apagada)
   const activeContextLeague = myLeagues.find(l => l.id === contextLeagueId);
+  const safeContextLeagueId = activeContextLeague ? activeContextLeague.id : null;
   const currentRules = activeContextLeague ? { exact: activeContextLeague.pts_exact, diff: activeContextLeague.pts_diff, winner: activeContextLeague.pts_winner } : undefined;
+
+  // Limpa o cache se o ID for inválido (ex: a liga foi apagada noutro dispositivo)
+  useEffect(() => {
+    if (!loading && contextLeagueId && !activeContextLeague) {
+      setContextLeagueId(null);
+    }
+  }, [loading, contextLeagueId, activeContextLeague]);
 
   const isSeasonOver = useMemo(() => {
     return games.length > 0 && games.every(g => g.status === 'finished');
@@ -215,7 +248,7 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
   const leagueWinner = useMemo(() => {
     if (!isSeasonOver || !allUsers.length) return null;
     const rulesToUse = currentRules || { exact: 7, diff: 5, winner: 3 };
-    const validUserIds = contextLeagueId ? (leagueMembersMap[contextLeagueId] || []) : allUsers.map(u => u.id);
+    const validUserIds = safeContextLeagueId ? (leagueMembersMap[safeContextLeagueId] || []) : allUsers.map(u => u.id);
     const competingUsers = allUsers.filter(u => validUserIds.includes(u.id));
 
     const scores = competingUsers.map(user => {
@@ -230,20 +263,40 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
 
     scores.sort((a, b) => b.total - a.total);
     return scores[0] || null;
-  }, [isSeasonOver, contextLeagueId, currentRules, allUsers, allGuesses, games, leagueMembersMap]);
+  }, [isSeasonOver, safeContextLeagueId, currentRules, allUsers, allGuesses, games, leagueMembersMap]);
 
-  const dynamicScore = useMemo(() => {
-    if (!games.length || !myGuesses.length) return 0;
-    let total = 0;
+  const { dynamicScore, currentContextRank } = useMemo(() => {
+    let myScore = 0;
+    let myRank = null;
+
+    if (!games.length || !allUsers.length || !currentUserId) return { dynamicScore: 0, currentContextRank: null };
+
     const rulesToUse = currentRules || { exact: 7, diff: 5, winner: 3 };
-    myGuesses.forEach(guess => {
-      const game = games.find(g => g.id.toString() === guess.game_id.toString());
-      if (game && (game.status === 'finished' || game.status === 'in_progress')) {
-        total += getPickResult(game, guess, rulesToUse).points;
-      }
+    const validUserIds = safeContextLeagueId ? (leagueMembersMap[safeContextLeagueId] || []) : allUsers.map(u => u.id);
+    const competingUsers = allUsers.filter(u => validUserIds.includes(u.id));
+
+    const scores = competingUsers.map(user => {
+      let total = 0;
+      const uGuesses = allGuesses.filter(g => g.user_id === user.id);
+      uGuesses.forEach(guess => {
+        const game = games.find(g => g.id === guess.game_id);
+        if (game && (game.status === 'finished' || game.status === 'in_progress')) {
+          total += getPickResult(game, guess, rulesToUse).points;
+        }
+      });
+      return { id: user.id, total };
     });
-    return total;
-  }, [games, myGuesses, currentRules]);
+
+    scores.sort((a, b) => b.total - a.total);
+    
+    const rankIndex = scores.findIndex(u => u.id === currentUserId);
+    if (rankIndex !== -1) {
+      myRank = rankIndex + 1;
+      myScore = scores[rankIndex].total;
+    }
+
+    return { dynamicScore: myScore, currentContextRank: myRank };
+  }, [games, allGuesses, allUsers, currentRules, safeContextLeagueId, currentUserId, leagueMembersMap]);
 
   useEffect(() => {
     async function recordChampionship() {
@@ -253,49 +306,44 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
       const seasonYear = firstGameTime ? new Date(firstGameTime).getFullYear() : new Date().getFullYear();
 
       const { data, error } = await supabase.from('championships').insert({
-        league_id: contextLeagueId || null,
+        league_id: safeContextLeagueId || null,
         winner_id: leagueWinner.id,
         season_year: seasonYear
       }).select().single();
 
       if (!error && data) {
         setChampionships(prev => [...prev, data]);
-        if (!contextLeagueId) {
+        if (!safeContextLeagueId) {
           setAllUsers(prev => prev.map(u => u.id === leagueWinner.id ? { ...u, global_titles: (u.global_titles || 0) + 1 } : u));
         }
       }
     }
     recordChampionship();
-  }, [isSeasonOver, leagueWinner, contextLeagueId, games, supabase]);
-
+  }, [isSeasonOver, leagueWinner, safeContextLeagueId, games, supabase]);
 
   if (loading) return <LoadingScreen />;
 
   const currentWeekGames = games.filter(game => game.week?.toString() === currentWeek.toString());
-  
   const isCurrentUserWinner = leagueWinner?.id === currentUserId;
-
-  const leagueWinsCount = contextLeagueId ? championships.filter(c => c.league_id === contextLeagueId && c.winner_id === leagueWinner?.id).length : 0;
+  const leagueWinsCount = safeContextLeagueId ? championships.filter(c => c.league_id === safeContextLeagueId && c.winner_id === leagueWinner?.id).length : 0;
+  
+  const rankSuffix = currentContextRank === 1 ? 'ST' : currentContextRank === 2 ? 'ND' : currentContextRank === 3 ? 'RD' : 'TH';
 
   return (
-    // Retirei o overflow-hidden principal para que o botão flutuante possa escapar de qualquer limite
-    <main className="min-h-screen bg-[#050505] text-white font-sans pb-40 sm:pb-48 lg:pb-56 relative">
+    <main className="min-h-screen bg-[#050505] text-white font-sans pb-40 sm:pb-48 lg:pb-56 relative overflow-hidden">
       
-      {/* Container exclusivo para o fundo com overflow-hidden, garantindo que as luzes não criem barra de rolagem */}
-      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
-        <div 
-          className="absolute -top-32 -left-32 w-[600px] h-[600px] rounded-full blur-[150px] opacity-30 transition-colors duration-1000"
-          style={{ backgroundColor: ambientPrimary }}
-        />
-        <div 
-          className="absolute -bottom-32 -right-32 w-[600px] h-[600px] rounded-full blur-[150px] opacity-20 transition-colors duration-1000"
-          style={{ backgroundColor: ambientSecondary }}
-        />
-        <div 
-          className="absolute inset-0 opacity-20 mix-blend-overlay"
-          style={{ backgroundImage: 'repeating-linear-gradient(-45deg, transparent, transparent 4px, rgba(255,255,255,0.05) 4px, rgba(255,255,255,0.05) 8px)' }}
-        />
-      </div>
+      <div 
+        className="absolute -top-32 -left-32 w-[600px] h-[600px] rounded-full blur-[150px] opacity-30 pointer-events-none z-0 transition-colors duration-1000"
+        style={{ backgroundColor: ambientPrimary }}
+      />
+      <div 
+        className="absolute -bottom-32 -right-32 w-[600px] h-[600px] rounded-full blur-[150px] opacity-20 pointer-events-none z-0 transition-colors duration-1000"
+        style={{ backgroundColor: ambientSecondary }}
+      />
+      <div 
+        className="absolute inset-0 z-0 pointer-events-none opacity-20 mix-blend-overlay"
+        style={{ backgroundImage: 'repeating-linear-gradient(-45deg, transparent, transparent 4px, rgba(255,255,255,0.05) 4px, rgba(255,255,255,0.05) 8px)' }}
+      />
 
       <div className="relative z-10">
         <Header />
@@ -322,25 +370,79 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
           {activeDashboardTab === 'locker' ? (
             <div className="space-y-8 animate-fadeIn">
               
+              {/* O NOVO BANNER CONTEXTUAL COMPACTO E INTELIGENTE */}
+              <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg">
+                
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center border shadow-inner shrink-0" style={{ backgroundColor: `${userColor}20`, borderColor: `${userColor}50` }}>
+                    <Trophy style={{ color: userColor }} size={16} className="drop-shadow-md" />
+                  </div>
+                  <div className="flex flex-col flex-1">
+                    <span className="font-sans text-[8px] font-black text-gray-500 uppercase tracking-widest mb-0.5">Scoring Context</span>
+                    
+                    {myLeagues.length > 0 ? (
+                      <select
+                        className="bg-transparent font-sport font-bold text-sm sm:text-base uppercase tracking-wider text-white focus:outline-none appearance-none pr-6 cursor-pointer drop-shadow-md w-full"
+                        value={safeContextLeagueId || 'global'}
+                        onChange={e => setContextLeagueId(e.target.value === 'global' ? null : e.target.value)}
+                        style={{ 
+                          backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`, 
+                          backgroundRepeat: 'no-repeat', 
+                          backgroundPosition: 'right center', 
+                          backgroundSize: '1em' 
+                        }}
+                      >
+                        <option className="bg-[#111111]" value="global">Global Leaderboard (7/5/3)</option>
+                        {myLeagues.map(league => (
+                          <option className="bg-[#111111]" key={league.id} value={league.id}>
+                            {league.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="font-sport font-bold text-sm sm:text-base uppercase tracking-wider text-white drop-shadow-md pt-0.5">
+                        Global Leaderboard (7/5/3)
+                      </span>
+                    )}
+
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-5 bg-white/5 border border-white/10 px-5 py-2.5 rounded-xl shadow-inner w-full sm:w-auto justify-around sm:justify-end">
+                  <div className="flex flex-col items-center">
+                    <span className="font-sans text-[8px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Rank</span>
+                    <div className="flex items-baseline leading-none">
+                      <span className="font-jersey text-xl sm:text-2xl text-white drop-shadow-md">{currentContextRank || '-'}</span>
+                      {currentContextRank && <span className="font-sans text-[9px] font-black text-gray-500 ml-0.5">{rankSuffix}</span>}
+                    </div>
+                  </div>
+                  <div className="w-[1px] h-7 bg-white/10" />
+                  <div className="flex flex-col items-center">
+                    <span className="font-sans text-[8px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Points</span>
+                    <span className="font-jersey text-xl sm:text-2xl leading-none drop-shadow-md" style={{ color: userColor }}>{dynamicScore}</span>
+                  </div>
+                </div>
+
+              </div>
+
               {isSeasonOver && leagueWinner && (
                 <div className={`w-full backdrop-blur-2xl border-2 rounded-3xl p-6 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-2xl ${isCurrentUserWinner ? 'bg-gradient-to-br from-amber-500/20 via-yellow-600/10 to-amber-500/20 border-yellow-500/30 shadow-[0_0_40px_rgba(245,158,11,0.2)]' : 'bg-black/60 border-white/10'}`}>
                   <div className="flex items-center gap-4 text-center sm:text-left flex-col sm:flex-row">
-                    <span className="text-2xl animate-bounce drop-shadow-md">
+                    <span className="text-4xl animate-bounce drop-shadow-md">
                       {isCurrentUserWinner ? <Crown size={42} className="text-yellow-400" /> : <Star size={42} className="text-slate-400" />}
                     </span>
                     <div>
-                      <h2 className={`font-jersey text-2xl sm:text-2xl uppercase tracking-wider leading-none mb-1 ${isCurrentUserWinner ? 'text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.6)]' : 'text-slate-300'}`}>
+                      <h2 className={`font-jersey text-3xl sm:text-4xl uppercase tracking-wider leading-none mb-1 ${isCurrentUserWinner ? 'text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.6)]' : 'text-slate-300'}`}>
                         {isCurrentUserWinner ? "Congratulations, Champion!" : "Season Finished!"}
                       </h2>
                       <p className="font-sans text-[10px] sm:text-xs font-black text-gray-400 uppercase tracking-widest">
-                        {contextLeagueId ? `League "${activeContextLeague?.name}"` : "Official Global Board"}
+                        {safeContextLeagueId ? `League "${activeContextLeague?.name}"` : "Official Global Board"}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 bg-black/60 px-5 py-3 border border-white/10 rounded-2xl shadow-inner">
                     {leagueWinner.teams?.logo_url && <img src={leagueWinner.teams.logo_url} className="w-10 h-10 object-contain drop-shadow-lg" alt="" />}
                     <div className="flex flex-col">
-                      
                       <span className="font-sport text-lg sm:text-xl font-bold uppercase tracking-wider text-white flex flex-wrap items-center gap-2 leading-none pb-1">
                         {leagueWinner.nickname}
                         <div className="flex items-center gap-1">
@@ -349,14 +451,13 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
                               <Crown size={10} /> x{leagueWinner.global_titles}
                             </span>
                           )}
-                          {contextLeagueId && leagueWinsCount > 0 && (
+                          {safeContextLeagueId && leagueWinsCount > 0 && (
                             <span className="font-sans text-[8px] font-black text-slate-300 bg-slate-500/10 border border-slate-400/20 px-1.5 py-0.5 rounded inline-flex items-center gap-1 shadow-sm">
                               <Star size={10} /> x{leagueWinsCount}
                             </span>
                           )}
                         </div>
                       </span>
-                      
                       <span className="font-sans text-[9px] font-black text-gray-500 uppercase tracking-widest">{leagueWinner.total} TOTAL PTS</span>
                     </div>
                   </div>
@@ -368,61 +469,13 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
               <div className="space-y-4">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-white/10 pb-4 gap-4">
                   <div>
-                    <h2 className="font-jersey text-2xl sm:text-5xl uppercase tracking-widest text-white drop-shadow-md">
+                    <h2 className="font-jersey text-3xl sm:text-4xl uppercase tracking-widest text-white drop-shadow-md">
                       WEEK <span style={{ color: userColor }}>{currentWeek}</span>
                     </h2>
                     <p className="font-sans text-[10px] sm:text-xs font-black text-gray-500 uppercase tracking-widest mt-1">
-                      Current active week board inside your locker room.
+                      Cards are scoring based on your active context.
                     </p>
                   </div>
-                  
-                  {myLeagues.length > 0 && (
-                    <div className="flex items-center gap-3 bg-black/60 backdrop-blur-md border border-white/10 rounded-xl p-2 w-full sm:w-auto shadow-inner">
-                      <span className="font-sans text-[9px] font-black text-gray-500 uppercase tracking-widest pl-2">Rules:</span>
-                      <select
-                        className="bg-transparent font-sport font-bold text-sm sm:text-base uppercase tracking-wider text-white focus:outline-none appearance-none pr-8 cursor-pointer drop-shadow-md"
-                        value={contextLeagueId || 'global'}
-                        onChange={e => setContextLeagueId(e.target.value === 'global' ? null : e.target.value)}
-                        style={{ 
-                          backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`, 
-                          backgroundRepeat: 'no-repeat', 
-                          backgroundPosition: 'right center', 
-                          backgroundSize: '1em' 
-                        }}
-                      >
-                        <option className="bg-[#111111]" value="global">GLOBAL (7/5/3)</option>
-                        {myLeagues.map(league => {
-                          const membersInLeague = leagueMembersMap[league.id] || [];
-                          const usersInLeague = allUsers.filter(u => membersInLeague.includes(u.id));
-                          
-                          const rules = {
-                            exact: league.pts_exact ?? 7,
-                            diff: league.pts_diff ?? 5,
-                            winner: league.pts_winner ?? 3
-                          };
-
-                          const sorted = usersInLeague.map(u => {
-                            let score = 0;
-                            allGuesses.filter(g => g.user_id === u.id).forEach(guess => {
-                              const game = games.find(g => g.id === guess.game_id);
-                              if (game) score += getPickResult(game, guess, rules).points;
-                            });
-                            return { id: u.id, score };
-                          }).sort((a, b) => b.score - a.score);
-
-                          const userIndex = sorted.findIndex(u => u.id === currentUserId);
-                          const pos = userIndex + 1;
-                          const posSuffix = pos === 1 ? 'ST' : pos === 2 ? 'ND' : pos === 3 ? 'RD' : 'TH';
-                          const rankDisplay = userIndex !== -1 ? ` [${pos}${posSuffix}]` : '';
-                          return (
-                            <option className="bg-[#111111]" key={league.id} value={league.id}>
-                              {league.name}  {rankDisplay}
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </div>
-                  )}
                 </div>
 
                 {currentWeekGames.length === 0 ? (
@@ -453,41 +506,39 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
             </div>
           )}
         </div>
-      </div>
 
-      {/* Flutuante - Lock Picks: MOVIDO PARA FORA DO Z-10, E COM Z-INDEX MÁXIMO E POSIÇÃO ELEVADA NO DESKTOP */}
-      {Object.keys(draftPicks).length > 0 && activeDashboardTab === 'locker' && (
-        <div 
-          className="fixed bottom-6 sm:bottom-10 lg:bottom-12 left-1/2 -translate-x-1/2 w-[90%] max-w-md animate-slideUp"
-          style={{ zIndex: 999999 }}
-        >
+        {Object.keys(draftPicks).length > 0 && activeDashboardTab === 'locker' && (
           <div 
-            className="bg-black/95 backdrop-blur-3xl border-t-4 rounded-3xl p-4 sm:p-5 flex items-center justify-between gap-4 transition-all duration-300 shadow-[0_25px_60px_rgba(0,0,0,0.9)]" 
-            style={{ borderTopColor: saveStatus === 'error' ? '#ef4444' : userColor }}
+            className="fixed bottom-24 sm:bottom-16 lg:bottom-12 left-1/2 -translate-x-1/2 w-[90%] max-w-md animate-slideUp"
+            style={{ zIndex: 999999 }}
           >
-            <div className="flex flex-col gap-1 pl-2">
-              <span 
-                className="font-sans text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-colors duration-300" 
-                style={{ color: saveStatus === 'error' ? '#ef4444' : userColor, textShadow: saveStatus !== 'error' ? `0 0 10px ${userColor}80` : 'none' }}
-              >
-                {saveStatus === 'error' ? 'Sync Failed' : 'Unsaved Changes'}
-              </span>
-              <span className="font-sport font-bold text-base sm:text-xl text-white uppercase tracking-wider drop-shadow-md">
-                {Object.keys(draftPicks).length} Pick(s) pending
-              </span>
-            </div>
-            <button 
-              onClick={handleSaveAll} 
-              disabled={saveStatus === 'saving'} 
-              className="px-5 sm:px-6 py-3 sm:py-3.5 rounded-xl font-sport font-bold text-base sm:text-lg uppercase tracking-wider transition-all shadow-xl hover:scale-105 disabled:opacity-50 text-black flex items-center justify-center min-w-[110px] sm:min-w-[120px]" 
-              style={{ backgroundColor: saveStatus === 'error' ? '#ef4444' : userColor, boxShadow: `0 0 20px ${saveStatus === 'error' ? '#ef444450' : userColor + '50'}` }}
+            <div 
+              className="bg-black/95 backdrop-blur-3xl border-t-4 rounded-3xl p-4 sm:p-5 flex items-center justify-between gap-4 transition-all duration-300 shadow-[0_25px_60px_rgba(0,0,0,0.9)]" 
+              style={{ borderTopColor: saveStatus === 'error' ? '#ef4444' : userColor }}
             >
-              {saveStatus === 'saving' ? 'LOCKING...' : saveStatus === 'error' ? 'TRY AGAIN' : 'LOCK ALL'}
-            </button>
+              <div className="flex flex-col gap-1 pl-2">
+                <span 
+                  className="font-sans text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-colors duration-300" 
+                  style={{ color: saveStatus === 'error' ? '#ef4444' : userColor, textShadow: saveStatus !== 'error' ? `0 0 10px ${userColor}80` : 'none' }}
+                >
+                  {saveStatus === 'error' ? 'Sync Failed' : 'Unsaved Changes'}
+                </span>
+                <span className="font-sport font-bold text-base sm:text-xl text-white uppercase tracking-wider drop-shadow-md">
+                  {Object.keys(draftPicks).length} Pick(s) pending
+                </span>
+              </div>
+              <button 
+                onClick={handleSaveAll} 
+                disabled={saveStatus === 'saving'} 
+                className="px-5 sm:px-6 py-3 sm:py-3.5 rounded-xl font-sport font-bold text-base sm:text-lg uppercase tracking-wider transition-all shadow-xl hover:scale-105 disabled:opacity-50 text-black flex items-center justify-center min-w-[110px] sm:min-w-[120px]" 
+                style={{ backgroundColor: saveStatus === 'error' ? '#ef4444' : userColor, boxShadow: `0 0 20px ${saveStatus === 'error' ? '#ef444450' : userColor + '50'}` }}
+              >
+                {saveStatus === 'saving' ? 'LOCKING...' : saveStatus === 'error' ? 'TRY AGAIN' : 'LOCK ALL'}
+              </button>
+            </div>
           </div>
-        </div>
-      )}
-
+        )}
+      </div>
     </main>
   );
 }
