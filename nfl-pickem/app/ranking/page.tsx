@@ -7,7 +7,7 @@ import { createClient } from '../../utils/supabase/client';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { getPickResult } from '@/utils/scoring';
 import SpyLockerRoom from '../../components/scoreboard/SpyLockerRoom';
-import { Calendar, Scale, Trophy, Eye, ChevronUp, Crown, Binoculars, Circle } from 'lucide-react';
+import { Calendar, Scale, Trophy, Eye, ChevronUp, Crown, Binoculars, Circle, Lock } from 'lucide-react';
 
 const PLAYOFF_ORDER = ['WC', 'DR', 'CC', 'SB'];
 const PLAYOFF_NAMES: Record<string, string> = {
@@ -38,18 +38,19 @@ export default function RankingPage() {
   const supabase = createClient();
 
   const [activeTab, setActiveTab] = useState<'ranking' | 'spy'>('ranking');
-const [userColor, setUserColor] = useState(() => {
-  if (typeof window !== 'undefined') return localStorage.getItem('blitz_accent') || '#E31837';
-  return '#E31837';
-});
-const [ambientPrimary, setAmbientPrimary] = useState(() => {
-  if (typeof window !== 'undefined') return localStorage.getItem('blitz_header_bg') || '#013369';
-  return '#013369';
-});
-const [ambientSecondary, setAmbientSecondary] = useState(() => {
-  if (typeof window !== 'undefined') return localStorage.getItem('blitz_header_sec') || '#E31837';
-  return '#E31837';
-});
+  
+  const [userColor, setUserColor] = useState(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('blitz_accent') || '#E31837';
+    return '#E31837';
+  });
+  const [ambientPrimary, setAmbientPrimary] = useState(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('blitz_header_bg') || '#013369';
+    return '#013369';
+  });
+  const [ambientSecondary, setAmbientSecondary] = useState(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('blitz_header_sec') || '#E31837';
+    return '#E31837';
+  });
   
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -178,15 +179,15 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
     const weekTitle = isPlayoffWeek ? PLAYOFF_NAMES[week] : `Week ${week}`;
 
     return (
-      <div key={week} className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl transition-all">
+      <div key={week} className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-3xl overflow-hidden shadow-2xl transition-all">
         <button 
           onClick={() => setExpandedWeek(isOpen ? null : week)} 
-          className="w-full flex justify-between items-center p-4 sm:p-5 hover:bg-white/5 transition-colors text-left border-b border-transparent relative z-10"
+          className="w-full flex justify-between items-center p-4 sm:p-5 hover:bg-white/[0.03] transition-colors text-left border-b border-transparent relative z-10"
           style={isOpen ? { borderBottomColor: 'rgba(255,255,255,0.05)' } : {}}
         >
           <div className="flex items-center gap-3 sm:gap-4">
             <Calendar size={20} className={isPlayoffWeek ? 'text-amber-500' : 'text-gray-400'} />
-            <span className={`font-jersey text-xl sm:text-2xl uppercase tracking-widest leading-none pt-1 ${isPlayoffWeek ? 'text-amber-500 drop-shadow-md' : 'text-white'}`}>
+            <span className={`font-jersey text-2xl sm:text-3xl uppercase tracking-widest leading-none pt-1 ${isPlayoffWeek ? 'text-amber-500 drop-shadow-md' : 'text-white'}`}>
               {weekTitle}
             </span>
             
@@ -202,7 +203,7 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
         </button>
 
         {isOpen && (
-          <div className="bg-black/20 p-3 sm:p-5 space-y-6 animate-fadeIn relative z-0 shadow-inner">
+          <div className="bg-black/20 p-4 sm:p-6 space-y-6 animate-fadeIn relative z-0 shadow-inner">
             {weekGames.map(game => {
               const awayTeam = teamsMap[game.away_team_id?.toString()];
               const homeTeam = teamsMap[game.home_team_id?.toString()];
@@ -230,11 +231,15 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
               const formattedDate = gDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
               const formattedTime = gDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 
+              // Lógica da Trava (10 min antes do jogo) para esconder os escores dos outros
+              const nowMs = new Date().getTime();
+              const isRevealedForEveryone = (gDate.getTime() - nowMs) <= 10 * 60 * 1000;
+
               return (
-                <div key={game.id} className="rounded-xl border border-white/5 bg-black/40 overflow-visible shadow-lg">
+                <div key={game.id} className="rounded-2xl border border-white/10 bg-black/60 backdrop-blur-md overflow-hidden shadow-xl">
                   
                   {/* Game Header */}
-                  <div className="flex flex-col xl:flex-row xl:items-center justify-between p-3 sm:p-4 bg-black/60 border-b border-white/5 gap-4">
+                  <div className="flex flex-col xl:flex-row xl:items-center justify-between p-4 sm:p-5 bg-black/80 border-b border-white/5 gap-4 shadow-inner">
                     <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 shrink-0 overflow-hidden">
                       <div className="flex flex-col text-left justify-center min-w-[90px] border-l-2 border-[#E31837] pl-3 sm:border-r sm:border-white/10 sm:pr-5 sm:border-l-0 shrink-0">
                         <span className="font-sans text-[10px] font-black uppercase text-gray-400 tracking-widest leading-none mb-1">{formattedDate}</span>
@@ -250,17 +255,18 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
 
                       <div className="flex items-center gap-3 sm:gap-4 truncate">
                         {awayTeam?.logo && <img src={awayTeam.logo} alt="" className="w-6 h-6 sm:w-8 sm:h-8 object-contain shrink-0 drop-shadow-lg" />}
-                        <span className="font-sport font-bold text-sm sm:text-base text-gray-300 uppercase truncate tracking-wider">{awayTeam?.name?.split(' ').pop() || awayTeam?.abbr}</span>
+                        <span className="font-sport font-bold text-sm sm:text-base text-gray-300 uppercase truncate tracking-wider" style={{color: awayTeam?.color}}>{awayTeam?.name?.split(' ').pop() || awayTeam?.abbr}</span>
                         <span className={`ml-1 font-jersey text-xl sm:text-2xl leading-none pt-1 ${hasStarted ? 'text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]' : 'text-gray-600'}`}>{hasStarted ? game.away_score : '-'}</span>
                         
                         <span className="font-sans font-black text-gray-600 text-[10px] mx-1 sm:mx-2 shrink-0">VS</span>
                         
                         <span className={`mr-1 font-jersey text-xl sm:text-2xl leading-none pt-1 ${hasStarted ? 'text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]' : 'text-gray-600'}`}>{hasStarted ? game.home_score : '-'}</span>
-                        <span className="font-sport font-bold text-sm sm:text-base text-gray-300 uppercase truncate tracking-wider">{homeTeam?.name?.split(' ').pop() || homeTeam?.abbr}</span>
+                        <span className="font-sport font-bold text-sm sm:text-base text-gray-300 uppercase truncate tracking-wider text-right" style={{color: homeTeam?.color}}>{homeTeam?.name?.split(' ').pop() || homeTeam?.abbr}</span>
                         {homeTeam?.logo && <img src={homeTeam.logo} alt="" className="w-6 h-6 sm:w-8 sm:h-8 object-contain shrink-0 drop-shadow-lg" />}
                       </div>
                     </div>
 
+                    {/* Votação Global */}
                     <div className="flex items-center justify-start xl:justify-end gap-2 font-sans text-[9px] font-black tracking-widest uppercase mt-2 xl:mt-0 shrink-0">
                        <div className="flex items-center gap-1.5 bg-black/60 px-2.5 py-1.5 rounded-lg border border-white/5 shadow-inner">
                          <span className="text-gray-500">{awayTeam?.abbr || 'AWAY'}</span>
@@ -282,7 +288,7 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
                   {/* Users Picks Grid */}
                   <div className="p-4 sm:p-6 bg-[#050505]/50 backdrop-blur-sm">
                     {sortedGuesses.length === 0 ? (
-                      <div className="text-center font-sans text-[9px] font-black uppercase tracking-widest text-gray-600 py-4">
+                      <div className="text-center font-sans text-[10px] font-black uppercase tracking-widest text-gray-600 py-4">
                         No predictions yet.
                       </div>
                     ) : (
@@ -291,6 +297,9 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
                           const pts = getPickResult(game, guess).points;
                           const userObj = usersMap[guess.user_id] || { nickname: 'N/A', logoUrl: null };
                           
+                          // Regra: Pode ver se faltam 10min pro jogo OU se for o próprio usuário
+                          const isRevealed = isRevealedForEveryone || guess.user_id === currentUserId;
+
                           let pickedLogo = null;
                           if (guess.away_guess > guess.home_guess) { pickedLogo = awayTeam?.logo; }
                           else if (guess.home_guess > guess.away_guess) { pickedLogo = homeTeam?.logo; }
@@ -321,15 +330,29 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
                                 <span className="font-sport font-bold text-[10px] sm:text-xs text-white uppercase tracking-wider truncate w-full text-center z-10 mb-1 drop-shadow-md" title={userObj.nickname}>
                                   {userObj.nickname}
                                 </span>
-                                <span className={`font-sans text-[9px] sm:text-[10px] font-black uppercase tracking-widest z-10 leading-none mb-3 ${ptsColor}`}>
-                                  {hasStarted ? `+${pts} pts` : 'pending'}
-                                </span>
-                                {/* Aqui a fonte jersey agora usa text-base ou text-lg, em vez de 2xl, evitando quebrar caixas */}
-                                <div className="flex items-center gap-1.5 sm:gap-2 z-10 leading-none bg-[#050505] px-2 py-1.5 sm:py-2 rounded-xl border border-white/10 shadow-inner w-[95%] justify-center mt-auto">
-                                  <span className="font-jersey text-base sm:text-lg text-white pt-1">{guess.away_guess}</span>
-                                  <span className="font-sans text-[8px] text-gray-600 font-black">X</span>
-                                  <span className="font-jersey text-base sm:text-lg text-white pt-1">{guess.home_guess}</span>
-                                </div>
+                                
+                                {isRevealed ? (
+                                  <>
+                                    <span className={`font-sans text-[9px] sm:text-[10px] font-black uppercase tracking-widest z-10 leading-none mb-3 ${ptsColor}`}>
+                                      {hasStarted ? `+${pts} pts` : 'pending'}
+                                    </span>
+                                    <div className="flex items-center gap-1.5 sm:gap-2 z-10 leading-none bg-[#050505] px-2 py-1.5 sm:py-2 rounded-xl border border-white/10 shadow-inner w-[95%] justify-center mt-auto">
+                                      <span className="font-jersey text-base sm:text-lg text-white pt-1">{guess.away_guess}</span>
+                                      <span className="font-sans text-[8px] text-gray-600 font-black">X</span>
+                                      <span className="font-jersey text-base sm:text-lg text-white pt-1">{guess.home_guess}</span>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className={`font-sans text-[9px] sm:text-[10px] font-black uppercase tracking-widest z-10 leading-none mb-3 ${ptsColor}`}>
+                                      Locked
+                                    </span>
+                                    <div className="flex items-center gap-1.5 z-10 leading-none bg-black/60 px-2 py-1.5 sm:py-2 rounded-xl border border-white/5 shadow-inner w-[95%] justify-center mt-auto">
+                                      <Lock size={10} className="text-gray-500" />
+                                      <span className="font-sans text-[8px] font-black uppercase tracking-widest text-gray-500 pt-0.5">HIDDEN</span>
+                                    </div>
+                                  </>
+                                )}
                               </div>
                             </div>
                           );
@@ -372,7 +395,7 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
           
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-white/10 pb-6">
             <div>
-              <h1 className="font-jersey text-5xl sm:text-5xl tracking-widest text-white uppercase mb-1">
+              <h1 className="font-jersey text-4xl sm:text-5xl tracking-widest text-white uppercase mb-1 drop-shadow-md">
                 GLOBAL <span style={{ color: userColor, textShadow: `0 0 15px ${userColor}80` }}>ARENA</span>
               </h1>
               <p className="text-gray-400 font-sans text-xs sm:text-sm font-bold uppercase tracking-widest">Compare your picks and spy on the competition.</p>
@@ -424,7 +447,7 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
                           <React.Fragment key={user.id}>
                             <tr onClick={() => !isCurrentUser && setExpandedUserId(isExpanded ? null : user.id)} className={`transition-all ${!isCurrentUser ? 'cursor-pointer hover:bg-white/[0.03]' : ''} ${isCurrentUser ? 'bg-white/5' : ''} ${isExpanded ? 'bg-black/60 shadow-inner' : ''}`}>
                               <td className="px-6 py-5 text-center">
-                                <span className={`font-jersey text-2xl sm:text-2xl leading-none ${positionColor}`}>{index + 1}</span>
+                                <span className={`font-jersey text-2xl sm:text-3xl leading-none ${positionColor}`}>{index + 1}</span>
                               </td>
                               <td className="px-6 py-5">
                                 <div className="flex items-center gap-4">
@@ -443,7 +466,7 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
                               </td>
                               <td className="px-6 py-5 text-center">
                                 <div className="flex flex-col items-center justify-center">
-                                  <span className={`font-jersey text-2xl sm:text-2xl leading-none pt-1 ${user.projectedPoints > 0 ? 'text-green-400 drop-shadow-[0_0_10px_rgba(74,222,128,0.5)] animate-pulse' : 'text-white'}`}>{user.totalScore}</span>
+                                  <span className={`font-jersey text-2xl sm:text-3xl leading-none pt-1 ${user.projectedPoints > 0 ? 'text-green-400 drop-shadow-[0_0_10px_rgba(74,222,128,0.5)] animate-pulse' : 'text-white'}`}>{user.totalScore}</span>
                                   {user.projectedPoints > 0 && <span className="font-sans text-[8px] font-black uppercase text-green-500 tracking-widest mt-1">+{user.projectedPoints} Proj</span>}
                                 </div>
                               </td>
@@ -479,8 +502,8 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
             <div className="space-y-8 animate-fadeIn max-w-[1400px] mx-auto">
               {regularWeeks.length > 0 && (
                 <div>
-                  <h2 className="font-jersey text-2xl sm:text-2xl uppercase tracking-widest text-gray-500 mb-4 px-2 border-b border-white/5 pb-3">
-                    REGULAR <span className="text-white">SEASON</span>
+                  <h2 className="font-jersey text-3xl sm:text-4xl uppercase tracking-widest text-gray-500 mb-4 px-2 border-b border-white/5 pb-3">
+                    REGULAR <span className="text-white drop-shadow-md">SEASON</span>
                   </h2>
                   <div className="space-y-5">
                     {regularWeeks.map(renderWeekBlock)}
@@ -490,7 +513,7 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
 
               {playoffWeeks.length > 0 && (
                 <div className="pt-6">
-                  <h2 className="font-jersey text-2xl sm:text-2xl uppercase tracking-widest text-amber-500 mb-4 px-2 border-b border-amber-500/20 pb-3 drop-shadow-md">
+                  <h2 className="font-jersey text-3xl sm:text-4xl uppercase tracking-widest text-amber-500 mb-4 px-2 border-b border-amber-500/20 pb-3 drop-shadow-md">
                     PLAYOFFS
                   </h2>
                   <div className="space-y-5">
