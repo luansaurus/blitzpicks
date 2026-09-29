@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "../../utils/supabase/client";
-import { User, Activity, ArrowLeft, ChevronRight, ArrowUpDown, ChevronDown, ChevronUp } from "lucide-react";
+import { User, Activity, ArrowLeft, ChevronRight, ArrowUpDown, ChevronDown, ChevronUp, Calendar, Circle } from "lucide-react";
+import GameCard from "./GameCard";
 
 interface TeamStatsViewerProps {
   teamId: string;
   teamInfo: any;
+  userColor?: string;
 }
 
 type FullViewCategory = 'pass' | 'rush' | 'rec' | 'sack' | 'kick' | null;
@@ -21,16 +23,20 @@ const getLuminance = (hex: string) => {
   return ((r * 299) + (g * 587) + (b * 114)) / 1000;
 };
 
-export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerProps) {
+const getBestColor = (pri: string, sec: string) => {
+  const p = pri || '#111111';
+  const s = sec || '#ff2a2a';
+  return getLuminance(p) > getLuminance(s) ? p : s;
+};
+
+export default function TeamStatsViewer({ teamId, teamInfo, userColor }: TeamStatsViewerProps) {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'players' | 'team'>('players');
+  const [activeTab, setActiveTab] = useState<'players' | 'team' | 'games'>('players');
   const [fullViewCategory, setFullViewCategory] = useState<FullViewCategory>(null);
   
-  // Estado de Ordenação
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
 
-  // Reseta a ordenação quando a categoria muda
   useEffect(() => {
     setSortConfig(null);
   }, [fullViewCategory]);
@@ -41,11 +47,24 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
       setLoading(true);
       const supabase = createClient();
       
-      const { data: teamGames } = await supabase
-        .from('games')
-        .select('home_team_id, away_team_id, home_score, away_score, meta_data')
-        .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
-        .eq('status', 'finished');
+      const [{ data: teamGames }, { data: allTeams }, { data: seasonGames }] = await Promise.all([
+        supabase
+          .from('games')
+          .select('home_team_id, away_team_id, home_score, away_score, meta_data')
+          .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+          .eq('status', 'finished'),
+        supabase.from('teams').select('*'),
+        supabase
+          .from('games')
+          .select('*, stadium(name, city)')
+          .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+          .order('game_time', { ascending: true })
+      ]);
+
+      const tMap: Record<string, any> = {};
+      allTeams?.forEach(t => {
+        tMap[t.id.toString()] = { name: t.name, abbr: t.abbreviation, logo: t.logo_url, color: getBestColor(t.primary_color, t.secondary_color) };
+      });
 
       const players = { pass: {}, rush: {}, rec: {}, def: {}, kick: {} } as any;
 
@@ -205,13 +224,15 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
           kick: sortPlayers(players.kick, 'pts').filter(p => p.pts > 0)
         },
         tStats, oStats, 
-        teamDefTotals: { sacks: totalDefSacks, ints: totalDefInts, fums: totalDefFums }
+        teamDefTotals: { sacks: totalDefSacks, ints: totalDefInts, fums: totalDefFums },
+        seasonGames: seasonGames || [],
+        teamsMap: tMap
       });
       setLoading(false);
     }
     
     fetchTeamStats();
-  }, [teamId]);
+  }, [teamId, teamInfo]);
 
   const handleSort = (key: string) => {
     let direction: 'desc' | 'asc' = 'desc';
@@ -235,7 +256,7 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
     );
   }
 
-  const { tStats, oStats, fullPlayers, teamDefTotals } = stats;
+  const { tStats, oStats, fullPlayers, teamDefTotals, seasonGames, teamsMap } = stats;
   
   const teamPri = teamInfo?.primary_color || '#111111';
   const teamSec = teamInfo?.secondary_color || '#ff2a2a';
@@ -270,61 +291,60 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
           style={{ backgroundImage: 'repeating-linear-gradient(-45deg, transparent, transparent 4px, rgba(255,255,255,0.05) 4px, rgba(255,255,255,0.05) 8px)' }}
         />
         
-        <div className="p-4 sm:p-5 border-b border-white/10 bg-black/60 flex items-center justify-between relative z-10">
-          <div className="flex items-center gap-4">
+        <div className="p-3 sm:p-5 border-b border-white/10 bg-black/60 flex items-center justify-between relative z-10">
+          <div className="flex items-center gap-3 sm:gap-4">
             <button 
               onClick={() => setFullViewCategory(null)} 
-              className="p-2 hover:bg-white/10 rounded-xl text-gray-400 hover:text-white transition-all hover:scale-105"
+              className="p-1.5 sm:p-2 hover:bg-white/10 rounded-xl text-gray-400 hover:text-white transition-all hover:scale-105"
             >
-              <ArrowLeft size={20} />
+              <ArrowLeft size={18} />
             </button>
-            <h3 className="font-sport text-lg sm:text-xl font-bold uppercase tracking-widest text-white">{categoryTitles[fullViewCategory]}</h3>
+            <h3 className="font-sport text-base sm:text-xl font-bold uppercase tracking-widest text-white">{categoryTitles[fullViewCategory]}</h3>
           </div>
-          {teamInfo?.logo_url && <img src={teamInfo.logo_url} className="w-8 h-8 object-contain opacity-40 drop-shadow-lg" alt="" />}
+          {teamInfo?.logo_url && <img src={teamInfo.logo_url} className="w-6 h-6 sm:w-8 sm:h-8 object-contain opacity-40 drop-shadow-lg" alt="" />}
         </div>
         
-        <div className="overflow-x-auto relative z-10">
-          <table className="w-full text-left whitespace-nowrap min-w-[450px]">
+        <div className="overflow-x-auto relative z-10 custom-scrollbar">
+          <table className="w-full text-left whitespace-nowrap min-w-[300px] sm:min-w-[450px]">
             <thead>
-              <tr className="font-sans text-[10px] text-gray-500 uppercase tracking-widest border-b border-white/5 bg-black/40">
-                <th className="px-4 py-3 font-black w-10 text-center">RK</th>
-                <th className="px-4 py-3 font-black cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('name')}>
-                  <div className="flex items-center gap-1.5">Player {renderSortIcon('name')}</div>
+              <tr className="font-sans text-[8px] sm:text-[9px] text-gray-500 uppercase tracking-widest border-b border-white/5 bg-black/80">
+                <th className="sticky left-0 z-20 bg-[#0a0a0a] px-3 py-2 sm:px-4 sm:py-3 font-black cursor-pointer shadow-[4px_0_12px_rgba(0,0,0,0.6)] border-r border-white/5" onClick={() => handleSort('name')}>
+                  <div className="flex items-center gap-1.5">RK / Player {renderSortIcon('name')}</div>
                 </th>
                 {isOffense && (
                   <>
-                    <th className="px-4 py-3 font-black text-right cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('yds')}>
+                    <th className="px-3 py-2 sm:px-4 sm:py-3 font-black text-right cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('yds')}>
                       <div className="flex items-center justify-end gap-1.5">YDS {renderSortIcon('yds')}</div>
                     </th>
-                    <th className="px-4 py-3 font-black text-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('td')}>
+                    <th className="px-3 py-2 sm:px-4 sm:py-3 font-black text-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('td')}>
                       <div className="flex items-center justify-center gap-1.5">TD {renderSortIcon('td')}</div>
                     </th>
                     {fullViewCategory === 'pass' && (
-                      <th className="px-4 py-3 font-black text-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('int')}>
+                      <th className="px-3 py-2 sm:px-4 sm:py-3 font-black text-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('int')}>
                         <div className="flex items-center justify-center gap-1.5">INT {renderSortIcon('int')}</div>
                       </th>
                     )}
                     {fullViewCategory === 'rec' && (
-                      <th className="px-4 py-3 font-black text-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('rec')}>
+                      <th className="px-3 py-2 sm:px-4 sm:py-3 font-black text-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('rec')}>
                         <div className="flex items-center justify-center gap-1.5">REC {renderSortIcon('rec')}</div>
                       </th>
                     )}
                   </>
                 )}
                 {fullViewCategory === 'sack' && (
-                  <th className="px-4 py-3 font-black text-right cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('sack')}>
+                  <th className="px-3 py-2 sm:px-4 sm:py-3 font-black text-right cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('sack')}>
                     <div className="flex items-center justify-end gap-1.5">SACKS {renderSortIcon('sack')}</div>
                   </th>
                 )}
                 {fullViewCategory === 'kick' && (
                    <>
-                     <th className="px-4 py-3 font-black text-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('fgM')}>
+                     <th className="px-3 py-2 sm:px-4 sm:py-3 font-black text-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('fgM')}>
                        <div className="flex items-center justify-center gap-1.5">FG {renderSortIcon('fgM')}</div>
                      </th>
-                     <th className="px-4 py-3 font-black text-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('xpM')}>
+                     <th className="px-3 py-2 sm:px-4 sm:py-3 font-black text-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('xpM')}>
                        <div className="flex items-center justify-center gap-1.5">XP {renderSortIcon('xpM')}</div>
                      </th>
-                     <th className="px-4 py-3 font-black text-right cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('pts')}>
+                     <th className="px-3 py-2 sm:px-4 sm:py-3 font-black text-right cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('pts')}>
                        <div className="flex items-center justify-end gap-1.5">PTS {renderSortIcon('pts')}</div>
                      </th>
                    </>
@@ -333,28 +353,32 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
             </thead>
             <tbody className="divide-y divide-white/5 bg-black/20">
               {sortedDataList.length === 0 ? (
-                <tr><td colSpan={6} className="p-8 text-center text-gray-500 font-sans text-xs uppercase tracking-widest font-bold">No stats recorded</td></tr>
+                <tr><td colSpan={6} className="p-8 text-center text-gray-500 font-sans text-[10px] sm:text-xs uppercase tracking-widest font-bold">No stats recorded</td></tr>
               ) : (
                 sortedDataList.map((p: any, i: number) => (
                   <tr key={i} className="hover:bg-white/[0.04] transition-colors group">
-                    <td className="px-4 py-4 text-center font-sport text-gray-500 text-sm group-hover:text-white transition-colors">{i + 1}</td>
-                    <td className="px-4 py-4 text-white font-bold font-sport uppercase tracking-wider">{p.name}</td>
+                    <td className="sticky left-0 z-10 bg-[#0a0a0a] group-hover:bg-[#141414] px-3 py-2 sm:px-4 sm:py-3 shadow-[4px_0_12px_rgba(0,0,0,0.6)] border-r border-white/5 transition-colors">
+                      <div className="flex items-center gap-2 sm:gap-3 w-28 sm:w-40">
+                        <span className="font-sport text-gray-500 text-[9px] sm:text-[10px] w-3 sm:w-4 text-center shrink-0">{i + 1}</span>
+                        <span className="text-white font-bold font-sport uppercase tracking-wider text-[9px] sm:text-[10px] truncate leading-tight">{p.name}</span>
+                      </div>
+                    </td>
                     
                     {isOffense && (
                       <>
-                        <td className="px-4 py-4 text-right font-jersey text-xl" style={{ color: tColor, textShadow: `0 0 10px ${tColor}40` }}>{p.yds}</td>
-                        <td className="px-4 py-4 text-center font-jersey text-xl text-gray-300">{p.td}</td>
-                        {fullViewCategory === 'pass' && <td className="px-4 py-4 text-center font-jersey text-xl text-red-500/80">{p.int}</td>}
-                        {fullViewCategory === 'rec' && <td className="px-4 py-4 text-center font-jersey text-xl text-gray-500">{p.rec}</td>}
+                        <td className="px-3 py-2 sm:px-4 sm:py-3 text-right font-jersey text-base sm:text-lg" style={{ color: tColor, textShadow: `0 0 10px ${tColor}40` }}>{p.yds}</td>
+                        <td className="px-3 py-2 sm:px-4 sm:py-3 text-center font-jersey text-base sm:text-lg text-gray-300">{p.td}</td>
+                        {fullViewCategory === 'pass' && <td className="px-3 py-2 sm:px-4 sm:py-3 text-center font-jersey text-base sm:text-lg text-red-500/80">{p.int}</td>}
+                        {fullViewCategory === 'rec' && <td className="px-3 py-2 sm:px-4 sm:py-3 text-center font-jersey text-base sm:text-lg text-gray-500">{p.rec}</td>}
                       </>
                     )}
                     
-                    {fullViewCategory === 'sack' && <td className="px-4 py-4 text-right font-jersey text-xl" style={{ color: tColor, textShadow: `0 0 10px ${tColor}40` }}>{p.sack}</td>}
+                    {fullViewCategory === 'sack' && <td className="px-3 py-2 sm:px-4 sm:py-3 text-right font-jersey text-base sm:text-lg" style={{ color: tColor, textShadow: `0 0 10px ${tColor}40` }}>{p.sack}</td>}
                     {fullViewCategory === 'kick' && (
                        <>
-                         <td className="px-4 py-4 text-center font-jersey text-xl text-gray-300">{p.fgM}/{p.fgA}</td>
-                         <td className="px-4 py-4 text-center font-jersey text-xl text-gray-300">{p.xpM}/{p.xpA}</td>
-                         <td className="px-4 py-4 text-right font-jersey text-xl" style={{ color: tColor, textShadow: `0 0 10px ${tColor}40` }}>{p.pts}</td>
+                         <td className="px-3 py-2 sm:px-4 sm:py-3 text-center font-jersey text-base sm:text-lg text-gray-300">{p.fgM}/{p.fgA}</td>
+                         <td className="px-3 py-2 sm:px-4 sm:py-3 text-center font-jersey text-base sm:text-lg text-gray-300">{p.xpM}/{p.xpA}</td>
+                         <td className="px-3 py-2 sm:px-4 sm:py-3 text-right font-jersey text-base sm:text-lg" style={{ color: tColor, textShadow: `0 0 10px ${tColor}40` }}>{p.pts}</td>
                        </>
                     )}
                   </tr>
@@ -380,18 +404,15 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
     return (
       <div className="bg-black/60 border border-white/10 rounded-xl overflow-hidden flex flex-col transition-all group shadow-lg hover:shadow-[0_8px_30px_rgba(0,0,0,0.8)] relative">
         <div className="absolute inset-0 bg-gradient-to-t from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-        
         <div className="px-3 py-2 bg-black/80 border-b border-white/5 flex justify-between items-center relative z-10">
           <span className="font-sans text-[9px] font-black uppercase tracking-widest text-gray-400">{title}</span>
         </div>
-        
         <div className="p-4 flex-1 flex flex-col relative z-10">
           {topPlayer ? (
             <>
               <span className="text-white font-sport font-bold text-sm sm:text-base uppercase tracking-wider truncate w-full block mb-2" title={topPlayer.name}>
                 {topPlayer.name}
               </span>
-              
               <div className="flex justify-between items-end border-t border-white/5 pt-2 mt-auto">
                 <div className="flex items-baseline gap-1.5 shrink-0">
                   <span className="font-jersey text-2xl sm:text-2xl leading-none" style={{ color: tColor, textShadow: `0 0 10px ${tColor}60` }}>{topPlayer[statKey]}</span>
@@ -406,11 +427,7 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
              <span className="font-sans text-[10px] text-gray-600 font-black uppercase tracking-widest text-center py-4 my-auto">No Data</span>
           )}
         </div>
-        
-        <button 
-          onClick={() => setFullViewCategory(viewCategory)}
-          className="w-full py-2.5 bg-white/[0.02] hover:bg-white/10 border-t border-white/5 font-sans text-[9px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors flex items-center justify-center gap-1 mt-auto relative z-10"
-        >
+        <button onClick={() => setFullViewCategory(viewCategory)} className="w-full py-2.5 bg-white/[0.02] hover:bg-white/10 border-t border-white/5 font-sans text-[9px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors flex items-center justify-center gap-1 mt-auto relative z-10">
           View All <ChevronRight size={12} />
         </button>
       </div>
@@ -420,7 +437,6 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
   const TeamStatMiniCard = ({ title, totalVal, statLabel, viewCategory }: any) => (
     <div className="bg-black/60 border border-white/10 rounded-xl overflow-hidden flex flex-col transition-all group shadow-lg hover:shadow-[0_8px_30px_rgba(0,0,0,0.8)] relative">
       <div className="absolute inset-0 bg-gradient-to-t from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-      
       <div className="px-3 py-2 bg-black/80 border-b border-white/5 flex justify-between items-center relative z-10">
         <span className="font-sans text-[9px] font-black uppercase tracking-widest text-gray-400">{title}</span>
       </div>
@@ -430,10 +446,7 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
           <span className="font-sans text-[9px] text-gray-500 font-black uppercase tracking-widest">{statLabel}</span>
         </div>
       </div>
-      <button 
-        onClick={() => setFullViewCategory(viewCategory)}
-        className="w-full py-2.5 bg-white/[0.02] hover:bg-white/10 border-t border-white/5 font-sans text-[9px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors flex items-center justify-center gap-1 mt-auto relative z-10"
-      >
+      <button onClick={() => setFullViewCategory(viewCategory)} className="w-full py-2.5 bg-white/[0.02] hover:bg-white/10 border-t border-white/5 font-sans text-[9px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors flex items-center justify-center gap-1 mt-auto relative z-10">
         View All <ChevronRight size={12} />
       </button>
     </div>
@@ -461,7 +474,6 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
   const CompareRow = ({ label, teamVal, oppVal, isGoodIfHigher = true }: any) => {
       const tNum = parseFloat(teamVal);
       const oNum = parseFloat(oppVal);
-      
       let tClass = "text-white";
       let oClass = "text-gray-500";
       
@@ -489,35 +501,24 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
 
   return (
     <div className="bg-[#050505]/90 backdrop-blur-2xl border border-white/10 rounded-3xl flex flex-col overflow-hidden relative shadow-[0_20px_50px_rgba(0,0,0,0.8)]">
-      
-      <div 
-        className="absolute inset-0 z-0 pointer-events-none opacity-20 mix-blend-overlay"
-        style={{ backgroundImage: 'repeating-linear-gradient(-45deg, transparent, transparent 4px, rgba(255,255,255,0.05) 4px, rgba(255,255,255,0.05) 8px)' }}
-      />
-
+      <div className="absolute inset-0 z-0 pointer-events-none opacity-20 mix-blend-overlay" style={{ backgroundImage: 'repeating-linear-gradient(-45deg, transparent, transparent 4px, rgba(255,255,255,0.05) 4px, rgba(255,255,255,0.05) 8px)' }} />
       <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none z-0">
         {teamInfo?.logo_url && <img src={teamInfo.logo_url} className="w-56 h-56 object-contain" alt="" />}
       </div>
       
       <div className="flex border-b border-white/10 bg-black/60 relative z-10 shadow-inner">
-        <button 
-          onClick={() => setActiveTab('players')} 
-          className={`flex-1 py-4 font-sans text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'players' ? 'text-white bg-white/5' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.02]'}`}
-          style={activeTab === 'players' ? { borderBottom: `2px solid ${tColor}`, boxShadow: `inset 0 -10px 20px -10px ${tColor}40` } : {}}
-        >
+        <button onClick={() => setActiveTab('players')} className={`flex-1 py-4 font-sans text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'players' ? 'text-white bg-white/5' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.02]'}`} style={activeTab === 'players' ? { borderBottom: `2px solid ${tColor}`, boxShadow: `inset 0 -10px 20px -10px ${tColor}40` } : {}}>
           <User size={16} /> Player Stats
         </button>
-        <button 
-          onClick={() => setActiveTab('team')} 
-          className={`flex-1 py-4 font-sans text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'team' ? 'text-white bg-white/5' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.02]'}`}
-          style={activeTab === 'team' ? { borderBottom: `2px solid ${tColor}`, boxShadow: `inset 0 -10px 20px -10px ${tColor}40` } : {}}
-        >
+        <button onClick={() => setActiveTab('team')} className={`flex-1 py-4 font-sans text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'team' ? 'text-white bg-white/5' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.02]'}`} style={activeTab === 'team' ? { borderBottom: `2px solid ${tColor}`, boxShadow: `inset 0 -10px 20px -10px ${tColor}40` } : {}}>
           <Activity size={16} /> Team Matchup
+        </button>
+        <button onClick={() => setActiveTab('games')} className={`flex-1 py-4 font-sans text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'games' ? 'text-white bg-white/5' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.02]'}`} style={activeTab === 'games' ? { borderBottom: `2px solid ${tColor}`, boxShadow: `inset 0 -10px 20px -10px ${tColor}40` } : {}}>
+          <Calendar size={16} /> Season Games
         </button>
       </div>
 
       <div className="p-4 sm:p-6 relative z-10 bg-black/20">
-        
         {activeTab === 'players' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-fadeIn">
             <PlayerMiniCard title="Passing" data={fullPlayers.pass} viewCategory="pass" statKey="yds" statLabel="YDS" />
@@ -534,7 +535,6 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
         {activeTab === 'team' && (
           <div className="bg-black/60 border border-white/10 rounded-2xl p-4 sm:p-8 flex flex-col animate-fadeIn shadow-2xl relative overflow-hidden">
             <div className="absolute top-0 left-0 w-2 h-full" style={{ backgroundColor: tColor }}></div>
-            
             <div className="flex justify-between items-center font-sans text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-gray-500 border-b border-white/10 pb-4 mb-3 pl-4 sm:pl-2 px-2">
                <span className="w-1/3">Matchup Metric</span>
                <div className="flex gap-2 sm:gap-4 w-2/3 justify-end items-center">
@@ -548,21 +548,45 @@ export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerPro
               <CompareRow label="Total YDS/G" teamVal={((tStats.passYds + tStats.rushYds)/G).toFixed(1)} oppVal={((oStats.passYds + oStats.rushYds)/G).toFixed(1)} />
               <CompareRow label="Pass YDS/G" teamVal={(tStats.passYds / G).toFixed(1)} oppVal={(oStats.passYds / G).toFixed(1)} />
               <CompareRow label="Rush YDS/G" teamVal={(tStats.rushYds / G).toFixed(1)} oppVal={(oStats.rushYds / G).toFixed(1)} />
-              
               <CompareRow label="Pass TDs" teamVal={tStats.passTds} oppVal={oStats.passTds} />
               <CompareRow label="Rush TDs" teamVal={tStats.rushTds} oppVal={oStats.rushTds} />
               <CompareRow label="Defensive/ST TDs" teamVal={tStats.defTds} oppVal={oStats.defTds} />
-              
               <CompareRow label="Takeaways (Def)" teamVal={oStats.turnovers} oppVal={tStats.turnovers} />
               <CompareRow label="Giveaways (Off)" teamVal={tStats.turnovers} oppVal={oStats.turnovers} isGoodIfHigher={false} />
-              
               <CompareRow label="Sacks" teamVal={tStats.sacks} oppVal={oStats.sacks} />
               <CompareRow label="Points/G" teamVal={(tStats.pts / G).toFixed(1)} oppVal={(oStats.pts / G).toFixed(1)} />
             </div>
-
           </div>
         )}
-        
+
+        {activeTab === 'games' && (
+          <div className="space-y-4 animate-fadeIn">
+            {seasonGames.length === 0 ? (
+              <div className="bg-black/60 border border-white/5 rounded-2xl p-10 text-center font-sans text-xs text-gray-500 font-black uppercase tracking-widest">
+                No games recorded for this team.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 lg:gap-6 gap-4">
+                {seasonGames.map((game: any) => {
+                  const homeTeam = teamsMap[game.home_team_id?.toString()] || { name: 'Home', abbr: 'HOME', color: '#171717' };
+                  const awayTeam = teamsMap[game.away_team_id?.toString()] || { name: 'Away', abbr: 'AWAY', color: '#171717' };
+
+                  return (
+                    <div key={game.id} className="transform transition-transform hover:scale-[1.02]">
+                      <GameCard 
+                        game={game} 
+                        userTeamColor={tColor} 
+                        homeTeam={homeTeam} 
+                        awayTeam={awayTeam} 
+                        hidePicks={true}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

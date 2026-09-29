@@ -12,7 +12,6 @@ import { getPlayoffSeeds } from '@/utils/playoffs';
 import { Trophy, LayoutGrid, Calendar, BarChart2 } from 'lucide-react';
 import LeagueLeadersViewer from '@/components/scoreboard/LeagueLeadersViewer';
 
-// Lógica de Luminância para garantir cores legíveis
 const getLuminance = (hex: string) => {
   if (!hex) return 0;
   let cleanHex = hex.replace('#', '');
@@ -61,7 +60,6 @@ export default function Results() {
     return '#E31837';
   });
 
-  // Referência para o container onde as estatísticas são renderizadas
   const statsContainerRef = useRef<HTMLDivElement>(null);
   
   const router = useRouter();
@@ -165,23 +163,19 @@ export default function Results() {
     loadResultsData();
   }, [router, supabase]);
 
-  // Função que seleciona o time e faz o scroll suave até a área de stats
+  // Função melhorada para Scroll Perfeito
   const handleTeamSelection = (teamId: string) => {
     setSelectedTeamId(teamId);
     
-    // Pequeno atraso para garantir que o componente renderize antes do scroll
     setTimeout(() => {
       if (statsContainerRef.current) {
-        const offset = 80; // Dá um pequeno respiro no topo (abaixo do header fixo, se houver)
-        const elementPosition = statsContainerRef.current.getBoundingClientRect().top;
-        const offsetPosition = elementPosition + window.scrollY - offset;
-
+        const topPos = statsContainerRef.current.getBoundingClientRect().top + window.scrollY - 100;
         window.scrollTo({
-          top: offsetPosition,
+          top: topPos,
           behavior: 'smooth'
         });
       }
-    }, 100);
+    }, 150); // O timeout ligeiramente maior garante que a DOM assumiu as novas dimensões
   };
 
   if (loading) return <LoadingScreen/>;
@@ -196,7 +190,6 @@ export default function Results() {
   return (
     <main className="min-h-screen bg-[#050505] text-white font-sans pb-32 relative overflow-hidden">
       
-      {/* Luzes de Atmosfera */}
       <div 
         className="absolute -top-32 -left-32 w-[600px] h-[600px] rounded-full blur-[150px] opacity-30 pointer-events-none z-0 transition-colors duration-1000"
         style={{ backgroundColor: ambientPrimary }}
@@ -223,7 +216,6 @@ export default function Results() {
             <p className="font-sans text-xs sm:text-sm font-bold text-gray-400 uppercase tracking-widest mt-1">Official NFL data, complete schedule, and league metrics.</p>
           </div>
 
-          {/* Nav Pills - Glassmorphism */}
           <div className="flex bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl p-1.5 w-full max-w-lg mx-auto shadow-2xl mb-8">
             <button 
               onClick={() => setActiveTab('schedule')} 
@@ -248,7 +240,6 @@ export default function Results() {
             </button>
           </div>
 
-          {/* ================= ABA: SCHEDULE ================= */}
           {activeTab === 'schedule' && (
             <div className="space-y-6 animate-fadeIn">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/10 pb-4 gap-4 sm:gap-0">
@@ -355,7 +346,6 @@ export default function Results() {
             </div>
           )}
 
-          {/* ================= ABA: STANDINGS ================= */}
           {activeTab === 'standings' && (
             <div className="animate-fadeIn space-y-8">
               <h2 className="font-jersey text-3xl sm:text-4xl uppercase tracking-widest text-white border-b border-white/10 pb-4 drop-shadow-md">OFFICIAL STANDINGS</h2>
@@ -411,7 +401,6 @@ export default function Results() {
             </div>
           )}
 
-          {/* ================= ABA: TEAM STATS ================= */}
           {activeTab === 'stats' && (
             <div className="animate-fadeIn space-y-8">
               <h2 className="font-jersey text-3xl sm:text-4xl uppercase tracking-widest text-white border-b border-white/10 pb-4 drop-shadow-md">TEAM METRICS & LEADERS</h2>
@@ -466,11 +455,11 @@ export default function Results() {
               </div>
 
               {/* TARGET PARA O SCROLL DAS ESTATÍSTICAS */}
-              <div ref={statsContainerRef} className="pt-2">
+              <div ref={statsContainerRef} className="pt-4 pb-20 min-h-screen">
                 {selectedTeamId === 'NFL' || !selectedTeamId ? (
                    <LeagueLeadersViewer teamsDataMap={teamsMap} />
                 ) : selectedTeamId ? (
-                  <div className="mt-10 pt-8 border-t border-white/10 animate-fadeIn">
+                  <div className="mt-8 pt-6 border-t border-white/10 animate-fadeIn">
                     <TeamStatsViewer teamId={selectedTeamId} teamInfo={allTeamsList.find(t => t.id.toString() === selectedTeamId)} />
                   </div>
                 ) : null}

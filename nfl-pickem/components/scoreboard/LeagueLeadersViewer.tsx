@@ -15,10 +15,8 @@ export default function LeagueLeadersViewer({ teamsDataMap }: LeagueLeadersViewe
   const [leaders, setLeaders] = useState<any>(null);
   const [fullViewCategory, setFullViewCategory] = useState<FullViewCategory>(null);
 
-  // Estado de Ordenação
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
 
-  // Reseta a ordenação quando a categoria muda
   useEffect(() => {
     setSortConfig(null);
   }, [fullViewCategory]);
@@ -201,7 +199,6 @@ export default function LeagueLeadersViewer({ teamsDataMap }: LeagueLeadersViewe
       let aVal = a[sortConfig.key];
       let bVal = b[sortConfig.key];
 
-      // Lida com buscas customizadas por Nome de Time ou Sigla
       if (sortConfig.key === 'teamAbbr') {
         aVal = teamsDataMap[a.teamId]?.abbr || '';
         bVal = teamsDataMap[b.teamId]?.abbr || '';
@@ -223,12 +220,12 @@ export default function LeagueLeadersViewer({ teamsDataMap }: LeagueLeadersViewe
     };
 
     return (
-      <div className="space-y-6 mt-6 animate-fadeIn bg-black/80 backdrop-blur-2xl border border-white/10 rounded-3xl p-6 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
+      <div className="space-y-6 mt-6 animate-fadeIn bg-black/80 backdrop-blur-2xl border border-white/10 rounded-3xl p-4 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
         
         <div className="absolute inset-0 z-0 pointer-events-none opacity-20 mix-blend-overlay" style={{ backgroundImage: 'repeating-linear-gradient(-45deg, transparent, transparent 4px, rgba(255,255,255,0.05) 4px, rgba(255,255,255,0.05) 8px)' }} />
 
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/10 pb-5 relative z-10">
-          <h2 className="font-jersey text-3xl sm:text-4xl uppercase tracking-widest text-white drop-shadow-md">{categoryTitles[fullViewCategory]}</h2>
+          <h2 className="font-jersey text-2xl sm:text-4xl uppercase tracking-widest text-white drop-shadow-md">{categoryTitles[fullViewCategory]}</h2>
           <button 
             onClick={() => setFullViewCategory(null)}
             className="font-sans text-[10px] font-black uppercase tracking-widest text-gray-400 bg-white/5 hover:bg-white/10 px-4 py-2.5 rounded-xl transition-all border border-white/10 flex items-center gap-2 hover:scale-105 shadow-md"
@@ -237,76 +234,71 @@ export default function LeagueLeadersViewer({ teamsDataMap }: LeagueLeadersViewe
           </button>
         </div>
 
-        {/* SUB-NAVEGAÇÃO POR ABAS */}
         <div className="flex flex-col xl:flex-row gap-4 xl:gap-8 border-b border-white/5 pb-5 relative z-10">
           <div className="flex flex-col gap-2">
-            <span className="font-sans text-[9px] font-black uppercase tracking-widest text-gray-500">Player Offense</span>
+            <span className="font-sans text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-gray-500">Player Offense</span>
             <div className="flex bg-black/60 rounded-xl p-1 border border-white/10 shadow-inner w-fit">
-              <button onClick={() => setFullViewCategory('pass')} className={`px-4 py-2 font-sans text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'pass' ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-white'}`}>Passing</button>
-              <button onClick={() => setFullViewCategory('rush')} className={`px-4 py-2 font-sans text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'rush' ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-white'}`}>Rushing</button>
-              <button onClick={() => setFullViewCategory('rec')} className={`px-4 py-2 font-sans text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'rec' ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-white'}`}>Receiving</button>
+              <button onClick={() => setFullViewCategory('pass')} className={`px-3 py-1.5 sm:px-4 sm:py-2 font-sans text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'pass' ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-white'}`}>Passing</button>
+              <button onClick={() => setFullViewCategory('rush')} className={`px-3 py-1.5 sm:px-4 sm:py-2 font-sans text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'rush' ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-white'}`}>Rushing</button>
+              <button onClick={() => setFullViewCategory('rec')} className={`px-3 py-1.5 sm:px-4 sm:py-2 font-sans text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'rec' ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-white'}`}>Receiving</button>
             </div>
           </div>
 
           <div className="flex flex-col gap-2">
-            <span className="font-sans text-[9px] font-black uppercase tracking-widest text-gray-500">Player Defense</span>
+            <span className="font-sans text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-gray-500">Player Defense</span>
             <div className="flex bg-black/60 rounded-xl p-1 border border-white/10 shadow-inner w-fit">
-              <button onClick={() => setFullViewCategory('sack')} className={`px-4 py-2 font-sans text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'sack' ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-white'}`}>Sacks</button>
-              <button onClick={() => setFullViewCategory('int')} className={`px-4 py-2 font-sans text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'int' ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-white'}`}>Interceptions</button>
+              <button onClick={() => setFullViewCategory('sack')} className={`px-3 py-1.5 sm:px-4 sm:py-2 font-sans text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'sack' ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-white'}`}>Sacks</button>
+              <button onClick={() => setFullViewCategory('int')} className={`px-3 py-1.5 sm:px-4 sm:py-2 font-sans text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'int' ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-white'}`}>Interceptions</button>
             </div>
           </div>
 
           <div className="flex flex-col gap-2">
-            <span className="font-sans text-[9px] font-black uppercase tracking-widest text-gray-500">Team Statistics</span>
+            <span className="font-sans text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-gray-500">Team Statistics</span>
             <div className="flex bg-black/60 rounded-xl p-1 border border-white/10 shadow-inner w-fit flex-wrap">
-              <button onClick={() => setFullViewCategory('teamOffense')} className={`px-3 py-2 font-sans text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'teamOffense' ? 'bg-amber-500/20 text-amber-400 shadow-inner' : 'text-gray-500 hover:text-white'}`}>Offense</button>
-              <button onClick={() => setFullViewCategory('teamDefense')} className={`px-3 py-2 font-sans text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'teamDefense' ? 'bg-amber-500/20 text-amber-400 shadow-inner' : 'text-gray-500 hover:text-white'}`}>Defense</button>
-              <button onClick={() => setFullViewCategory('teamSacks')} className={`px-3 py-2 font-sans text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'teamSacks' ? 'bg-amber-500/20 text-amber-400 shadow-inner' : 'text-gray-500 hover:text-white'}`}>Sacks</button>
-              <button onClick={() => setFullViewCategory('teamTurnovers')} className={`px-3 py-2 font-sans text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'teamTurnovers' ? 'bg-amber-500/20 text-amber-400 shadow-inner' : 'text-gray-500 hover:text-white'}`}>Turnovers</button>
+              <button onClick={() => setFullViewCategory('teamOffense')} className={`px-3 py-1.5 sm:px-3 sm:py-2 font-sans text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'teamOffense' ? 'bg-amber-500/20 text-amber-400 shadow-inner' : 'text-gray-500 hover:text-white'}`}>Offense</button>
+              <button onClick={() => setFullViewCategory('teamDefense')} className={`px-3 py-1.5 sm:px-3 sm:py-2 font-sans text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'teamDefense' ? 'bg-amber-500/20 text-amber-400 shadow-inner' : 'text-gray-500 hover:text-white'}`}>Defense</button>
+              <button onClick={() => setFullViewCategory('teamSacks')} className={`px-3 py-1.5 sm:px-3 sm:py-2 font-sans text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'teamSacks' ? 'bg-amber-500/20 text-amber-400 shadow-inner' : 'text-gray-500 hover:text-white'}`}>Sacks</button>
+              <button onClick={() => setFullViewCategory('teamTurnovers')} className={`px-3 py-1.5 sm:px-3 sm:py-2 font-sans text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${fullViewCategory === 'teamTurnovers' ? 'bg-amber-500/20 text-amber-400 shadow-inner' : 'text-gray-500 hover:text-white'}`}>Turnovers</button>
             </div>
           </div>
         </div>
 
-        {/* TABELA COMPLETA */}
-        <div className="bg-black/60 border border-white/10 rounded-2xl overflow-x-auto relative z-10 shadow-inner">
-          <table className="w-full text-left whitespace-nowrap min-w-[550px]">
+        {/* TABELA COMPLETA COM SCROLL ESQUERDO FIXO */}
+        <div className="bg-black/60 border border-white/10 rounded-2xl overflow-x-auto relative z-10 shadow-inner custom-scrollbar">
+          <table className="w-full text-left whitespace-nowrap min-w-[350px] sm:min-w-[550px]">
             <thead>
-              <tr className="font-sans text-[9px] text-gray-500 uppercase tracking-widest border-b border-white/10 bg-black/80">
-                <th className="px-5 py-3 font-black w-14 text-center">RK</th>
+              <tr className="font-sans text-[8px] sm:text-[9px] text-gray-500 uppercase tracking-widest border-b border-white/10 bg-black/80">
                 {isPlayer ? (
                   <>
-                    <th className="px-5 py-3 font-black cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('name')}>
-                      <div className="flex items-center gap-1.5">Name {renderSortIcon('name')}</div>
-                    </th>
-                    <th className="px-5 py-3 font-black text-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('teamAbbr')}>
-                      <div className="flex items-center justify-center gap-1.5">Team {renderSortIcon('teamAbbr')}</div>
+                    <th className="sticky left-0 z-20 bg-[#0a0a0a] px-3 py-2 sm:px-5 sm:py-3 font-black cursor-pointer shadow-[4px_0_12px_rgba(0,0,0,0.6)] border-r border-white/5" onClick={() => handleSort('name')}>
+                      <div className="flex items-center gap-1.5">RK / Player {renderSortIcon('name')}</div>
                     </th>
                     {isOffense ? (
                       <>
-                        <th className="px-5 py-3 font-black text-right cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('yds')}>
+                        <th className="px-3 py-2 sm:px-5 sm:py-3 font-black text-right cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('yds')}>
                           <div className="flex items-center justify-end gap-1.5">YDS {renderSortIcon('yds')}</div>
                         </th>
-                        <th className="px-5 py-3 font-black text-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('td')}>
+                        <th className="px-3 py-2 sm:px-5 sm:py-3 font-black text-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('td')}>
                           <div className="flex items-center justify-center gap-1.5">TD {renderSortIcon('td')}</div>
                         </th>
                         {fullViewCategory === 'pass' && (
-                          <th className="px-5 py-3 font-black text-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('int')}>
+                          <th className="px-3 py-2 sm:px-5 sm:py-3 font-black text-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('int')}>
                             <div className="flex items-center justify-center gap-1.5">INT {renderSortIcon('int')}</div>
                           </th>
                         )}
                       </>
                     ) : (
-                      <th className="px-5 py-3 font-black text-right cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('val')}>
+                      <th className="px-3 py-2 sm:px-5 sm:py-3 font-black text-right cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('val')}>
                         <div className="flex items-center justify-end gap-1.5">{fullViewCategory === 'sack' ? 'SACKS' : 'INTS'} {renderSortIcon('val')}</div>
                       </th>
                     )}
                   </>
                 ) : (
                   <>
-                    <th className="px-5 py-3 font-black cursor-pointer hover:bg-white/5 transition-colors" onClick={() => handleSort('teamName')}>
-                      <div className="flex items-center gap-1.5">Team {renderSortIcon('teamName')}</div>
+                    <th className="sticky left-0 z-20 bg-[#0a0a0a] px-3 py-2 sm:px-5 sm:py-3 font-black cursor-pointer shadow-[4px_0_12px_rgba(0,0,0,0.6)] border-r border-white/5" onClick={() => handleSort('teamName')}>
+                      <div className="flex items-center gap-1.5">RK / Team {renderSortIcon('teamName')}</div>
                     </th>
-                    <th className="px-5 py-3 font-black text-right cursor-pointer hover:bg-white/5 transition-colors" onClick={() => {
+                    <th className="px-3 py-2 sm:px-5 sm:py-3 font-black text-right cursor-pointer hover:bg-white/5 transition-colors" onClick={() => {
                         if (fullViewCategory === 'teamOffense') handleSort('totalYds');
                         else if (fullViewCategory === 'teamDefense') handleSort('ydsAllowed');
                         else if (fullViewCategory === 'teamSacks') handleSort('sacks');
@@ -329,22 +321,26 @@ export default function LeagueLeadersViewer({ teamsDataMap }: LeagueLeadersViewe
                   const team = teamsDataMap[row.teamId] || {};
                   return (
                     <tr key={i} className="hover:bg-white/[0.04] transition-colors group">
-                      <td className="px-5 py-4 text-center font-jersey text-gray-500 text-base group-hover:text-white transition-colors">{i + 1}</td>
-                      <td className="px-5 py-4 text-white font-bold font-sport uppercase tracking-wider">{row.name}</td>
-                      <td className="px-5 py-4">
-                        <div className="flex items-center justify-center gap-2">
-                          {team.logo && <img src={team.logo} alt={team.abbr} className="w-6 h-6 object-contain drop-shadow-md" />}
-                          <span className="font-sport font-bold text-[10px] text-gray-400 uppercase tracking-wider">{team.abbr}</span>
+                      <td className="sticky left-0 z-10 bg-[#0a0a0a] group-hover:bg-[#141414] px-3 py-2 sm:px-5 sm:py-4 shadow-[4px_0_12px_rgba(0,0,0,0.6)] border-r border-white/5 transition-colors">
+                        <div className="flex items-center gap-2 sm:gap-3 w-32 sm:w-48">
+                          <span className="font-jersey text-gray-500 text-sm sm:text-base w-4 text-center shrink-0">{i + 1}</span>
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-white font-bold font-sport uppercase tracking-wider text-[9px] sm:text-[10px] truncate">{row.name}</span>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              {team.logo && <img src={team.logo} alt={team.abbr} className="w-3.5 h-3.5 object-contain" />}
+                              <span className="font-sport font-bold text-[7px] sm:text-[8px] text-gray-400 uppercase tracking-wider">{team.abbr}</span>
+                            </div>
+                          </div>
                         </div>
                       </td>
                       {isOffense ? (
                         <>
-                          <td className="px-5 py-4 text-right font-jersey text-2xl text-amber-500 drop-shadow-[0_0_8px_rgba(245,158,11,0.4)]">{row.yds}</td>
-                          <td className="px-5 py-4 text-center font-jersey text-xl text-gray-300">{row.td}</td>
-                          {fullViewCategory === 'pass' && <td className="px-5 py-4 text-center font-jersey text-xl text-gray-500">{row.int}</td>}
+                          <td className="px-3 py-2 sm:px-5 sm:py-4 text-right font-jersey text-base sm:text-xl text-amber-500 drop-shadow-[0_0_8px_rgba(245,158,11,0.4)]">{row.yds}</td>
+                          <td className="px-3 py-2 sm:px-5 sm:py-4 text-center font-jersey text-base sm:text-lg text-gray-300">{row.td}</td>
+                          {fullViewCategory === 'pass' && <td className="px-3 py-2 sm:px-5 sm:py-4 text-center font-jersey text-base sm:text-lg text-gray-500">{row.int}</td>}
                         </>
                       ) : (
-                        <td className="px-5 py-4 text-right font-jersey text-2xl text-amber-500 drop-shadow-[0_0_8px_rgba(245,158,11,0.4)]">{row.val}</td>
+                        <td className="px-3 py-2 sm:px-5 sm:py-4 text-right font-jersey text-base sm:text-xl text-amber-500 drop-shadow-[0_0_8px_rgba(245,158,11,0.4)]">{row.val}</td>
                       )}
                     </tr>
                   );
@@ -361,14 +357,16 @@ export default function LeagueLeadersViewer({ teamsDataMap }: LeagueLeadersViewe
 
                   return (
                     <tr key={i} className="hover:bg-white/[0.04] transition-colors group">
-                      <td className="px-5 py-4 text-center font-jersey text-gray-500 text-base group-hover:text-white transition-colors">{i + 1}</td>
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-3">
-                          {team.logo && <img src={team.logo} alt={team.abbr} className="w-7 h-7 object-contain drop-shadow-md" />}
-                          <span className="text-white font-sport font-bold text-sm uppercase tracking-wider">{team.name}</span>
+                      <td className="sticky left-0 z-10 bg-[#0a0a0a] group-hover:bg-[#141414] px-3 py-2 sm:px-5 sm:py-4 shadow-[4px_0_12px_rgba(0,0,0,0.6)] border-r border-white/5 transition-colors">
+                        <div className="flex items-center gap-2 sm:gap-3 w-36 sm:w-56">
+                          <span className="font-jersey text-gray-500 text-sm sm:text-base w-4 text-center shrink-0">{i + 1}</span>
+                          <div className="flex items-center gap-2 min-w-0">
+                            {team.logo && <img src={team.logo} alt={team.abbr} className="w-5 h-5 sm:w-6 sm:h-6 object-contain shrink-0" />}
+                            <span className="text-white font-bold font-sport uppercase tracking-wider text-[9px] sm:text-[10px] truncate">{team.name}</span>
+                          </div>
                         </div>
                       </td>
-                      <td className={`px-5 py-4 text-right font-jersey text-2xl leading-none pt-2 ${fullViewCategory === 'teamTurnovers' ? (val > 0 ? 'text-green-400 drop-shadow-[0_0_8px_rgba(74,222,128,0.5)]' : val < 0 ? 'text-red-400 drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]' : 'text-gray-400') : 'text-amber-500 drop-shadow-[0_0_8px_rgba(245,158,11,0.4)]'}`}>
+                      <td className={`px-3 py-2 sm:px-5 sm:py-4 text-right font-jersey text-base sm:text-xl leading-none pt-2 ${fullViewCategory === 'teamTurnovers' ? (val > 0 ? 'text-green-400 drop-shadow-[0_0_8px_rgba(74,222,128,0.5)]' : val < 0 ? 'text-red-400 drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]' : 'text-gray-400') : 'text-amber-500 drop-shadow-[0_0_8px_rgba(245,158,11,0.4)]'}`}>
                         {fullViewCategory === 'teamTurnovers' && val > 0 ? '+' : ''}{displayVal}
                       </td>
                     </tr>
@@ -382,9 +380,6 @@ export default function LeagueLeadersViewer({ teamsDataMap }: LeagueLeadersViewe
     );
   }
 
-  // ==========================================
-  // MINI-TABELAS (OVERVIEW)
-  // ==========================================
   const PlayerTable = ({ title, statLabel, data, viewCategory }: any) => (
     <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-xl flex flex-col h-full group hover:border-white/20 transition-all">
       <div className="flex justify-between items-center px-4 py-3 bg-black/80 border-b border-white/5">
