@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "../../utils/supabase/client";
+import { createClient } from "../../lib/supabase/client";
 import { ArrowLeft, ArrowUpDown, ChevronDown, ChevronUp } from "lucide-react";
 
 interface LeagueLeadersViewerProps {
@@ -107,8 +107,11 @@ export default function LeagueLeadersViewer({ teamsDataMap }: LeagueLeadersViewe
           teams[oppId].ydsAllowed += (gamePassYds + gameRushYds);
         };
 
-        processLeaders(g.meta_data?.leaders?.home || [], homeId, awayId);
-        processLeaders(g.meta_data?.leaders?.away || [], awayId, homeId);
+        // Forçamos o TypeScript a tratar o meta_data como um objeto JSON genérico (any)
+        const metaData = g.meta_data as any;
+
+        processLeaders(metaData?.leaders?.home || [], homeId, awayId);
+        processLeaders(metaData?.leaders?.away || [], awayId, homeId);
       });
 
       const sortPlayers = (dict: Record<string, any>, key: string) => {
@@ -193,7 +196,7 @@ export default function LeagueLeadersViewer({ teamsDataMap }: LeagueLeadersViewe
     const isOffense = ['pass', 'rush', 'rec'].includes(fullViewCategory);
     const dataList = isPlayer ? leaders.fullPlayers[fullViewCategory] : leaders.fullTeams[fullViewCategory];
 
-    const sortedDataList = [...dataList].sort((a, b) => {
+    const sortedDataList = [...dataList].sort((a: any, b: any) => {
       if (!sortConfig) return 0;
       
       let aVal = a[sortConfig.key];

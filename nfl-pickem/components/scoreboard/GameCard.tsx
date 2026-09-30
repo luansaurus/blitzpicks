@@ -2,11 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import BroadcastBadge from '../ui/BroadcastBadge';
-import { getPickResult } from '@/utils/scoring';
-import { Circle, MapPin, Activity } from 'lucide-react';
-import { createClient } from '@/utils/supabase/client';
-import { getGameCardSafeColor, getIsLight } from '@/lib/color';
-// Mude as chamadas internas getGameCardSafeColor(...) para getGameCardSafeColor(...)
+import { getPickResult } from '@/lib/scoring';
+import { Circle, MapPin, Scale, Activity } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import { getGameCardSafeColor } from '@/lib/color';
 
 interface GameCardProps {
   game: {
@@ -15,13 +14,13 @@ interface GameCardProps {
     away_team_id: number;
     game_time: string;
     week: string;
-    broadcast_tag?: string;
-    status?: string;
-    home_score?: number;
-    away_score?: number;
-    clock?: string;
+    broadcast_tag?: string | null;
+    status?: string | null;
+    home_score?: number | null;
+    away_score?: number | null;
+    clock?: string | null;
     meta_data?: any;
-    stadium?: { name: string; city: string };
+    stadium?: { name: string; city: string } | null;
   };
   userTeamColor: string;
   homeTeam: { name: string; abbr: string; color: string; logo?: string; conference?: string | null; record?: string };
@@ -33,7 +32,6 @@ interface GameCardProps {
   hidePicks?: boolean;
   customRules?: { exact: number | null, diff: number | null, winner: number | null };
 }
-
 
 const formatRecord = (recordStr?: string) => {
   if (!recordStr) return "";
@@ -123,7 +121,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
           if (!isHome && !isAway) return;
           gamesCount++;
 
-          const raw = gm.meta_data?.raw_boxscore;
+          const raw = (gm.meta_data as any)?.raw_boxscore;
           if (raw && raw.teams && raw.players) {
             const teamName = teamObj.name.toLowerCase().split(' ').pop();
             const myTeamBox = raw.teams.find((t:any) => t.team.displayName?.toLowerCase().includes(teamName) || t.team.name?.toLowerCase().includes(teamName));
@@ -190,7 +188,7 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
     }
     
     fetchMatchupStats();
-  }, [isExpanded, hasGameStarted, game.home_team_id, game.away_team_id]);
+  }, [isExpanded, hasGameStarted, game.home_team_id, game.away_team_id]); // Aqui tirei o pastGames longo!
 
   const handleScoreBlur = () => {
     const h = parseInt(homeRef.current);
@@ -256,7 +254,6 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
     return 0;
   });
 
-  // Removido o 'overflow-hidden' daqui para a badge poder vazar livremente!
   let wrapperClass = "transition-all duration-300 rounded-2xl h-full relative mt-2 flex flex-col ";
 
   if (hasGameStarted && existingPick && !hidePicks) {
@@ -291,11 +288,11 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
   else innerCardClass += " bg-[#050505]/95 backdrop-blur-xl shadow-inner";
   innerCardClass += isInputDisabled && !isLive ? " opacity-90" : "";
 
-  const awayWon = hasGameStarted && game.away_score !== undefined && game.home_score !== undefined && game.away_score > game.home_score;
-  const homeWon = hasGameStarted && game.away_score !== undefined && game.home_score !== undefined && game.home_score > game.away_score;
+  const awayWon = hasGameStarted && game.away_score !== undefined && game.away_score !== null && game.home_score !== undefined && game.home_score !== null && game.away_score > game.home_score;
+  const homeWon = hasGameStarted && game.away_score !== undefined && game.away_score !== null && game.home_score !== undefined && game.home_score !== null && game.home_score > game.away_score;
   const hasMetaData = game.meta_data && hasGameStarted;
 
-  const odds = game.meta_data?.odds;
+  const odds = (game.meta_data as any)?.odds;
   const hasOdds = odds && (odds.details || odds.overUnder);
 
   const filterAndFormatLeaders = (leaders: any[]) => {
@@ -330,9 +327,9 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
 
   let homeLeaders: any[] = [];
   let awayLeaders: any[] = [];
-  if (game.meta_data && game.meta_data.leaders) {
-    homeLeaders = filterAndFormatLeaders(game.meta_data.leaders.home || []);
-    awayLeaders = filterAndFormatLeaders(game.meta_data.leaders.away || []);
+  if (game.meta_data && (game.meta_data as any).leaders) {
+    homeLeaders = filterAndFormatLeaders((game.meta_data as any).leaders.home || []);
+    awayLeaders = filterAndFormatLeaders((game.meta_data as any).leaders.away || []);
   }
 
   const MatchupRow = ({ label, awayVal, homeVal, isFloat = false, isLowerBetter = false }: any) => {
@@ -367,7 +364,6 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
   return (
     <div className={wrapperClass} style={isUnsaved ? { background: userTeamColor, boxShadow: `0 0 20px ${userTeamColor}70` } : {}}>
       
-      {/* Container de Tags com whitespace-nowrap para impedir amasso! */}
       {sortedTags.length > 0 && (
         <div className="absolute -top-[12px] right-3 z-20 flex flex-nowrap whitespace-nowrap shrink-0 items-center gap-1 scale-[0.85] origin-bottom-right drop-shadow-xl">
           {sortedTags.map(tag => (
@@ -581,18 +577,18 @@ export default function GameCard({ game, userTeamColor, homeTeam, awayTeam, exis
                   <tbody className="divide-y divide-white/5">
                     <tr className="hover:bg-white/[0.02] transition-colors">
                       <td className="text-left py-2 pl-2 text-white font-jersey text-sm uppercase tracking-wider">{awayTeam?.abbr}</td>
-                      <td className="py-2 text-gray-400 font-jersey text-lg leading-none">{game.meta_data.linescores?.away?.[0] ?? '-'}</td>
-                      <td className="py-2 text-gray-400 font-jersey text-lg leading-none">{game.meta_data.linescores?.away?.[1] ?? '-'}</td>
-                      <td className="py-2 text-gray-400 font-jersey text-lg leading-none">{game.meta_data.linescores?.away?.[2] ?? '-'}</td>
-                      <td className="py-2 text-gray-400 font-jersey text-lg leading-none">{game.meta_data.linescores?.away?.[3] ?? '-'}</td>
+                      <td className="py-2 text-gray-400 font-jersey text-lg leading-none">{(game.meta_data as any).linescores?.away?.[0] ?? '-'}</td>
+                      <td className="py-2 text-gray-400 font-jersey text-lg leading-none">{(game.meta_data as any).linescores?.away?.[1] ?? '-'}</td>
+                      <td className="py-2 text-gray-400 font-jersey text-lg leading-none">{(game.meta_data as any).linescores?.away?.[2] ?? '-'}</td>
+                      <td className="py-2 text-gray-400 font-jersey text-lg leading-none">{(game.meta_data as any).linescores?.away?.[3] ?? '-'}</td>
                       <td className="py-2 text-white font-jersey text-xl leading-none drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]">{game.away_score}</td>
                     </tr>
                     <tr className="hover:bg-white/[0.02] transition-colors">
                       <td className="text-left py-2 pl-2 text-white font-jersey text-sm uppercase tracking-wider">{homeTeam?.abbr}</td>
-                      <td className="py-2 text-gray-400 font-jersey text-lg leading-none">{game.meta_data.linescores?.home?.[0] ?? '-'}</td>
-                      <td className="py-2 text-gray-400 font-jersey text-lg leading-none">{game.meta_data.linescores?.home?.[1] ?? '-'}</td>
-                      <td className="py-2 text-gray-400 font-jersey text-lg leading-none">{game.meta_data.linescores?.home?.[2] ?? '-'}</td>
-                      <td className="py-2 text-gray-400 font-jersey text-lg leading-none">{game.meta_data.linescores?.home?.[3] ?? '-'}</td>
+                      <td className="py-2 text-gray-400 font-jersey text-lg leading-none">{(game.meta_data as any).linescores?.home?.[0] ?? '-'}</td>
+                      <td className="py-2 text-gray-400 font-jersey text-lg leading-none">{(game.meta_data as any).linescores?.home?.[1] ?? '-'}</td>
+                      <td className="py-2 text-gray-400 font-jersey text-lg leading-none">{(game.meta_data as any).linescores?.home?.[2] ?? '-'}</td>
+                      <td className="py-2 text-gray-400 font-jersey text-lg leading-none">{(game.meta_data as any).linescores?.home?.[3] ?? '-'}</td>
                       <td className="py-2 text-white font-jersey text-xl leading-none drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]">{game.home_score}</td>
                     </tr>
                   </tbody>

@@ -2,81 +2,63 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '../../utils/supabase/client';
+import { createClient } from '@/lib/supabase/client';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { getSafeColor, getIsLight, getLuminance } from '@/lib/color';
+import type { Team } from '../../lib/types';
+import { useProfile } from '@/hooks/useProfile';
+import { useTeamTheme } from '@/hooks/useTeamTheme';
 
 export default function SetupPage() {
-  const [teams, setTeams] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+  const supabase = createClient();
+  
+  // Utilização dos novos Hooks Fortemente Tipados
+  const { profile, userId, loadingProfile } = useProfile(true);
+  
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [loadingTeams, setLoadingTeams] = useState(true);
   const [saving, setSaving] = useState(false);
   
   const [nickname, setNickname] = useState('');
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
-  
-  const router = useRouter();
-  const supabase = createClient();
 
-  // Estados locais para a iluminação do fundo
-  const [ambientPrimary, setAmbientPrimary] = useState<string>('#111');
-  const [ambientSecondary, setAmbientSecondary] = useState<string>('#ff2a2a');
+  // Utiliza o Hook de tema
+  const { ambientPrimary, ambientSecondary, updateTheme } = useTeamTheme(selectedTeamId, teams);
 
   useEffect(() => {
-    async function checkAuthAndLoadData() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.push('/login');
-        return;
-      }
-
+    async function loadTeams() {
       const { data: teamsData } = await supabase
         .from('teams')
         .select('*')
         .order('name', { ascending: true });
 
       if (teamsData) {
-        const teamsList = teamsData || [];
-        const freeAgent = teamsList.find(t => t.abbreviation === 'TBD');
-        const others = teamsList.filter(t => t.abbreviation !== 'TBD');
+        const freeAgent = teamsData.find((t: Team) => t.abbreviation === 'TBD');
+        const others = teamsData.filter((t: Team) => t.abbreviation !== 'TBD');
         setTeams(freeAgent ? [{ ...freeAgent, name: 'Free Agent' }, ...others] : others);
       }
-      
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('nickname, favorite_team_id')
-        .eq('id', session.user.id)
-        .maybeSingle();
-
-      if (profileData) {
-        if (profileData.nickname) setNickname(profileData.nickname);
-        if (profileData.favorite_team_id !== undefined) {
-          setSelectedTeamId(profileData.favorite_team_id);
-          
-          const savedTeam = teamsData?.find(t => t.id === profileData.favorite_team_id);
-          if (savedTeam) {
-            setAmbientPrimary(savedTeam.primary_color || '#111');
-            setAmbientSecondary(savedTeam.secondary_color || '#ff2a2a');
-          }
-        }
-      }
-
-      setLoading(false);
+      setLoadingTeams(false);
     }
+    loadTeams();
 
-    checkAuthAndLoadData();
-
-    // Limpeza ao sair para reverter Header e Footer caso não salve
     return () => {
       window.dispatchEvent(new Event('team-updated'));
     };
-  }, [router, supabase]);
+  }, [supabase]);
 
-  const handleTeamClick = (team: any) => {
+  // Sincroniza o estado local quando o profile terminar de carregar
+  useEffect(() => {
+    if (profile) {
+      if (profile.nickname) setNickname(profile.nickname);
+      if (profile.favorite_team_id !== null) setSelectedTeamId(profile.favorite_team_id);
+    }
+  }, [profile]);
+
+  const handleTeamClick = (team: Team) => {
     setSelectedTeamId(team.id);
-    setAmbientPrimary(team.primary_color || '#111');
-    setAmbientSecondary(team.secondary_color || '#ff2a2a');
+    updateTheme(team);
     
-    // Preview Instantâneo Global
     window.dispatchEvent(new CustomEvent('preview-team', {
       detail: {
         primary_color: team.primary_color,
@@ -87,15 +69,12 @@ export default function SetupPage() {
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nickname) return;
+    if (!nickname || !userId) return;
 
     setSaving(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { router.push('/login'); return; }
-
       const updateData = { 
-        id: session.user.id,
+        id: userId,
         nickname: nickname,
         favorite_team_id: selectedTeamId
       };
@@ -104,11 +83,11 @@ export default function SetupPage() {
       if (updateError) throw updateError;
 
       const chosenTeam = teams.find(t => t.id === selectedTeamId);
-      const newColor = chosenTeam ? getSafeColor(chosenTeam.primary_color) : '#ff2a2a';
+      const newColor = chosenTeam && chosenTeam.primary_color ? getSafeColor(chosenTeam.primary_color) : '#ff2a2a';
+      
       localStorage.setItem('blitz_accent', newColor);
       document.documentElement.style.setProperty('--team-accent', newColor);
 
-      // Confirma e aplica as alterações globais
       window.dispatchEvent(new Event('team-updated'));
       router.push('/dashboard');
     } catch (catchError) {
@@ -117,19 +96,16 @@ export default function SetupPage() {
     }
   };
 
-  if (loading) return <LoadingScreen />;
+  if (loadingProfile || loadingTeams) return <LoadingScreen />;
 
-  // Descobre qual cor (Primária ou Secundária) é a mais clara/brilhante
   const lumPri = getLuminance(ambientPrimary);
   const lumSec = getLuminance(ambientSecondary);
   const activeAccentColor = lumPri > lumSec ? ambientPrimary : ambientSecondary;
-  
   const isAccentLight = getIsLight(activeAccentColor);
 
   return (
     <main className="min-h-screen bg-[#050505] flex flex-col items-center justify-center py-12 px-4 sm:px-6 relative overflow-hidden">
       
-      {/* ATMOSFERA DINÂMICA (Glowing Orbs) */}
       <div 
         className="absolute -top-32 -left-32 w-[500px] h-[500px] rounded-full blur-[120px] opacity-40 transition-colors duration-1000 pointer-events-none z-0"
         style={{ backgroundColor: ambientPrimary }}
@@ -139,7 +115,6 @@ export default function SetupPage() {
         style={{ backgroundColor: ambientSecondary }}
       />
       
-      {/* Faixinhas de Transmissão (Textura Esportiva) */}
       <div 
         className="absolute inset-0 z-0 pointer-events-none opacity-25"
         style={{ backgroundImage: 'repeating-linear-gradient(-45deg, transparent, transparent 4px, rgba(255,255,255,0.05) 4px, rgba(255,255,255,0.05) 8px)' }}
@@ -149,7 +124,6 @@ export default function SetupPage() {
         className="w-full max-w-2xl bg-black/70 backdrop-blur-xl border-t-4 border-white/10 rounded-3xl p-6 sm:p-10 shadow-[0_25px_60px_rgba(0,0,0,0.8)] relative z-10 transition-colors duration-700"
         style={{ borderTopColor: activeAccentColor }}
       >
-        
         <div className="text-center mb-8">
           <h1 className="font-jersey font-bold text-2xl sm:text-5xl tracking-widest text-white uppercase mb-2">
             SIGN <span style={{ color: activeAccentColor, textShadow: `0 0 15px ${activeAccentColor}80` }} className="transition-colors duration-500">CONTRACT</span>
@@ -160,7 +134,6 @@ export default function SetupPage() {
         </div>
 
         <form onSubmit={handleSaveProfile} className="space-y-8">
-          
           <div className="bg-black/60 p-4 sm:p-6 rounded-2xl border-l-4 relative overflow-hidden transition-colors duration-500" style={{ borderLeftColor: activeAccentColor, borderTop: '1px solid rgba(255,255,255,0.05)', borderRight: '1px solid rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
             <label className="block font-sans text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-500 mb-2">
               1. Player Nickname
@@ -183,7 +156,6 @@ export default function SetupPage() {
               {teams.map((team) => {
                 const isSelected = selectedTeamId === team.id;
                 
-                // Pega apenas a última palavra do nome ("Buccaneers", "Commanders", "49ers") para não estourar
                 let displayName = 'FA';
                 if (team.abbreviation === 'TBD') {
                   displayName = 'FREE AGENT';
@@ -194,7 +166,6 @@ export default function SetupPage() {
                   displayName = team.abbreviation;
                 }
 
-                // Para cada card individual, descobre a cor mais clara do time para usar na borda/texto
                 const teamPri = team.primary_color || '#111';
                 const teamSec = team.secondary_color || '#ff2a2a';
                 const cardAccentColor = getLuminance(teamPri) > getLuminance(teamSec) ? teamPri : teamSec;
@@ -212,7 +183,7 @@ export default function SetupPage() {
                       borderColor: isSelected ? cardAccentColor : '', 
                       boxShadow: isSelected ? `0 10px 25px ${ambientPrimary}60` : 'none' 
                     }}
-                    title={team.name} // Mostra o nome completo no hover se cortar
+                    title={team.name}
                   >
                     <span 
                       className="font-jersey text-xs sm:text-[13px] tracking-wide text-center uppercase truncate w-full px-1 transition-colors"

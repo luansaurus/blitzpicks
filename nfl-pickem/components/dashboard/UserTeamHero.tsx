@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "../../utils/supabase/client";
+import { createClient } from "@/lib/supabase/client";
 import { Circle } from 'lucide-react';
 import TeamStatsViewer from '@/components/scoreboard/TeamStatsViewer';
 import { getSafeColor } from '@/lib/color';
@@ -15,11 +15,25 @@ interface UserTeamHeroProps {
   teamsDataMap?: Record<string, any>;
 }
 
+// Criando uma interface explícita para o time mesclado com a classificação
+interface DivisionTeam {
+  id: number;
+  name: string;
+  abbreviation: string;
+  logo_url: string | null;
+  wins?: number | null;
+  losses?: number | null;
+  ties?: number | null;
+  division_record?: string | null;
+  conference_record?: string | null;
+  non_conference_record?: string | null;
+}
+
 export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsDataMap }: UserTeamHeroProps) {
   const [teamInfo, setTeamInfo] = useState<any>(null);
   const [fullStandings, setFullStandings] = useState<any>(null); 
   
-  const [divisionStandings, setDivisionStandings] = useState<any[]>([]);
+  const [divisionStandings, setDivisionStandings] = useState<DivisionTeam[]>([]);
   const [loadingStandings, setLoadingStandings] = useState<boolean>(true);
   
   const [activeTab, setActiveTab] = useState<'profile' | 'lastMatch' | 'nextMatch' | null>(null);
@@ -29,7 +43,7 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
       if (!teamId) return;
       const supabase = createClient();
       
-      const { data: teamData } = await supabase.from('teams').select('*').eq('id', teamId).single();
+      const { data: teamData } = await supabase.from('teams').select('*').eq('id', Number(teamId)).single();
       if (teamData) setTeamInfo(teamData);
 
       if (teamData && teamData.abbreviation !== 'NFL') {
@@ -40,16 +54,32 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
             const divTeamIds = divTeams.map(t => t.id);
             const { data: divStd } = await supabase.from('standings').select('*').in('team_id', divTeamIds);
 
-            let merged = divTeams.map(t => {
-              const std = divStd?.find(s => s.team_id === t.id) || {};
-              return { ...t, ...std };
+            // CORREÇÃO: Forçamos o tipo para garantir ao TypeScript que os campos existem, com valores default seguros
+            let merged: DivisionTeam[] = divTeams.map(t => {
+              const std = divStd?.find(s => s.team_id === t.id);
+              return { 
+                id: t.id,
+                name: t.name,
+                abbreviation: t.abbreviation,
+                logo_url: t.logo_url,
+                wins: std?.wins ?? 0,
+                losses: std?.losses ?? 0,
+                ties: std?.ties ?? 0,
+                division_record: std?.division_record ?? "0-0",
+                conference_record: std?.conference_record ?? "0-0",
+                non_conference_record: std?.cross_conference_record ?? "0-0"
+              };
             });
 
             merged.sort((a, b) => {
-              const pctA = calculatePct(a.wins || 0, a.losses || 0, a.ties || 0);
-              const pctB = calculatePct(b.wins || 0, b.losses || 0, b.ties || 0);
+              const wA = a.wins || 0; const lA = a.losses || 0; const tA = a.ties || 0;
+              const wB = b.wins || 0; const lB = b.losses || 0; const tB = b.ties || 0;
+              
+              const pctA = calculatePct(wA, lA, tA);
+              const pctB = calculatePct(wB, lB, tB);
+              
               if (pctB !== pctA) return pctB - pctA;
-              return (b.wins || 0) - (a.wins || 0);
+              return wB - wA;
             });
 
             setDivisionStandings(merged);
@@ -136,7 +166,6 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
     }
   }
 
-  // Define a cor de destaque usando utilitário seguro importado (agora vindo do lib/color.ts)
   const heroColor = teamInfo.primary_color ? getSafeColor(teamInfo.primary_color) : '#ff2a2a';
 
   const renderGameDetails = (gameToRender: any, titleStr: string) => {
@@ -336,7 +365,7 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
       <div className="relative z-10 flex flex-col md:flex-row gap-6 items-center justify-between p-6 sm:p-10 pb-4 sm:pb-6">
         
         <div className="flex items-center gap-4 sm:gap-8 w-full md:w-auto">
-          {teamInfo.logo_url ? (
+          {teamInfo?.logo_url ? (
             <div className="w-20 h-20 sm:w-36 sm:h-36 bg-[#050505]/80 p-4 sm:p-6 rounded-2xl border border-white/20 shadow-[0_15px_30px_rgba(0,0,0,0.8)] backdrop-blur-md shrink-0 transition-transform group-hover:rotate-[-5deg]">
               <img src={teamInfo.logo_url} alt={teamInfo.name} className="w-full h-full object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]" />
             </div>
@@ -351,7 +380,6 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
               </span>
             )}
             
-            {/* NOME DO TIME COM TAMBÉM RESPONSIVO (text-2xl no mobile e text-7xl no desktop) */}
             <h1 className="font-jersey font-bold text-2xl sm:text-5xl md:text-7xl uppercase text-white drop-shadow-[0_5px_10px_rgba(0,0,0,0.8)] leading-none mb-1 tracking-wider break-words">
               {nameStr}
             </h1>
@@ -370,7 +398,6 @@ export default function UserTeamHero({ teamId, score, lastGame, nextGame, teamsD
           </div>
         </div>
 
-        {/* PONTUAÇÃO DO USUÁRIO VAZADA (OUTLINE) E GIGANTE */}
         <div className="flex flex-col items-center md:items-end w-full md:w-auto mt-4 md:mt-0 pt-4 md:pt-0 border-t border-white/10 md:border-t-0">
             <span className="font-sans text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 mb-[-5px] sm:mb-[-10px] z-10 bg-[#0a0a0a] px-2 rounded-full border border-white/10">
               TOTAL POINTS

@@ -3,15 +3,13 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '../../components/layout/header';
-import { createClient } from '../../utils/supabase/client';
+import { createClient } from '../../lib/supabase/client';
 import LoadingScreen from '@/components/ui/LoadingScreen';
-import { getPickResult } from '@/utils/scoring';
+import { getPickResult } from '@/lib/scoring';
 import SpyLockerRoom from '../../components/scoreboard/SpyLockerRoom';
 import { Calendar, Scale, Trophy, Eye, ChevronUp, Crown, Binoculars, Circle, Lock } from 'lucide-react';
 import { getBestColor } from '@/lib/color';
 import { PLAYOFF_ORDER, PLAYOFF_NAMES } from '@/lib/constants/playoffs';
-
-
 
 export default function RankingPage() {
   const router = useRouter();
@@ -60,7 +58,7 @@ export default function RankingPage() {
       if (profile?.favorite_team_id) {
         const { data: teamInfo } = await supabase.from('teams').select('primary_color, secondary_color').eq('id', profile.favorite_team_id).single();
         if (teamInfo) {
-          setUserColor(getBestColor(teamInfo.primary_color, teamInfo.secondary_color));
+          setUserColor(getBestColor(teamInfo.primary_color || '', teamInfo.secondary_color || ''));
           setAmbientPrimary(teamInfo.primary_color || '#013369');
           setAmbientSecondary(teamInfo.secondary_color || '#E31837');
         }
@@ -76,7 +74,7 @@ export default function RankingPage() {
           name: t.name, 
           abbr: t.abbreviation, 
           logo: t.logo_url,
-          color: getBestColor(t.primary_color, t.secondary_color) 
+          color: getBestColor(t.primary_color || '', t.secondary_color || '') 
         }; 
       });
       setTeamsMap(tMap);

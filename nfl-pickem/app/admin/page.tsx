@@ -9,8 +9,6 @@ import BroadcastBadge from '@/components/ui/BroadcastBadge';
 import { CheckCircle2, XCircle, RefreshCw, Zap } from 'lucide-react';
 import { getBestColor } from '@/lib/color';
 
-
-
 export default function AdminPage() {
   const [gamesByWeek, setGamesByWeek] = useState<Record<string, any[]>>({});
   const [teamsDataMap, setTeamsDataMap] = useState<Record<string, any>>({});
@@ -57,7 +55,7 @@ export default function AdminPage() {
           name: t.name, 
           abbr: t.abbreviation, 
           logo: t.logo_url,
-          color: getBestColor(t.primary_color, t.secondary_color)
+          color: getBestColor(t.primary_color || '', t.secondary_color || '')
         }; 
       });
       setTeamsDataMap(tMap);
@@ -65,7 +63,7 @@ export default function AdminPage() {
       if (profile.favorite_team_id && teams) {
         const tInfo = teams.find(t => t.id === profile.favorite_team_id);
         if (tInfo) {
-          setUserColor(getBestColor(tInfo.primary_color, tInfo.secondary_color));
+          setUserColor(getBestColor(tInfo.primary_color || '', tInfo.secondary_color || ''));
           setAmbientPrimary(tInfo.primary_color || '#013369');
           setAmbientSecondary(tInfo.secondary_color || '#E31837');
         }
@@ -86,7 +84,7 @@ export default function AdminPage() {
         setGamesByWeek(grouped);
         const sortedWeeks = Object.keys(grouped).sort((a, b) => Number(a) - Number(b));
         const activeWeek = sortedWeeks.find(week => !grouped[week].every((g: any) => g.status === 'finished')) || sortedWeeks[sortedWeeks.length - 1];
-        setExpandedWeek(activeWeek);
+        setExpandedWeek(activeWeek || null);
       }
       setLoading(false);
     }
@@ -173,10 +171,9 @@ export default function AdminPage() {
     showToast("Requesting ESPN data...", "info");
     
     try {
-      // A rota valida a sessão de admin no servidor; nenhum secret trafega pelo navegador.
-      const response = await fetch('/api/sync-games', { method: 'POST' });
+      const response = await fetch('/api/admin/sync-games', { method: 'POST' }); 
       const data = await response.json();
-      if(data.success) {
+      if(data.success || response.ok) {
         window.location.reload(); 
       } else {
         showToast("Auto-sync failed to respond.", "error");
@@ -199,7 +196,6 @@ export default function AdminPage() {
   return (
     <main className="min-h-screen bg-[#050505] text-white font-sans pb-40 sm:pb-48 relative overflow-hidden">
       
-      {/* Spotlights de Fundo */}
       <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
         <div 
           className="absolute -top-32 -left-32 w-[600px] h-[600px] rounded-full blur-[150px] opacity-30 transition-colors duration-1000"
@@ -311,7 +307,6 @@ export default function AdminPage() {
                             </div>
 
                             <div className="flex flex-col gap-2.5 grow justify-center">
-                              {/* Away Team Input Row */}
                               <div className="flex items-center justify-between bg-black/60 p-2 sm:p-2.5 rounded-xl border border-white/5 shadow-inner">
                                 <div className="flex items-center gap-2 min-w-0 pr-2">
                                   {awayTeam?.logo ? <img src={awayTeam.logo} alt="" className="w-6 h-6 object-contain shrink-0 drop-shadow-sm" /> : <div className="w-6 h-6 bg-white/5 rounded-full shrink-0" />}
@@ -328,7 +323,6 @@ export default function AdminPage() {
                                 />
                               </div>
 
-                              {/* Home Team Input Row */}
                               <div className="flex items-center justify-between bg-black/60 p-2 sm:p-2.5 rounded-xl border border-white/5 shadow-inner">
                                 <div className="flex items-center gap-2 min-w-0 pr-2">
                                   {homeTeam?.logo ? <img src={homeTeam.logo} alt="" className="w-6 h-6 object-contain shrink-0 drop-shadow-sm" /> : <div className="w-6 h-6 bg-white/5 rounded-full shrink-0" />}

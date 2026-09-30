@@ -1,20 +1,29 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "../../utils/supabase/client";
+import { createClient } from "@/lib/supabase/client";
 import { User, Activity, ArrowLeft, ChevronRight, ArrowUpDown, ChevronDown, ChevronUp, Calendar, Circle } from "lucide-react";
 import GameCard from "./GameCard";
 import { getBestColor } from '@/lib/color';
+import type { Game, Team } from '@/lib/types';
 
 interface TeamStatsViewerProps {
   teamId: string;
-  teamInfo: any;
-  userColor?: string;
+  teamInfo: Team;
 }
 
 type FullViewCategory = 'pass' | 'rush' | 'rec' | 'sack' | 'kick' | null;
 
-export default function TeamStatsViewer({ teamId, teamInfo, userColor }: TeamStatsViewerProps) {
+// Tipagem auxiliar para o JSON do Supabase
+interface GameMetaData {
+  leaders?: { home?: any[]; away?: any[] };
+  raw_boxscore?: {
+    teams?: any[];
+    players?: any[];
+  };
+}
+
+export default function TeamStatsViewer({ teamId, teamInfo }: TeamStatsViewerProps) {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'players' | 'team' | 'games'>('players');
@@ -32,6 +41,8 @@ export default function TeamStatsViewer({ teamId, teamInfo, userColor }: TeamSta
       setLoading(true);
       const supabase = createClient();
       
+      // Removidos os cast (as Promise<...>) problemáticos. 
+      // O Supabase já sabe o que essas tabelas retornam!
       const [{ data: teamGames }, { data: allTeams }, { data: seasonGames }] = await Promise.all([
         supabase
           .from('games')
@@ -46,12 +57,15 @@ export default function TeamStatsViewer({ teamId, teamInfo, userColor }: TeamSta
           .order('game_time', { ascending: true })
       ]);
 
-      const tMap: Record<string, any> = {};
+      const tMap: Record<string, Team & { color: string }> = {};
       allTeams?.forEach(t => {
-        tMap[t.id.toString()] = { name: t.name, abbr: t.abbreviation, logo: t.logo_url, color: getBestColor(t.primary_color, t.secondary_color) };
+        tMap[t.id.toString()] = { 
+          ...t, 
+          color: getBestColor(t.primary_color || '', t.secondary_color || '') 
+        };
       });
 
-      const players = { pass: {}, rush: {}, rec: {}, def: {}, kick: {} } as any;
+      const players = { pass: {} as any, rush: {} as any, rec: {} as any, def: {} as any, kick: {} as any };
 
       const tStats = { games: 0, pts: 0, passYds: 0, rushYds: 0, passTds: 0, rushTds: 0, defTds: 0, sacks: 0, turnovers: 0 };
       const oStats = { pts: 0, passYds: 0, rushYds: 0, passTds: 0, rushTds: 0, defTds: 0, sacks: 0, turnovers: 0 };
@@ -67,18 +81,20 @@ export default function TeamStatsViewer({ teamId, teamInfo, userColor }: TeamSta
         tStats.pts += (isHome ? game.home_score : game.away_score) || 0;
         oStats.pts += (isHome ? game.away_score : game.home_score) || 0;
 
-        const myLeaders = isHome ? game.meta_data?.leaders?.home : game.meta_data?.leaders?.away;
+        const metaData = game.meta_data as unknown as GameMetaData;
+        const myLeaders = isHome ? metaData?.leaders?.home : metaData?.leaders?.away;
         const teamDef = myLeaders?.find((l: any) => l.category === 'TEAM_DEF');
-        if (teamDef) {
+        
+        if (teamDef && typeof teamDef.stat === 'string') {
             const matchSacks = teamDef.stat.match(/(\d+(?:\.\d+)?)\s*Sack/i);
             const matchInts = teamDef.stat.match(/(\d+)\s*INT/i);
             const matchFums = teamDef.stat.match(/(\d+)\s*Fum/i);
             if (matchSacks) totalDefSacks += parseFloat(matchSacks[1]);
-            if (matchInts) totalDefInts += parseInt(matchInts[1]);
-            if (matchFums) totalDefFums += parseInt(matchFums[1]);
+            if (matchInts) totalDefInts += parseInt(matchInts[1], 10);
+            if (matchFums) totalDefFums += parseInt(matchFums[1], 10);
         }
 
-        const raw = game.meta_data?.raw_boxscore;
+        const raw = metaData?.raw_boxscore;
         
         if (raw && raw.teams && raw.players) {
             const myName = teamInfo.name?.toLowerCase() || '';
@@ -594,7 +610,7 @@ export default function TeamStatsViewer({ teamId, teamInfo, userColor }: TeamSta
                   return (
                     <div key={game.id} className="transform transition-transform hover:scale-[1.02]">
                       <GameCard 
-                        game={game} 
+                        game={game as Game} 
                         userTeamColor={tColor} 
                         homeTeam={homeTeam} 
                         awayTeam={awayTeam} 
