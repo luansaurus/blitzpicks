@@ -1,5 +1,5 @@
 import { timingSafeEqual } from 'crypto';
-import { createClient } from '@/utils/server';
+import { createClient } from '@/lib/supabase/server';
 
 /** Comparação em tempo constante, para não vazar o secret por diferença de tempo de resposta. */
 function safeEqual(a: string, b: string) {

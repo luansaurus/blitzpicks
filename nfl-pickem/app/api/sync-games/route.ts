@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { isCronAuthorized } from '@/utils/routeAuth';
 import { ESPN_SCOREBOARD_URL, ESPN_SUMMARY_URL } from '@/lib/config';
 import { findTeam, extractFullRoster, getTeamStat, getKicks, getPunts } from '@/lib/server/espn';
 import { recalculateStandings, recalculateLeaderboard } from '@/lib/server/recalculate';
@@ -9,12 +10,11 @@ import { recalculateStandings, recalculateLeaderboard } from '@/lib/server/recal
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const secret = searchParams.get('secret');
     const isPatch = searchParams.get('patch')?.toLowerCase() === 'true'; 
     const weekParam = searchParams.get('week');
     const seasonTypeParam = searchParams.get('seasontype') || '2';
     
-    if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
+    if (!isCronAuthorized(request)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

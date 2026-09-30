@@ -3,12 +3,14 @@ import { calculatePoints } from '@/lib/scoring';
 import { isPlayoffWeek } from '@/lib/constants/playoffs';
 
 export async function recalculateStandings(supabase: SupabaseClient) {
-  const { data: teams } = await supabase.from('teams').select('id, conference, division');
-  const { data: games } = await supabase.from('games').select('home_team_id, away_team_id, home_score, away_score, status, week').eq('status', 'finished');
+  const { data: teams, error: teamsErr } = await supabase.from('teams').select('id, conference, division');
+  const { data: games, error: gamesErr } = await supabase.from('games').select('home_team_id, away_team_id, home_score, away_score, status, week').eq('status', 'finished');
+  if (teamsErr || gamesErr) throw new Error(`recalculateStandings: ${(teamsErr || gamesErr)!.message}`);
 
   if (!teams || !games) return;
 
-  const { data: existingStandings } = await supabase.from('standings').select('id, team_id');
+  const { data: existingStandings, error: standErr } = await supabase.from('standings').select('id, team_id');
+  if (standErr) throw new Error(`recalculateStandings: ${standErr.message}`);
   const standingsMap = new Map((existingStandings || []).map((s: any) => [s.team_id, s.id]));
 
   const upserts = teams.map((team) => {
@@ -60,14 +62,17 @@ export async function recalculateStandings(supabase: SupabaseClient) {
 
   // Batch Upsert
   if (upserts.length > 0) {
-    await supabase.from('standings').upsert(upserts);
+    const { error } = await supabase.from('standings').upsert(upserts);
+    if (error) throw new Error(`recalculateStandings upsert: ${error.message}`);
   }
 }
 
 export async function recalculateLeaderboard(supabase: SupabaseClient) {
-  const { data: users } = await supabase.from('profiles').select('id');
-  const { data: games } = await supabase.from('games').select('id, home_score, away_score').eq('status', 'finished');
-  const { data: guesses } = await supabase.from('guesses').select('*');
+  const { data: users, error: usersErr } = await supabase.from('profiles').select('id');
+  const { data: games, error: gamesErr } = await supabase.from('games').select('id, home_score, away_score').eq('status', 'finished');
+  const { data: guesses, error: guessesErr } = await supabase.from('guesses').select('*');
+  const firstErr = usersErr || gamesErr || guessesErr;
+  if (firstErr) throw new Error(`recalculateLeaderboard: ${firstErr.message}`);
 
   if (!users || !games || !guesses) return;
 
@@ -86,6 +91,7 @@ export async function recalculateLeaderboard(supabase: SupabaseClient) {
 
   // Batch Upsert
   if (updates.length > 0) {
-    await supabase.from('profiles').upsert(updates);
+    const { error } = await supabase.from('profiles').upsert(updates);
+    if (error) throw new Error(`recalculateLeaderboard upsert: ${error.message}`);
   }
 }

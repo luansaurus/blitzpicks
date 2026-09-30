@@ -586,7 +586,7 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="animate-fadeIn">
-              <LeagueHub userColor={userColor} currentUserId={currentUserId} isAdmin={isAdmin} isVip={isVip} />
+              <LeagueHub userColor={userColor || '#E31837'} currentUserId={currentUserId ?? ''} isAdmin={isAdmin} isVip={isVip} />
             </div>
           )}
         </div>
