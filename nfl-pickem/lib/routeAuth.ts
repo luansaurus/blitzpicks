@@ -16,9 +16,24 @@ export async function isAdminSession() {
 }
 
 export function isCronAuthorized(request: Request) {
-  const authHeader = request.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const expectedSecret = process.env.CRON_SECRET;
+  
+  if (!expectedSecret) {
     return false;
   }
-  return true;
+
+  // 1. Verifica a palavra-passe pelo cabeçalho (Padrão Vercel Cron)
+  const authHeader = request.headers.get('authorization');
+  if (authHeader === `Bearer ${expectedSecret}`) {
+    return true;
+  }
+
+  // 2. Verifica a palavra-passe pelo endereço URL (Cron externo ou manual)
+  const url = new URL(request.url);
+  const querySecret = url.searchParams.get('secret');
+  if (querySecret === expectedSecret) {
+    return true;
+  }
+
+  return false;
 }
