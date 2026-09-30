@@ -13,7 +13,11 @@ export async function recalculateStandings(supabase: SupabaseClient) {
   if (standErr) throw new Error(`recalculateStandings: ${standErr.message}`);
   const standingsMap = new Map((existingStandings || []).map((s: any) => [s.team_id, s.id]));
 
-  const upserts = teams.map((team) => {
+  // CORREÇÃO: Separamos em duas listas para o Supabase não injetar 'null' nos IDs em massa
+  const inserts: any[] = [];
+  const updates: any[] = [];
+
+  teams.forEach((team) => {
     let wins = 0, losses = 0, ties = 0;
     let divW = 0, divL = 0, divT = 0;
     let confW = 0, confL = 0, confT = 0;
@@ -47,7 +51,11 @@ export async function recalculateStandings(supabase: SupabaseClient) {
     });
 
     const recordPayload: any = {
-      team_id: team.id, wins, losses, ties,
+      team_id: team.id, 
+      division: team.division || 'Unknown',
+      wins, 
+      losses, 
+      ties,
       division_record: `${divW}-${divL}${divT > 0 ? `-${divT}` : ''}`,
       conference_record: `${confW}-${confL}${confT > 0 ? `-${confT}` : ''}`,
       cross_conference_record: `${crossW}-${crossL}${crossT > 0 ? `-${crossT}` : ''}`,
@@ -55,15 +63,22 @@ export async function recalculateStandings(supabase: SupabaseClient) {
     };
 
     const existingId = standingsMap.get(team.id);
-    if (existingId) recordPayload.id = existingId;
-
-    return recordPayload;
+    if (existingId) {
+      recordPayload.id = existingId;
+      updates.push(recordPayload);
+    } else {
+      inserts.push(recordPayload);
+    }
   });
 
-  // Batch Upsert
-  if (upserts.length > 0) {
-    const { error } = await supabase.from('standings').upsert(upserts);
-    if (error) throw new Error(`recalculateStandings upsert: ${error.message}`);
+  if (updates.length > 0) {
+    const { error } = await supabase.from('standings').upsert(updates);
+    if (error) throw new Error(`recalculateStandings update: ${error.message}`);
+  }
+  
+  if (inserts.length > 0) {
+    const { error } = await supabase.from('standings').insert(inserts);
+    if (error) throw new Error(`recalculateStandings insert: ${error.message}`);
   }
 }
 
@@ -89,7 +104,6 @@ export async function recalculateLeaderboard(supabase: SupabaseClient) {
     return { id: user.id, score: totalScore };
   });
 
-  // Batch Upsert
   if (updates.length > 0) {
     const { error } = await supabase.from('profiles').upsert(updates);
     if (error) throw new Error(`recalculateLeaderboard upsert: ${error.message}`);

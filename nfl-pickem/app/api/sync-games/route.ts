@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { isCronAuthorized } from '@/utils/routeAuth';
+import { isCronAuthorized } from '@/lib/routeAuth';
 import { ESPN_SCOREBOARD_URL, ESPN_SUMMARY_URL } from '@/lib/config';
 import { findTeam, extractFullRoster, getTeamStat, getKicks, getPunts } from '@/lib/server/espn';
 import { recalculateStandings, recalculateLeaderboard } from '@/lib/server/recalculate';
@@ -168,7 +168,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ success: true, processed: updatedCount });
 
-  } catch (error) {
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  } catch (error: any) {
+    console.error("ERRO FATAL NO SYNC:", error);
+    return NextResponse.json({ error: error.message, stack: error.stack }, { status: 500 });
   }
 }

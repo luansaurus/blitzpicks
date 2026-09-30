@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '../../components/layout/header';
-import { createClient } from '../../utils/supabase/client';
+import { createClient } from '../../lib/supabase/client';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import BroadcastBadge from '@/components/ui/BroadcastBadge';
 import { CheckCircle2, XCircle, RefreshCw, Zap } from 'lucide-react';

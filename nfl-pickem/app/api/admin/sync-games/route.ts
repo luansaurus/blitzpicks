@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
-import { isAdminSession } from '@/utils/routeAuth';
+import { isAdminSession } from '@/lib/routeAuth';
 
 export async function POST(request: Request) {
   try {
-    // getUser() valida o token no Supabase. getSession() só lê o cookie e pode ser forjado.
     if (!(await isAdminSession())) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 });
     }
@@ -11,7 +10,6 @@ export async function POST(request: Request) {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || new URL(request.url).origin;
     const syncUrl = new URL('/api/sync-games', baseUrl);
 
-    // Secret no header (nunca na URL) e só no servidor
     const res = await fetch(syncUrl.toString(), {
       method: 'GET',
       headers: { Authorization: `Bearer ${process.env.CRON_SECRET ?? ''}` },
@@ -21,6 +19,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json(data, { status: res.status });
   } catch (error: any) {
-    return NextResponse.json({ error: `Falha interna: ${error.message}` }, { status: 500 });
+    // Vamos cuspir o erro real no terminal e na resposta da rede!
+    console.error("ERRO FATAL NA API:", error);
+    return NextResponse.json({ 
+      error: `Falha interna: ${error.message}`,
+      stack: error.stack 
+    }, { status: 500 });
   }
 }
