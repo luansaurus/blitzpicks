@@ -17,7 +17,7 @@ export default function SpyLockerRoom({ targetUserId, targetNickname, userColor,
   useEffect(() => {
     async function fetchPicks() {
       setLoading(true);
-      const { data } = await supabase.from('guesses').select('*').eq('user_id', targetUserId);
+      const { data } = await supabase.rpc('get_masked_guesses', { p_user_id: targetUserId });
       setTheirGuesses(data || []);
       const regularWeeks = Object.keys(gamesByWeek).filter(w => !isNaN(Number(w))).sort((a, b) => Number(a) - Number(b));
       const activeWeek = regularWeeks.find(w => !gamesByWeek[w].every((g: any) => g.status === 'finished')) || regularWeeks[regularWeeks.length - 1];

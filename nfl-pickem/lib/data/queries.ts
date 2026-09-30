@@ -24,9 +24,11 @@ export async function getGames(supabase: SupabaseClient<Database>) {
   return data || [];
 }
 
+// Palpites de todos os usuários. Os placares de outros usuários só vêm reais a partir de
+// 10 min antes do jogo (ou sempre, para VIP/admin). Antes disso vêm "mascarados" (1x0, 0x1
+// ou 0x0), mantendo apenas o lado escolhido. Ver supabase get_masked_guesses().
 export async function getGuesses(supabase: SupabaseClient<Database>) {
-  const { data, error } = await supabase.from('guesses')
-    .select('id, user_id, game_id, home_guess, away_guess');
+  const { data, error } = await supabase.rpc('get_masked_guesses');
   if (error) throw error;
   return data || [];
 }
