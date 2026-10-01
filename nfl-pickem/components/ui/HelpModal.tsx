@@ -545,24 +545,24 @@ export default function HelpModal({ isOpen, onClose, accentColor, initialTab = '
         </div>
 
         {/* Rodapé - Agora com o contato de suporte à esquerda */}
-        <div className="p-4 sm:p-5 border-t border-white/10 bg-black/60 flex items-center justify-between relative z-10 shadow-inner">
+        <div className="p-4 pb-6 sm:pb-5 sm:p-5 border-t border-white/10 bg-black/60 flex items-center justify-between gap-2 relative z-10 shadow-inner">
           <a 
             href="mailto:blitzpicks6@gmail.com" 
-            className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors group"
+            className="flex items-center gap-2 sm:gap-3 text-gray-400 hover:text-white transition-colors group overflow-hidden"
           >
-            <div className="bg-white/5 group-hover:bg-white/10 p-2 rounded-full border border-white/5 transition-colors">
-              <Mail size={16} />
+            <div className="bg-white/5 group-hover:bg-white/10 p-1.5 sm:p-2 rounded-full border border-white/5 transition-colors shrink-0">
+              <Mail size={14} className="sm:w-4 sm:h-4" />
             </div>
-            <div className="flex flex-col hidden sm:flex">
-              <span className="font-sport font-bold text-[10px] uppercase tracking-wider leading-none mb-1">Found an issue?</span>
-              <span className="font-sans text-[10px] text-gray-500 font-medium leading-none">blitzpicks6@gmail.com</span>
+            <div className="flex flex-col min-w-0">
+              <span className="font-sport font-bold text-[9px] sm:text-[10px] uppercase tracking-wider leading-none mb-1 truncate">Found a bug?</span>
+              <span className="font-sans text-[9px] sm:text-[10px] text-gray-400 sm:text-gray-500 font-medium leading-none truncate">blitzpicks6@gmail.com</span>
             </div>
           </a>
           
           <button
             type="button"
             onClick={onClose}
-            className="px-6 py-3 rounded-xl font-sport font-bold text-sm uppercase tracking-wider text-black transition-all shadow-xl hover:scale-105"
+            className="px-4 py-2.5 sm:px-6 sm:py-3 rounded-xl font-sport font-bold text-xs sm:text-sm uppercase tracking-wider text-black transition-all shadow-xl hover:scale-105 shrink-0"
             style={{ backgroundColor: accentColor }}
           >
             Got It
