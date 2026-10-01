@@ -61,7 +61,7 @@ export default function Results() {
       if (profile?.favorite_team_id) {
         const { data: teamInfo } = await supabase.from('teams').select('primary_color, secondary_color').eq('id', profile.favorite_team_id).single();
         if (teamInfo) {
-          setUserColor(getBestColor(teamInfo.primary_color, teamInfo.secondary_color));
+          setUserColor(getBestColor(teamInfo.primary_color || '', teamInfo.secondary_color || ''));
           setAmbientPrimary(teamInfo.primary_color || '#013369');
           setAmbientSecondary(teamInfo.secondary_color || '#E31837');
         }
@@ -84,18 +84,21 @@ export default function Results() {
       }
 
       teams?.forEach(t => {
-        const record = standings?.find(s => s.team_id?.toString() === t.id.toString()) || { 
-          wins: 0, losses: 0, ties: 0, division_record: '0-0', conference_record: '0-0', cross_conference_record: '0-0' 
-        };
-        const totalGames = record.wins + record.losses + record.ties;
-        const pct = totalGames === 0 ? 0 : (record.wins + (record.ties * 0.5)) / totalGames;
-        const recordStr = `${record.wins}-${record.losses}${record.ties > 0 ? `-${record.ties}` : ''}`;
-        const teamData = { ...t, ...record, pct, conference: t.conference };
+          const record = standings?.find(s => s.team_id?.toString() === t.id.toString()) || { 
+            wins: 0, losses: 0, ties: 0, division_record: '0-0', conference_record: '0-0', cross_conference_record: '0-0' 
+          };
+          const wins = record.wins ?? 0;
+          const losses = record.losses ?? 0;
+          const ties = record.ties ?? 0;
+          const totalGames = wins + losses + ties;
+          const pct = totalGames === 0 ? 0 : (wins + (ties * 0.5)) / totalGames;
+          const recordStr = `${wins}-${losses}${ties > 0 ? `-${ties}` : ''}`;
+          const teamData = { ...t, ...record, wins, losses, ties, pct, conference: t.conference };
         
         tMap[t.id.toString()] = { 
           name: t.name, 
           abbr: t.abbreviation, 
-          color: getBestColor(t.primary_color, t.secondary_color), 
+          color: getBestColor(t.primary_color || '', t.secondary_color || ''), 
           logo: t.logo_url, 
           record: recordStr 
         };
@@ -418,7 +421,7 @@ export default function Results() {
                                   <div className="grid grid-cols-2 gap-3 sm:gap-4 place-items-center w-fit mx-auto">
                                      {divTeams.map(team => {
                                        const isSelected = selectedTeamId === team.id.toString();
-                                       const tColor = getBestColor(team.primary_color, team.secondary_color);
+                                       const tColor = getBestColor(team.primary_color || '', team.secondary_color || '');
                                        return (
                                         <button 
                                           key={team.id}
