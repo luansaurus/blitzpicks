@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { getThemeColor } from '.@/lib/color';
+import { getThemeColor } from '@/lib/color';
 import { Trophy, ArrowRight } from 'lucide-react';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 
@@ -58,7 +58,7 @@ export default function SetupPage() {
 
     const { data: { user } } = await supabase.auth.getUser();
     const { error } = await supabase.from('profiles').upsert({
-      id: user?.id, nickname, favorite_team_id: selectedTeamId
+      id: user?.id as string, nickname, favorite_team_id: selectedTeamId
     });
 
     if (error) { alert("Error saving profile"); setSaving(false); return; }
