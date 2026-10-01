@@ -62,43 +62,23 @@ export default function JoinLeagueModal({
       return;
     }
 
-    const { data: target, error } = await supabase
-      .from('leagues')
-      .select('*')
-      .eq('invite_code', code)
-      .single<League>();
+    const { data: leagueId, error } = await supabase.rpc('join_league_by_code', { p_code: code });
 
-    if (error || !target) { 
-      setModalError('Invalid invite code.'); 
+    if (error) {
+      if (error.message.includes('invalid_code')) setModalError('Invalid invite code.');
+      else if (error.message.includes('already_member')) setModalError('Already in this league.');
+      else if (error.message.includes('league_full')) setModalError('League is full.');
+      else if (error.message.includes('not_authenticated')) setModalError('Not authenticated.');
+      else setModalError('Error joining league.');
       setIsProcessing(false);
-      return; 
+      return;
     }
 
-    const { data: existingMember } = await supabase
-      .from('league_members')
-      .select('user_id')
-      .match({ league_id: target.id, user_id: currentUserId })
-      .single();
-
-    if (existingMember) { 
-      setModalError('Already in this league.'); 
-      setIsProcessing(false);
-      return; 
-    }
-
-    const { count } = await supabase
-      .from('league_members')
-      .select('*', { count: 'exact', head: true })
-      .eq('league_id', target.id);
-
-    if ((count || 0) >= 10) { 
-      setModalError('League is full.'); 
-      setIsProcessing(false);
-      return; 
-    }
-
-    await executeJoin(target.id, target.name);
-    setIsProcessing(false);
+    setActiveLeague(leagueId as string); 
+    setActiveTab('leagues'); 
+    showToast('Joined league!', "success"); 
+    await reload(); 
+    onClose();
   };
 
   return (

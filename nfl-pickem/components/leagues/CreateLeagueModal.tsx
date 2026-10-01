@@ -45,16 +45,6 @@ export default function CreateLeagueModal({
     setIsProcessing(true);
     setModalError('');
     
-    if (!isAdmin) {
-      const { count } = await supabase.from('leagues').select('*', { count: 'exact', head: true }).eq('owner_id', currentUserId);
-      const limit = isVip ? 10 : 3;
-      if (count && count >= limit) { 
-        setModalError(`Limit reached! Max ${limit} leagues.`); 
-        setIsProcessing(false); 
-        return; 
-      }
-    }
-    
     const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     const { data: newLeague, error } = await supabase.from('leagues').insert([{ 
       name: modalInput.trim(), 
@@ -66,7 +56,18 @@ export default function CreateLeagueModal({
       pts_winner: winnerVal
     }]).select().single<League>();
     
-    if (error || !newLeague) { 
+    if (error) { 
+      if (error.message.includes('league_limit')) {
+        const limit = isVip ? 10 : 3;
+        setModalError(`Limit reached! Max ${limit} leagues.`);
+      } else {
+        setModalError('Error creating league.');
+      }
+      setIsProcessing(false); 
+      return; 
+    }
+    
+    if (!newLeague) {
       setModalError('Error creating league.'); 
       setIsProcessing(false); 
       return; 
