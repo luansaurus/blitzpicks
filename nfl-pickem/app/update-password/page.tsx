@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '../../utils/supabase/client';
+import { createClient } from '@/lib/supabase/client';
 import { AlertTriangle, CheckCircle2, ShieldCheck, ArrowRight } from 'lucide-react';
 
 export default function UpdatePasswordPage() {

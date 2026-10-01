@@ -6,7 +6,7 @@ import Header from '../../components/layout/header';
 import PlayoffLiveView from '../../components/bracket/PlayoffLiveView';
 import GameCard from '../../components/scoreboard/GameCard';
 import TeamStatsViewer from '../../components/scoreboard/TeamStatsViewer'; 
-import { createClient } from '../../utils/supabase/client';
+import { createClient } from '@/lib/supabase/client';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { getPlayoffSeeds } from '@/lib/playoffs';
 import { Trophy, LayoutGrid, Calendar, BarChart2 } from 'lucide-react';

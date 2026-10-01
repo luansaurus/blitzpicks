@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { isCronAuthorized } from '@/lib/routeAuth';
+import { isCronAuthorized } from '@/lib/server/auth';
 import { ESPN_SCOREBOARD_URL, ESPN_SUMMARY_URL } from '@/lib/config';
 import { findTeam, extractFullRoster, getTeamStat, getKicks, getPunts } from '@/lib/server/espn';
 import { recalculateStandings, recalculateLeaderboard } from '@/lib/server/recalculate';

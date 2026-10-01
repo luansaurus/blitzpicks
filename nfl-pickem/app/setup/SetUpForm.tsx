@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '../../utils/supabase/client';
-import { getThemeColor } from '../../utils/theme';
+import { createClient } from '@/lib/supabase/client';
+import { getThemeColor } from '.@/lib/color';
 import { Trophy, ArrowRight } from 'lucide-react';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 

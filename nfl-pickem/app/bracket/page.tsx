@@ -2,38 +2,33 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import Header from '../../components/layout/header';
-import { createClient } from '../../utils/supabase/client';
+import { createClient } from '@/lib/supabase/client';
 import LoadingScreen from '@/components/ui/LoadingScreen';
-import { Repeat, Save, Loader2, Camera, X, AlertTriangle } from 'lucide-react';
+import { Repeat, Save, Camera, X, AlertTriangle } from 'lucide-react';
 import { PLAYOFF_ORDER, PLAYOFF_NAMES } from '@/lib/constants/playoffs';
 import { getBestColor } from '@/lib/color';
-
-const TBD_TEAM = { 
-  name: 'To Be Determined', 
-  abbr: 'TBD', 
-  color: '#333333', 
-  logo_url: 'https://upload.wikimedia.org/wikipedia/en/a/a2/National_Football_League_logo.svg'
-};
+import { TBD_TEAM } from '@/lib/constants/teams';
+import Spinner from '@/components/ui/Spinner';
+import { CURRENT_SEASON } from '@/lib/config';
 
 type Team = { id: string | number; name: string; abbreviation?: string; abbr?: string; logo_url: string; seed: number; conference: string; division: string };
 type ConfSeeds = Record<number, Team | null>;
 
-
 export default function BracketPage() {
   const [loading, setLoading] = useState(true);
   
-const [userColor, setUserColor] = useState(() => {
-  if (typeof window !== 'undefined') return localStorage.getItem('blitz_accent') || '#E31837';
-  return '#E31837';
-});
-const [ambientPrimary, setAmbientPrimary] = useState(() => {
-  if (typeof window !== 'undefined') return localStorage.getItem('blitz_header_bg') || '#013369';
-  return '#013369';
-});
-const [ambientSecondary, setAmbientSecondary] = useState(() => {
-  if (typeof window !== 'undefined') return localStorage.getItem('blitz_header_sec') || '#E31837';
-  return '#E31837';
-});
+  const [userColor, setUserColor] = useState(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('blitz_accent') || '#E31837';
+    return '#E31837';
+  });
+  const [ambientPrimary, setAmbientPrimary] = useState(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('blitz_header_bg') || '#013369';
+    return '#013369';
+  });
+  const [ambientSecondary, setAmbientSecondary] = useState(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('blitz_header_sec') || '#E31837';
+    return '#E31837';
+  });
 
   const [allTeams, setAllTeams] = useState<any[]>([]);
   
@@ -73,7 +68,7 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
         if (profile?.favorite_team_id && teamsData) {
           const tInfo = teamsData.find(t => t.id === profile.favorite_team_id);
           if (tInfo) {
-            setUserColor(getBestColor(tInfo.primary_color, tInfo.secondary_color));
+            setUserColor(getBestColor(tInfo.primary_color || '', tInfo.secondary_color || ''));
             setAmbientPrimary(tInfo.primary_color || '#013369');
             setAmbientSecondary(tInfo.secondary_color || '#E31837');
           }
@@ -85,12 +80,16 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
         const { data: savedBracket } = await supabase.from('user_brackets')
           .select('seeds, picks')
           .eq('user_id', user.id)
-          .eq('season', '2026')
+          .eq('season', CURRENT_SEASON)
           .maybeSingle();
 
         if (savedBracket) {
-          if (savedBracket.seeds && Object.keys(savedBracket.seeds).length > 0) setSeeds(savedBracket.seeds);
-          if (savedBracket.picks && Object.keys(savedBracket.picks).length > 0) setPicks(savedBracket.picks);
+          if (savedBracket.seeds && Object.keys(savedBracket.seeds as Record<string, any>).length > 0) {
+            setSeeds(savedBracket.seeds as unknown as { AFC: ConfSeeds, NFC: ConfSeeds });
+          }
+          if (savedBracket.picks && Object.keys(savedBracket.picks as Record<string, any>).length > 0) {
+            setPicks(savedBracket.picks as unknown as Record<string, Team | null>);
+          }
         }
       }
 
@@ -110,7 +109,7 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
 
       const { error } = await supabase.from('user_brackets').upsert({
         user_id: user.id,
-        season: '2026',
+        season: CURRENT_SEASON,
         seeds: seeds,
         picks: picks,
         updated_at: new Date().toISOString()
@@ -199,7 +198,7 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
         const { error } = await supabase.from('user_brackets')
           .delete()
           .eq('user_id', user.id)
-          .eq('season', '2026');
+          .eq('season', CURRENT_SEASON);
 
         if (error) throw error;
       }
@@ -443,7 +442,7 @@ const [ambientSecondary, setAmbientSecondary] = useState(() => {
                 className="px-4 sm:px-5 py-2.5 rounded-lg font-sans text-[10px] sm:text-xs font-black uppercase tracking-widest transition shadow-lg flex items-center gap-2 hover:scale-105 disabled:opacity-70 disabled:cursor-wait" 
                 style={{ backgroundColor: userColor, color: '#000' }}
               >
-                {isCapturing ? 'Processing...' : 'Share'} {isCapturing ? <Loader2 size={14} className="animate-spin text-black" /> : <Camera size={14} className="text-black" />}
+                {isCapturing ? 'Processing...' : 'Share'} {isCapturing ? <Spinner size={14} className="text-black" /> : <Camera size={14} className="text-black" />}
               </button>
             </div>
           </div>

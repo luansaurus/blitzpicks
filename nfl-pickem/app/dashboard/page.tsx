@@ -5,13 +5,12 @@ import { useRouter } from 'next/navigation';
 import Header from '../../components/layout/header';
 import UserTeamHero from '../../components/dashboard/UserTeamHero';
 import GameCard from '../../components/scoreboard/GameCard';
-import { createClient } from '../../utils/supabase/client';
+import { createClient } from '@/lib/supabase/client';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import LeagueHub from '../../components/leagues/LeagueHub';
-import { getPickResult } from '@/utils/scoring';
+import { getPickResult, DEFAULT_RULES } from '@/lib/scoring';
 import { Shirt, Shield, Star, Crown, Trophy, Target, Minimize2, CheckCircle2, XCircle, LineChart } from 'lucide-react';
 import { getBestColor } from '@/lib/color';
-
 
 export default function Dashboard() {
   const supabase = createClient();
@@ -76,8 +75,8 @@ export default function Dashboard() {
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
       if (!profile?.nickname) { router.push('/setup'); return; }
 
-      setIsAdmin(profile.is_admin);
-      setIsVip(profile.is_vip);
+      setIsAdmin(!!profile.is_admin);
+      setIsVip(!!profile.is_vip);
       
       if (profile.favorite_team_id) {
         setFavoriteTeamId(profile.favorite_team_id);
@@ -100,12 +99,12 @@ export default function Dashboard() {
       resTeams.data?.forEach(t => { 
         const record = resStandings.data?.find(s => s.team_id?.toString() === t.id.toString());
         tMap[t.id.toString()] = { 
-          name: t.name, abbr: t.abbreviation, color: getBestColor(t.primary_color, t.secondary_color), logo: t.logo_url,
-          record: record ? `${record.wins}-${record.losses}${record.ties > 0 ? `-${record.ties}` : ''}` : '0-0' 
+          name: t.name, abbr: t.abbreviation, color: getBestColor(t.primary_color || '', t.secondary_color || ''), logo: t.logo_url,
+          record: record ? `${record.wins}-${record.losses}${(record.ties ?? 0) > 0 ? `-${record.ties}` : ''}` : '0-0' 
         }; 
         
         if (profile.favorite_team_id && t.id.toString() === profile.favorite_team_id.toString()) {
-          setUserColor(getBestColor(t.primary_color, t.secondary_color));
+          setUserColor(getBestColor(t.primary_color || '', t.secondary_color || ''));
           setAmbientPrimary(t.primary_color || '#013369');
           setAmbientSecondary(t.secondary_color || '#E31837');
         }
@@ -176,7 +175,7 @@ export default function Dashboard() {
       }
       refreshLeagues();
     }
-  }, [activeDashboardTab, currentUserId, supabase]);
+  }, [activeDashboardTab, currentUserId, supabase, loading]);
 
   const handlePickChange = (gameId: string | number, homeStr: string, awayStr: string) => {
     const gId = gameId.toString();
@@ -195,7 +194,10 @@ export default function Dashboard() {
   };
 
   const handleSaveAll = async () => {
+    if (!currentUserId) return;
     setSaveStatus('saving');
+    
+    // Removido cast explicito invalido para garantir apenas propriedades necessárias ao update do supabase
     const payload = Object.entries(draftPicks).map(([gameId, scores]) => ({
       user_id: currentUserId,
       game_id: parseInt(gameId),
@@ -231,7 +233,7 @@ export default function Dashboard() {
 
   const leagueWinner = useMemo(() => {
     if (!isSeasonOver || !allUsers.length) return null;
-    const rulesToUse = currentRules || { exact: 7, diff: 5, winner: 3 };
+    const rulesToUse = currentRules || DEFAULT_RULES;
     const validUserIds = safeContextLeagueId ? (leagueMembersMap[safeContextLeagueId] || []) : allUsers.map(u => u.id);
     const competingUsers = allUsers.filter(u => validUserIds.includes(u.id));
 
@@ -255,7 +257,7 @@ export default function Dashboard() {
 
     if (!games.length || !allUsers.length || !currentUserId) return { dynamicScore: 0, currentContextRank: null };
 
-    const rulesToUse = currentRules || { exact: 7, diff: 5, winner: 3 };
+    const rulesToUse = currentRules || DEFAULT_RULES;
     const validUserIds = safeContextLeagueId ? (leagueMembersMap[safeContextLeagueId] || []) : allUsers.map(u => u.id);
     const competingUsers = allUsers.filter(u => validUserIds.includes(u.id));
 
@@ -317,7 +319,7 @@ export default function Dashboard() {
     let totalPts = 0;
     const weeksPlayed = new Set<string>();
 
-    const rulesToUse = currentRules || { exact: 7, diff: 5, winner: 3 };
+    const rulesToUse = currentRules || DEFAULT_RULES;
 
     myGuesses.forEach(guess => {
       const game = games.find(g => g.id === guess.game_id);
@@ -433,7 +435,7 @@ export default function Dashboard() {
                           backgroundSize: '1em' 
                         }}
                       >
-                        <option className="bg-[#111111]" value="global">Global Leaderboard (7/5/3)</option>
+                        <option className="bg-[#111111]" value="global">Global Leaderboard ({DEFAULT_RULES.exact}/{DEFAULT_RULES.diff}/{DEFAULT_RULES.winner})</option>
                         {myLeagues.map(league => (
                           <option className="bg-[#111111]" key={league.id} value={league.id}>
                             {league.name}
@@ -442,7 +444,7 @@ export default function Dashboard() {
                       </select>
                     ) : (
                       <span className="font-sport font-bold text-xs sm:text-base uppercase tracking-wider text-white drop-shadow-md pt-0.5 truncate">
-                        Global Leaderboard (7/5/3)
+                        Global Leaderboard ({DEFAULT_RULES.exact}/{DEFAULT_RULES.diff}/{DEFAULT_RULES.winner})
                       </span>
                     )}
                   </div>

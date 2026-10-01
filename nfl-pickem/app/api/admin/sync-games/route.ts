@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { isAdminSession } from '@/lib/routeAuth';
+import { isAdminSession } from '@/lib/server/auth';
 
 export async function POST(request: Request) {
   try {

@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { recalculateStandings, recalculateLeaderboard } from '@/lib/server/recalculate';
-import { isAdminSession, isCronAuthorized } from '@/lib/routeAuth';
+import { isAdminSession, isCronAuthorized } from '@/lib/server/auth';
 
 export async function POST(request: Request) {
   if (!isCronAuthorized(request) && !(await isAdminSession())) {

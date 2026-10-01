@@ -2,20 +2,10 @@
 
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { createClient } from '../../utils/supabase/client';
+import { createClient } from '@/lib/supabase/client';
 import { Shirt, ClipboardList, Trophy, BarChart3, Calendar } from 'lucide-react';
 import NextLink from 'next/link';
-
-const getIsLight = (hex: string) => {
-  if (!hex) return false;
-  let cleanHex = hex.replace('#', '');
-  if (cleanHex.length === 3) cleanHex = cleanHex.split('').map(x => x + x).join('');
-  const r = parseInt(cleanHex.substring(0, 2), 16);
-  const g = parseInt(cleanHex.substring(2, 4), 16);
-  const b = parseInt(cleanHex.substring(4, 6), 16);
-  const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-  return yiq >= 135; 
-};
+import { getIsLight } from '@/lib/color';
 
 export default function Footer() {
   const pathname = usePathname();

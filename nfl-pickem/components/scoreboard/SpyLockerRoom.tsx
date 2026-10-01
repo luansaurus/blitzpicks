@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { createClient } from '@/utils/supabase/client';
-import { getPickResult } from '@/utils/scoring';
+import { createClient } from '@/lib/supabase/client';
+import { getPickResult } from '@/lib/scoring';
 import { Circle, Lock, Scale } from 'lucide-react';
 
 export default function SpyLockerRoom({ targetUserId, targetNickname, userColor, gamesByWeek, teamsMap, myGuesses, rules }: any) {

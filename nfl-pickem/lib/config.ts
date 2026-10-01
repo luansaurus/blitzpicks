@@ -1,4 +1,5 @@
 export const CURRENT_SEASON = '2026';
+export const CURRENT_SEASON_YEAR = 2026;
 export const TBD_TEAM_ABBR = 'TBD';
 export const NFL_FALLBACK_LOGO = 'https://a.espncdn.com/i/teamlogos/nfl/500/scoreboard/nfl.png';
 

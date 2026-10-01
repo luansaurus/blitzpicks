@@ -3,33 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '../../components/layout/header';
-import { createClient } from '../../utils/supabase/client';
+import { createClient } from '@/lib/supabase/client';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { Calendar, Scale } from 'lucide-react';
-
-// Ordem e Nomes Oficiais dos Playoffs
-const PLAYOFF_ORDER = ['WC', 'DR', 'CC', 'SB'];
-const PLAYOFF_NAMES: Record<string, string> = {
-  'WC': 'Wild Card',
-  'DR': 'Divisional Round',
-  'CC': 'Conference Championship',
-  'SB': 'Super Bowl'
-};
-
-function calculatePoints(homeScore: number | null, awayScore: number | null, homeGuess: number, awayGuess: number) {
-  if (homeScore === null || awayScore === null) return 0;
-  const realDiff = homeScore - awayScore;
-  const predDiff = homeGuess - awayGuess;
-  const realWinner = realDiff > 0 ? 'home' : realDiff < 0 ? 'away' : 'tie';
-  const predWinner = predDiff > 0 ? 'home' : predDiff < 0 ? 'away' : 'tie';
-
-  if (homeScore === homeGuess && awayScore === awayGuess) return 7;
-  if (realWinner === predWinner && realWinner !== 'tie') {
-    if (realDiff === predDiff) return 5;
-    return 3;
-  }
-  return 0;
-}
+import { calculatePoints, DEFAULT_RULES } from '@/lib/scoring';
+import { PLAYOFF_ORDER, PLAYOFF_NAMES } from '@/lib/constants/playoffs';
 
 export default function VipArea() {
   const [gamesByWeek, setGamesByWeek] = useState<Record<string, any[]>>({});
@@ -67,8 +45,8 @@ export default function VipArea() {
       const uMap: Record<string, { nickname: string, logoUrl: string | null }> = {};
       profiles?.forEach(p => { 
         uMap[p.id] = { 
-          nickname: p.nickname, 
-          logoUrl: tMap[p.favorite_team_id]?.logo_url || null
+          nickname: p.nickname || 'Player', 
+          logoUrl: p.favorite_team_id ? (tMap[p.favorite_team_id]?.logo_url || null) : null
         }; 
       });
       setUsersMap(uMap);
@@ -278,8 +256,8 @@ export default function VipArea() {
                           let bgGradient = "bg-[#111111]";
 
                           if (hasStarted) {
-                            if (pts === 7) { borderColor = "border-[#3b82f6]/80"; ptsColor = "text-[#3b82f6]"; bgGradient = "bg-gradient-to-b from-[#3b82f6]/10 to-[#111111]"; } 
-                            else if (pts >= 3) { borderColor = "border-[#10b981]/80"; ptsColor = "text-[#10b981]"; bgGradient = "bg-gradient-to-b from-[#10b981]/10 to-[#111111]";  } 
+                            if (pts === DEFAULT_RULES.exact) { borderColor = "border-[#3b82f6]/80"; ptsColor = "text-[#3b82f6]"; bgGradient = "bg-gradient-to-b from-[#3b82f6]/10 to-[#111111]"; } 
+                            else if (pts >= DEFAULT_RULES.winner) { borderColor = "border-[#10b981]/80"; ptsColor = "text-[#10b981]"; bgGradient = "bg-gradient-to-b from-[#10b981]/10 to-[#111111]";  } 
                             else { borderColor = "border-[#ef4444]/50"; ptsColor = "text-[#ef4444]"; bgGradient = "bg-gradient-to-b from-[#ef4444]/10 to-[#111111]"; } 
                           }
 
